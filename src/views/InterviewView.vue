@@ -35,7 +35,8 @@
 </template>
 
 <script>
-import axios from 'axios'
+import { interviewApi } from '../api/interview'
+import { createSSEConnection } from '../utils/sse'
 
 export default {
   name: 'InterviewView',
@@ -47,7 +48,7 @@ export default {
       followUpText: '',
       evaluationText: '',
       asrStatus: '就绪',
-      eventSource: null,
+      abortController: null,
       asrBuffer: '',
       asrIndex: 0,
       asrInterval: null,
@@ -82,12 +83,8 @@ export default {
     async createSession() {
       try {
         this.asrStatus = '正在创建会话...'
-        const response = await axios.post('http://localhost:8001/api/sessions', {}, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        })
-        this.sessionId = response.data.user_id
+        const data = await interviewApi.createSession()
+        this.sessionId = data.user_id
         this.asrStatus = '会话创建成功'
       } catch (error) {
         console.error('创建会话失败:', error)
@@ -111,12 +108,7 @@ export default {
           use_llm: true
         }
         
-        const response = await axios.post(`http://localhost:8001/api/asr/start/${this.sessionId}`, requestData, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-            'Content-Type': 'application/json'
-          }
-        })
+        await interviewApi.startASR(this.sessionId, requestData)
         
         this.isAsrRunning = true
         this.asrStatus = 'ASR已启动'
@@ -166,12 +158,7 @@ export default {
       try {
         this.asrStatus = '正在停止ASR...'
         
-        const response = await axios.post(`http://localhost:8001/api/asr/stop/${this.sessionId}`, {}, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-            'Content-Type': 'application/json'
-          }
-        })
+        await interviewApi.stopASR(this.sessionId)
         
         this.isAsrRunning = false
         this.asrStatus = 'ASR已停止'
@@ -188,93 +175,98 @@ export default {
       // 关闭之前的连接
       this.stopSSE()
       
-      console.log('开始创建SSE连接:', `http://localhost:8001/api/asr/stream/${this.sessionId}`)
+      console.log('开始创建SSE连接:', `/asr/stream/${this.sessionId}`)
+      
       // 创建新的SSE连接
-      this.eventSource = new EventSource(`http://localhost:8001/api/asr/stream/${this.sessionId}`)
-      
-      this.eventSource.onopen = () => {
-        console.log('SSE连接已建立')
-        this.asrStatus = 'SSE连接已建立'
-      }
-      
-      this.eventSource.onmessage = (event) => {
-        try {
-          console.log('接收到SSE数据:', event.data)
-          const data = JSON.parse(event.data)
-          console.log('解析后的数据:', data)
-          
-          if (data.type === 'asr') {
-            console.log('处理ASR数据:', data.data)
-            // ASR结果，使用打字机效果
-            this.asrBuffer = data.data
-            this.asrIndex = 0
-            if (this.asrInterval) {
-              clearInterval(this.asrInterval)
-            }
-            this.startASRTyping()
-          } else if (data.type === 'llm') {
-            console.log('处理LLM数据:', data.data)
-            const formatted = data.data.formatted
-            console.log('LLM格式化数据:', formatted)
-
-            if (formatted?.follow_up) {
-              console.log('处理follow_up:', formatted.follow_up)
-              // 追加到下一行
-              if (this.followUpText) {
-                this.followUpText += '\n'
-              }
-              // 为每个追问问题添加序号
-              const questions = data.data.follow_up_questions || []
-              console.log('追问问题:', questions)
-              let followUpText = ''
-              questions.forEach((q, index) => {
-                this.followUpCount++
-                followUpText += `${this.followUpCount}. ${q}\n`
-              })
-              this.llmBuffers.followUp = followUpText
-              this.llmIndices.followUp = 0
-              if (this.llmIntervals.followUp) {
-                clearInterval(this.llmIntervals.followUp)
-              }
-              this.startLLMTyping('followUp')
-            }
-
-            if (formatted?.evaluation) {
-              console.log('处理evaluation:', formatted.evaluation)
-              // 追加到下一行
-              if (this.evaluationText) {
-                this.evaluationText += '\n'
-              }
-              // 为每个评价添加序号
-              this.evaluationCount++
-              this.llmBuffers.evaluation = `${this.evaluationCount}. ${formatted.evaluation}`
-              this.llmIndices.evaluation = 0
-              if (this.llmIntervals.evaluation) {
-                clearInterval(this.llmIntervals.evaluation)
-              }
-              this.startLLMTyping('evaluation')
-            }
-          } else if (data.type == "questions_stream") {
-
+      this.abortController = createSSEConnection(`/asr/stream/${this.sessionId}`, {
+        onopen: async (response) => {
+          if (response.ok) {
+            console.log('SSE连接已建立')
+            this.asrStatus = 'SSE连接已建立'
+          } else {
+            throw new Error(`SSE连接失败: ${response.status}`);
           }
-        } catch (error) {
-          console.error('解析SSE数据失败:', error)
-          console.error('原始数据:', event.data)
-        }
-      }
-      
-      this.eventSource.onerror = (error) => {
-        console.error('SSE连接错误:', error)
-        if (this.eventSource.readyState === EventSource.CLOSED) {
+        },
+        onmessage: (event) => {
+          try {
+            console.log('接收到SSE数据:', event.data)
+            const data = JSON.parse(event.data)
+            console.log('解析后的数据:', data)
+            
+            if (data.type === 'asr') {
+              console.log('处理ASR数据:', data.data)
+              // ASR结果，使用打字机效果
+              this.asrBuffer = data.data
+              this.asrIndex = 0
+              if (this.asrInterval) {
+                clearInterval(this.asrInterval)
+              }
+              this.startASRTyping()
+            } else if (data.type === 'llm') {
+              console.log('处理LLM数据:', data.data)
+              const formatted = data.data.formatted
+              console.log('LLM格式化数据:', formatted)
+
+              if (formatted?.follow_up) {
+                console.log('处理follow_up:', formatted.follow_up)
+                // 追加到下一行
+                if (this.followUpText) {
+                  this.followUpText += '\n'
+                }
+                // 为每个追问问题添加序号
+                const questions = data.data.follow_up_questions || []
+                console.log('追问问题:', questions)
+                let followUpText = ''
+                questions.forEach((q, index) => {
+                  this.followUpCount++
+                  followUpText += `${this.followUpCount}. ${q}\n`
+                })
+                this.llmBuffers.followUp = followUpText
+                this.llmIndices.followUp = 0
+                if (this.llmIntervals.followUp) {
+                  clearInterval(this.llmIntervals.followUp)
+                }
+                this.startLLMTyping('followUp')
+              }
+
+              if (formatted?.evaluation) {
+                console.log('处理evaluation:', formatted.evaluation)
+                // 追加到下一行
+                if (this.evaluationText) {
+                  this.evaluationText += '\n'
+                }
+                // 为每个评价添加序号
+                this.evaluationCount++
+                this.llmBuffers.evaluation = `${this.evaluationCount}. ${formatted.evaluation}`
+                this.llmIndices.evaluation = 0
+                if (this.llmIntervals.evaluation) {
+                  clearInterval(this.llmIntervals.evaluation)
+                }
+                this.startLLMTyping('evaluation')
+              }
+            } else if (data.type == "questions_stream") {
+
+            }
+          } catch (error) {
+            console.error('解析SSE数据失败:', error)
+            console.error('原始数据:', event.data)
+          }
+        },
+        onerror: (error) => {
+          console.error('SSE连接错误:', error)
+          this.asrStatus = 'SSE连接错误'
+          throw error; // 发生错误时阻止自动重试
+        },
+        onclose: () => {
           console.log('SSE连接已关闭')
           this.asrStatus = 'SSE连接已关闭'
         }
-      }
+      })
     },
     stopSSE() {
-      if (this.eventSource) {
-        this.eventSource.close()
-        this.eventSource = null
+      if (this.abortController) {
+        this.abortController.abort()
+        this.abortController = null
       }
       
       // 清除所有打字机效果定时器
