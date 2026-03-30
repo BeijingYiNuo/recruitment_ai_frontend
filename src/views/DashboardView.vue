@@ -51,7 +51,7 @@
 <script>
 import { getCurrentUser } from '../services/authService'
 import authService from '../services/authService'
-import axios from 'axios'
+import { interviewApi } from '../api/interview'
 
 export default {
   name: 'DashboardView',
@@ -71,41 +71,29 @@ export default {
     },
     async createSession() {
       try {
-        const response = await axios.post('http://localhost:8001/api/sessions', {}, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        })
-        this.sessionId = response.data.user_id
+        const data = await interviewApi.createSession()
+        this.sessionId = data.user_id
         this.showMessage('面试会话创建成功', 'success')
       } catch (error) {
-        this.showMessage('创建面试会话失败: ' + (error.response?.data?.detail || error.message), 'error')
+        this.showMessage('创建面试会话失败: ' + (error.detail || error.message), 'error')
       }
     },
     async listSessions() {
       try {
-        const response = await axios.get('http://localhost:8001/api/sessions', {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        })
-        this.sessions = response.data.sessions
+        const data = await interviewApi.getSessions()
+        this.sessions = data.sessions
         this.showMessage('获取面试记录成功', 'success')
       } catch (error) {
-        this.showMessage('获取面试记录失败: ' + (error.response?.data?.detail || error.message), 'error')
+        this.showMessage('获取面试记录失败: ' + (error.detail || error.message), 'error')
       }
     },
     async viewSession(sessionId) {
       try {
-        const response = await axios.get(`http://localhost:8001/api/sessions/${sessionId}`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        })
-        console.log('Session details:', response.data)
+        const data = await interviewApi.getSession(sessionId)
+        console.log('Session details:', data)
         this.showMessage('获取会话详情成功', 'success')
       } catch (error) {
-        this.showMessage('获取会话详情失败: ' + (error.response?.data?.detail || error.message), 'error')
+        this.showMessage('获取会话详情失败: ' + (error.detail || error.message), 'error')
       }
     },
     async startASR() {
