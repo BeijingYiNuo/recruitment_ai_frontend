@@ -58,7 +58,7 @@ export default {
 }
 
 .home-header {
-  background-color: #4CAF50;
+  background-color: #4caf50;
   color: white;
   padding: 20px;
   display: flex;
@@ -176,16 +176,16 @@ export default {
     gap: 10px;
     text-align: center;
   }
-  
+
   .hero-section h2 {
     font-size: 28px;
   }
-  
+
   .hero-buttons {
     flex-direction: column;
     align-items: center;
   }
-  
+
   .features-grid {
     grid-template-columns: 1fr;
   }

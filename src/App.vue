@@ -36,7 +36,7 @@ body {
 }
 
 .btn-primary {
-  background-color: #4CAF50;
+  background-color: #4caf50;
   color: white;
 }
 

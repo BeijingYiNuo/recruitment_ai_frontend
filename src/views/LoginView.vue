@@ -1,176 +1,248 @@
 <template>
-  <div class="login-container">
-    <h1>用户登录</h1>
-    <form @submit.prevent="handleLogin">
-      <div class="form-group">
-        <label for="email">邮箱</label>
-        <input 
-          type="email" 
-          id="email" 
-          v-model="form.email" 
-          required 
-          placeholder="请输入邮箱"
-        />
+  <AuthLayout :style="{ '--auth-gradient': loginGradient }">
+    <template #visual>
+      <div class="visual-inner">
+        <img :src="heroImage" alt="品牌插画" class="hero-img" />
+        <h1 class="visual-title">欢迎回来！</h1>
+        <p class="visual-sub">开始你的精彩旅程，连接无限可能</p>
+
+        <div class="visual-stats">
+          <div class="stat"><div class="num">100K+</div><div class="label">活跃用户</div></div>
+          <div class="divider"></div>
+          <div class="stat"><div class="num">50+</div><div class="label">国家地区</div></div>
+          <div class="divider"></div>
+          <div class="stat"><div class="num">4.9</div><div class="label">用户评分</div></div>
+        </div>
       </div>
-      <div class="form-group">
-        <label for="password">密码</label>
-        <input 
-          type="password" 
-          id="password" 
-          v-model="form.password" 
-          required 
-          placeholder="请输入密码"
-        />
-      </div>
-      <div class="form-actions">
-        <button type="submit" class="btn-primary" :disabled="loading">
-          {{ loading ? '登录中...' : '登录' }}
-        </button>
-        <a href="/register" class="btn-secondary">注册</a>
-        <a href="/forgot-password" class="forgot-password">忘记密码？</a>
-      </div>
-      <div v-if="error" class="error-message">
-        {{ error }}
-      </div>
-    </form>
-  </div>
+    </template>
+
+    <AuthCard>
+      <template #header>
+        <div class="logo-wrap"><div class="logo-icon">★</div></div>
+        <h2 class="title">登录账号</h2>
+        <p class="subtitle">使用你的账号继续探索</p>
+      </template>
+
+      <form @submit.prevent="handleLogin" class="form">
+        <div class="field">
+          <label for="email">邮箱或手机号</label>
+          <div class="input-with-icon">
+            <span class="icon">@</span>
+            <input id="email" type="text" v-model="email" placeholder="请输入邮箱或手机号" required />
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="password">密码</label>
+          <div class="input-with-icon">
+            <span class="icon">🔒</span>
+            <input :type="showPassword ? 'text' : 'password'" id="password" v-model="password" placeholder="请输入密码" required />
+            <button type="button" class="eye" @click="showPassword = !showPassword">{{ showPassword ? '🙈' : '👁️' }}</button>
+          </div>
+        </div>
+
+        <div class="row-right">
+          <a href="/forgot-password" class="link">忘记密码？</a>
+        </div>
+
+        <button type="submit" class="primary">立即登录</button>
+
+        <div class="register-row">还没有账号？ <a href="/register" class="link">立即注册</a></div>
+
+        <div class="divider-hr"><span>或使用以下方式登录</span></div>
+        <SocialButtons />
+      </form>
+    </AuthCard>
+  </AuthLayout>
 </template>
 
-<script>
+<script setup>
+import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 import authService from '../services/authService'
+import AuthLayout from '../components/AuthLayout.vue'
+import AuthCard from '../components/AuthCard.vue'
+import SocialButtons from '../components/SocialButtons.vue'
 
-export default {
-  name: 'LoginView',
-  data() {
-    return {
-      form: {
-        email: '',
-        password: ''
-      },
-      loading: false,
-      error: ''
-    }
-  },
-  methods: {
-    async handleLogin() {
-      this.loading = true
-      this.error = ''
-      
-      try {
-        const response = await authService.login(this.form)
-        this.$router.push('/dashboard')
-      } catch (error) {
-        this.error = error.detail || '登录失败，请检查邮箱和密码'
-      } finally {
-        this.loading = false
-      }
-    }
+const router = useRouter()
+const email = ref('')
+const password = ref('')
+const showPassword = ref(false)
+const loading = ref(false)
+const error = ref('')
+
+const heroImage = 'https://images.unsplash.com/photo-1585984968562-1443b72fb0dc?crop=entropy&cs=tinysrgb&fit=max&fm=jpg'
+const loginGradient = 'linear-gradient(135deg,#6366f1 0%,#8b5cf6 50%,#d946ef 100%)'
+
+async function handleLogin () {
+  loading.value = true
+  error.value = ''
+  try {
+    await authService.login({ email: email.value, password: password.value })
+    router.push('/dashboard')
+  } catch (err) {
+    error.value = err?.detail || '登录失败，请检查邮箱和密码'
+  } finally {
+    loading.value = false
   }
 }
 </script>
 
 <style scoped>
-.login-container {
-  max-width: 400px;
-  margin: 100px auto;
-  padding: 30px;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-}
-
-h1 {
+/* visual (left) */
+.visual-inner {
+  color: #fff;
   text-align: center;
-  margin-bottom: 30px;
-  color: #333;
+  max-width: 420px;
+}
+.hero-img {
+  width: 100%;
+  max-width: 360px;
+  border-radius: 18px;
+  box-shadow: 0 20px 40px rgba(2, 6, 23, 0.18);
+  margin-bottom: 18px;
+}
+.visual-title {
+  font-size: 36px;
+  font-weight: 700;
+  margin: 8px 0;
+}
+.visual-sub {
+  color: rgba(255, 255, 255, 0.9);
+  margin-bottom: 18px;
+}
+.visual-stats {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  justify-content: center;
+  margin-top: 12px;
+}
+.stat {
+  text-align: center;
+}
+.num {
+  font-size: 22px;
+  font-weight: 700;
+}
+.label {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.85);
+}
+.divider {
+  width: 1px;
+  height: 40px;
+  background: rgba(255, 255, 255, 0.18);
 }
 
-.form-group {
-  margin-bottom: 20px;
+/* form */
+.logo-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 8px;
 }
-
-label {
+.logo-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  box-shadow: 0 8px 20px rgba(99, 102, 241, 0.18);
+}
+.title {
+  text-align: center;
+  margin-top: 8px;
+  font-size: 20px;
+}
+.subtitle {
+  text-align: center;
+  color: #6b7280;
+  margin-top: 6px;
+}
+.form {
+  margin-top: 6px;
+}
+.field {
+  margin-top: 14px;
+}
+.field label {
   display: block;
   margin-bottom: 8px;
-  font-weight: 500;
-  color: #555;
+  color: #374151;
+  font-size: 14px;
 }
-
-input {
+.input-with-icon {
+  position: relative;
+}
+.input-with-icon .icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #9ca3af;
+}
+.input-with-icon input {
   width: 100%;
-  padding: 10px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 16px;
-}
-
-input:focus {
+  padding: 12px 44px 12px 40px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
   outline: none;
-  border-color: #4CAF50;
-  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
 }
-
-.form-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: 30px;
+.input-with-icon input:focus {
+  box-shadow: 0 8px 20px rgba(99, 102, 241, 0.08);
+  border-color: transparent;
 }
-
-.btn-primary {
-  background-color: #4CAF50;
-  color: white;
-  border: none;
-  padding: 12px;
-  border-radius: 4px;
-  font-size: 16px;
+.input-with-icon .eye {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: 0;
   cursor: pointer;
-  transition: background-color 0.3s;
 }
-
-.btn-primary:hover {
-  background-color: #45a049;
+.row-right {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
 }
-
-.btn-primary:disabled {
-  background-color: #cccccc;
-  cursor: not-allowed;
+.link {
+  color: #6366f1;
+  text-decoration: none;
 }
-
-.btn-secondary {
-  background-color: #f0f0f0;
-  color: #333;
-  border: 1px solid #ddd;
+.primary {
+  width: 100%;
+  margin-top: 14px;
   padding: 12px;
-  border-radius: 4px;
-  font-size: 16px;
+  border-radius: 12px;
+  border: 0;
+  color: #fff;
+  background: linear-gradient(90deg, #6366f1, #8b5cf6);
+  cursor: pointer;
+  box-shadow: 0 10px 30px rgba(99, 102, 241, 0.12);
+}
+.register-row {
   text-align: center;
-  text-decoration: none;
-  transition: background-color 0.3s;
+  margin-top: 12px;
+  color: #6b7280;
 }
-
-.btn-secondary:hover {
-  background-color: #e0e0e0;
-}
-
-.forgot-password {
+.divider-hr {
+  margin-top: 18px;
+  position: relative;
   text-align: center;
-  margin-top: 10px;
-  color: #4CAF50;
-  text-decoration: none;
-  font-size: 14px;
+}
+.divider-hr span {
+  background: #fff;
+  padding: 0 12px;
+  color: #6b7280;
 }
 
-.forgot-password:hover {
-  text-decoration: underline;
-}
-
-.error-message {
-  margin-top: 15px;
-  padding: 10px;
-  background-color: #ffebee;
-  color: #c62828;
-  border-radius: 4px;
-  font-size: 14px;
+@media (max-width: 900px) {
+  .visual-inner {
+    display: none;
+  }
 }
 </style>

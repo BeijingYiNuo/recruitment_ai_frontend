@@ -6,6 +6,7 @@ import ForgotPasswordView from '../views/ForgotPasswordView.vue'
 import ResetPasswordView from '../views/ResetPasswordView.vue'
 import DashboardView from '../views/DashboardView.vue'
 import InterviewView from '../views/InterviewView.vue'
+import ProfileView from '../views/ProfileView.vue'
 import { isAuthenticated } from '../services/authService'
 
 const routes = [
@@ -38,6 +39,14 @@ const routes = [
     path: '/dashboard',
     name: 'dashboard',
     component: DashboardView,
+    meta: {
+      requiresAuth: true
+    }
+  },
+  {
+    path: '/profile',
+    name: 'profile',
+    component: ProfileView,
     meta: {
       requiresAuth: true
     }

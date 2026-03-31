@@ -336,11 +336,11 @@ export default {
   margin: 50px auto;
   background-color: white;
   border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   padding: 20px;
 }
 
- h1 {
+h1 {
   text-align: center;
   color: #333;
   margin-bottom: 20px;
@@ -362,7 +362,7 @@ export default {
 }
 
 .btn-primary {
-  background-color: #4CAF50;
+  background-color: #4caf50;
   color: white;
 }
 
@@ -380,12 +380,12 @@ export default {
 }
 
 .btn-secondary {
-  background-color: #2196F3;
+  background-color: #2196f3;
   color: white;
 }
 
 .btn-secondary:hover {
-  background-color: #1976D2;
+  background-color: #1976d2;
 }
 
 .user-id-display {
@@ -464,13 +464,13 @@ export default {
     flex-direction: column;
     height: 800px;
   }
-  
+
   .control-section {
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
   }
-  
+
   .btn {
     margin: 5px;
   }
