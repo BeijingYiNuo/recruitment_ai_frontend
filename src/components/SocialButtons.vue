@@ -1,7 +1,7 @@
 <template>
   <div class="social-row">
-    <button class="social-btn" aria-label="github">使用 GitHub 登录</button>
-    <button class="social-btn" aria-label="wechat">使用 微信 登录</button>
+    <!-- <button class="social-btn" aria-label="github">使用 GitHub 登录</button> -->
+    <!-- <button class="social-btn" aria-label="wechat">使用 微信 登录</button> -->
   </div>
 </template>
 

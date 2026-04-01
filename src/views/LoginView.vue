@@ -49,7 +49,7 @@
 
         <div class="register-row">还没有账号？ <a href="/register" class="link">立即注册</a></div>
 
-        <div class="divider-hr"><span>或使用以下方式登录</span></div>
+        <!-- <div class="divider-hr"><span>或使用以下方式登录</span></div> -->
         <SocialButtons />
       </form>
     </AuthCard>

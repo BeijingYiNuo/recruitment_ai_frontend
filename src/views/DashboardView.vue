@@ -27,7 +27,7 @@
           <el-icon><Calendar /></el-icon>
           <span>约见安排</span>
         </el-menu-item>
-        <el-menu-item index="" disabled>
+        <!-- <el-menu-item index="" disabled>
           <el-icon><User /></el-icon>
           <span>用户管理</span>
         </el-menu-item>
@@ -38,7 +38,7 @@
         <el-menu-item index="" disabled>
           <el-icon><Setting /></el-icon>
           <span>系统设置</span>
-        </el-menu-item>
+        </el-menu-item> -->
       </el-menu>
     </el-aside>
 
