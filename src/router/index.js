@@ -7,6 +7,13 @@ import ResetPasswordView from '../views/ResetPasswordView.vue'
 import DashboardView from '../views/DashboardView.vue'
 import InterviewView from '../views/InterviewView.vue'
 import ProfileView from '../views/ProfileView.vue'
+
+// Dashboard 子视图
+import DashboardHome from '../views/dashboard/DashboardHome.vue'
+import CvView from '../views/dashboard/CvView.vue'
+import InterviewManageView from '../views/dashboard/InterviewManageView.vue'
+import AppointmentView from '../views/dashboard/AppointmentView.vue'
+
 import { isAuthenticated } from '../services/authService'
 
 const routes = [
@@ -37,11 +44,31 @@ const routes = [
   },
   {
     path: '/dashboard',
-    name: 'dashboard',
     component: DashboardView,
-    meta: {
-      requiresAuth: true
-    }
+    meta: { requiresAuth: true },
+    redirect: '/dashboard/home',
+    children: [
+      {
+        path: 'home',
+        name: 'dashboardHome',
+        component: DashboardHome
+      },
+      {
+        path: 'cv',
+        name: 'cvManage',
+        component: CvView
+      },
+      {
+        path: 'interview-manage',
+        name: 'interviewManage',
+        component: InterviewManageView
+      },
+      {
+        path: 'appointment',
+        name: 'appointment',
+        component: AppointmentView
+      }
+    ]
   },
   {
     path: '/profile',
