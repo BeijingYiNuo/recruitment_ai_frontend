@@ -69,7 +69,7 @@
 
         <div class="register-row">已有账号？ <a href="/login" class="link">立即登录</a></div>
 
-        <div class="divider-hr"><span>或使用以下方式登录</span></div>
+        <!-- <div class="divider-hr"><span>或使用以下方式登录</span></div> -->
         <SocialButtons />
       </form>
     </AuthCard>

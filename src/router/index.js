@@ -1,79 +1,64 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import HomeView from '../views/HomeView.vue'
-import LoginView from '../views/LoginView.vue'
-import RegisterView from '../views/RegisterView.vue'
-import ForgotPasswordView from '../views/ForgotPasswordView.vue'
-import ResetPasswordView from '../views/ResetPasswordView.vue'
-import DashboardView from '../views/DashboardView.vue'
-import InterviewView from '../views/InterviewView.vue'
-import ProfileView from '../views/ProfileView.vue'
-
-// Dashboard 子视图
-import DashboardHome from '../views/dashboard/DashboardHome.vue'
-import CvView from '../views/dashboard/CvView.vue'
-import InterviewManageView from '../views/dashboard/InterviewManageView.vue'
-import AppointmentView from '../views/dashboard/AppointmentView.vue'
-
 import { isAuthenticated } from '../services/authService'
 
 const routes = [
   {
     path: '/',
     name: 'home',
-    component: HomeView
+    component: () => import('../views/HomeView.vue')
   },
   {
     path: '/login',
     name: 'login',
-    component: LoginView
+    component: () => import('../views/LoginView.vue')
   },
   {
     path: '/register',
     name: 'register',
-    component: RegisterView
+    component: () => import('../views/RegisterView.vue')
   },
   {
     path: '/forgot-password',
     name: 'forgotPassword',
-    component: ForgotPasswordView
+    component: () => import('../views/ForgotPasswordView.vue')
   },
   {
     path: '/reset-password',
     name: 'resetPassword',
-    component: ResetPasswordView
+    component: () => import('../views/ResetPasswordView.vue')
   },
   {
     path: '/dashboard',
-    component: DashboardView,
+    component: () => import('../views/DashboardView.vue'),
     meta: { requiresAuth: true },
     redirect: '/dashboard/home',
     children: [
       {
         path: 'home',
         name: 'dashboardHome',
-        component: DashboardHome
+        component: () => import('../views/dashboard/DashboardHome.vue')
       },
       {
         path: 'cv',
         name: 'cvManage',
-        component: CvView
+        component: () => import('../views/dashboard/CvView.vue')
       },
       {
         path: 'interview-manage',
         name: 'interviewManage',
-        component: InterviewManageView
+        component: () => import('../views/dashboard/InterviewManageView.vue')
       },
       {
         path: 'appointment',
         name: 'appointment',
-        component: AppointmentView
+        component: () => import('../views/dashboard/AppointmentView.vue')
       }
     ]
   },
   {
     path: '/profile',
     name: 'profile',
-    component: ProfileView,
+    component: () => import('../views/ProfileView.vue'),
     meta: {
       requiresAuth: true
     }
@@ -81,7 +66,7 @@ const routes = [
   {
     path: '/interview',
     name: 'interview',
-    component: InterviewView,
+    component: () => import('../views/InterviewView.vue'),
     meta: {
       requiresAuth: true
     }
@@ -89,7 +74,15 @@ const routes = [
   {
     path: '/interview/:sessionId',
     name: 'interviewWithSession',
-    component: InterviewView,
+    component: () => import('../views/InterviewView.vue'),
+    meta: {
+      requiresAuth: true
+    }
+  },
+  {
+    path: '/interview-assistant',
+    name: 'interviewAssistant',
+    component: () => import('../views/InterviewAssistantView.vue'),
     meta: {
       requiresAuth: true
     }
@@ -103,8 +96,16 @@ const router = createRouter({
 
 // 路由守卫
 router.beforeEach((to, from, next) => {
+  const isAuth = isAuthenticated()
+
+  // 已登录状态下访问 首页、登录、注册 页面，直接跳转到控制台
+  if (isAuth && ['home', 'login', 'register'].includes(to.name)) {
+    next({ path: '/dashboard' })
+    return
+  }
+
   if (to.matched.some(record => record.meta.requiresAuth)) {
-    if (!isAuthenticated()) {
+    if (!isAuth) {
       next({ name: 'login' })
     } else {
       next()

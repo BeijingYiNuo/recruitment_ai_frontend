@@ -8,11 +8,11 @@
           <p>招聘管理系统 — 快速入口</p>
         </div>
         <div class="welcome-right">
-          <el-button type="info" plain @click="triggerResumeUpload">上传简历</el-button>
-          <el-button type="success" plain @click="interviewStore.openModal('online')">新增线上面试</el-button>
-          <el-button type="primary" plain @click="interviewStore.openModal('offline')">新增线下面试</el-button>
-          <el-button type="warning" plain @click="createSession">创建 ASR 会话</el-button>
-          <el-button type="danger" plain @click="startASR">启动 ASR</el-button>
+          <el-button @click="triggerResumeUpload">上传简历</el-button>
+          <el-button type="primary" @click="interviewStore.openModal('online')">新增线上面试</el-button>
+          <el-button @click="interviewStore.openModal('offline')">新增线下面试</el-button>
+          <el-button @click="createSession">创建 ASR 会话</el-button>
+          <el-button @click="startASR">启动 ASR</el-button>
           <el-button @click="router.push('/profile')">进入个人中心</el-button>
           <input type="file" ref="resumeInput" style="display: none" accept=".pdf,.doc,.docx" @change="handleResumeUpload" />
         </div>
@@ -154,10 +154,10 @@ const handleSaveInterview = () => {
 <style scoped lang="scss">
 .dashboard-home {
   .welcome-card {
-    border-radius: 8px;
-    border: none;
+    border-radius: 12px;
+    border: 1px solid #dee0e3;
     margin-bottom: 24px;
-    box-shadow: 0 1px 2px -2px rgba(0,0,0,0.08), 0 3px 6px 0 rgba(0,0,0,0.04), 0 5px 12px 4px rgba(0,0,0,0.02);
+    box-shadow: 0 4px 12px rgba(31, 35, 41, 0.04);
 
     :deep(.el-card__body) {
       padding: 0;

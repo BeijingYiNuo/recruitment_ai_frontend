@@ -14,7 +14,7 @@
         v-else
         :data="appointmentStore.appointments"
         style="width: 100%"
-        :header-cell-style="{ background: '#fafafa', color: '#606266', fontWeight: 500, borderBottom: '1px solid #ebeef5' }"
+        :header-cell-style="{ background: '#f5f6f7', color: '#646a73', fontWeight: 500, borderBottom: '1px solid #dee0e3' }"
       >
         <el-table-column prop="candidate_name" label="候选人" width="120"></el-table-column>
         <el-table-column prop="candidate_id" label="候选人 ID" width="120"></el-table-column>
@@ -23,7 +23,7 @@
         <el-table-column prop="contact_phone" label="联系电话" width="140"></el-table-column>
         <el-table-column prop="status" label="状态" width="100">
           <template #default="scope">
-            <el-tag size="small" :type="getStatusType(scope.row.status)">
+            <el-tag size="small" :type="getStatusType(scope.row.status)" effect="light" class="feishu-tag">
               {{ getStatusLabel(scope.row.status) }}
             </el-tag>
           </template>
@@ -31,8 +31,8 @@
         <el-table-column label="操作" width="200" fixed="right">
           <template #default="scope">
             <el-button type="primary" link size="small" @click="appointmentStore.editAppointment(scope.row)">编辑</el-button>
-            <el-button type="success" link size="small" v-if="scope.row.status === 'pending'" @click="handleConfirm(scope.row.id)">确认</el-button>
-            <el-button type="warning" link size="small" v-if="scope.row.status === 'confirmed'" @click="handleComplete(scope.row.id)">完成</el-button>
+            <el-button type="primary" link size="small" v-if="scope.row.status === 'pending'" @click="handleConfirm(scope.row.id)">确认</el-button>
+            <el-button type="primary" link size="small" v-if="scope.row.status === 'confirmed'" @click="handleComplete(scope.row.id)">完成</el-button>
             <el-button type="danger" link size="small" @click="handleDelete(scope.row.id)">删除</el-button>
           </template>
         </el-table-column>
@@ -145,13 +145,13 @@ const handleDelete = (id) => {
 <style scoped lang="scss">
 .appointment-manage {
   .list-card {
-    border-radius: 8px;
-    border: none;
-    box-shadow: 0 1px 2px -2px rgba(0,0,0,0.08), 0 3px 6px 0 rgba(0,0,0,0.04), 0 5px 12px 4px rgba(0,0,0,0.02);
+    border-radius: 12px;
+    border: 1px solid #dee0e3;
+    box-shadow: 0 4px 12px rgba(31, 35, 41, 0.04);
 
     :deep(.el-card__header) {
       padding: 16px 24px;
-      border-bottom: 1px solid #f0f0f0;
+      border-bottom: 1px solid #dee0e3;
     }
 
     :deep(.el-card__body) {
@@ -164,8 +164,13 @@ const handleDelete = (id) => {
       align-items: center;
       font-size: 16px;
       font-weight: 600;
-      color: #1f2937;
+      color: #1f2329;
     }
+  }
+
+  .feishu-tag {
+    border: none;
+    font-weight: 500;
   }
 }
 </style>

@@ -2,13 +2,13 @@
   <el-container class="dashboard-container">
     <!-- 左侧侧边栏 -->
     <el-aside width="220px" class="sidebar">
-      <div class="logo">招聘管理系统</div>
+      <div class="logo">招聘系统</div>
       <el-menu
         :default-active="activeMenu"
         class="el-menu-vertical"
-        background-color="#0f172a"
-        text-color="#94a3b8"
-        active-text-color="#ffffff"
+        background-color="#ffffff"
+        text-color="#646a73"
+        active-text-color="#3370ff"
         router
       >
         <el-menu-item index="/dashboard/home">
@@ -54,14 +54,14 @@
               <el-icon><Search /></el-icon>
             </template>
           </el-input>
-          <el-badge is-dot class="notification-badge">
+          <el-badge :is-dot="true" class="notification-badge">
             <el-icon class="notification-icon"><Bell /></el-icon>
           </el-badge>
 
           <!-- 用户下拉区域 -->
           <el-dropdown trigger="click">
             <div class="user-profile">
-              <el-avatar size="small" style="background-color: #409eff; font-size: 12px; margin-right: 8px;">
+              <el-avatar size="small" style="background-color: #3370ff; font-size: 12px; margin-right: 8px;">
                 {{ currentUser?.username?.charAt(0) || '管' }}
               </el-avatar>
               <span class="username">{{ currentUser?.username || '管理员' }}</span>
@@ -121,41 +121,45 @@ const handleLogout = () => {
 .dashboard-container {
   height: 100vh;
   width: 100vw;
-  background-color: #f0f2f5;
+  background-color: #f5f6f7;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   overflow: hidden;
 }
 
 /* ----- 侧边栏样式 ----- */
 .sidebar {
-  background-color: #0f172a;
+  background-color: #ffffff;
   display: flex;
   flex-direction: column;
   transition: width 0.3s;
+  border-right: 1px solid #dee0e3;
 
   .logo {
     height: 60px;
     line-height: 60px;
     text-align: center;
-    color: #ffffff;
+    color: #1f2329;
     font-size: 18px;
     font-weight: 600;
     letter-spacing: 1px;
-    background-color: #0b1120;
+    background-color: #ffffff;
     flex-shrink: 0;
+    border-bottom: 1px solid #dee0e3;
   }
 
   .el-menu-vertical {
     border-right: none;
     flex: 1;
     overflow-y: auto;
+    padding: 12px 8px;
 
     .el-menu-item {
       font-size: 14px;
-      height: 50px;
-      line-height: 50px;
-      margin: 8px 12px;
-      border-radius: 8px;
+      height: 40px;
+      line-height: 40px;
+      margin: 4px 8px;
+      border-radius: 6px;
+      color: #646a73 !important;
 
       .el-icon {
         font-size: 18px;
@@ -163,12 +167,12 @@ const handleLogout = () => {
       }
 
       &.is-active {
-        background-color: #409eff !important;
-        color: #fff !important;
+        background-color: #eef2fe !important;
+        color: #3370ff !important;
+        font-weight: 500;
       }
       &:hover:not(.is-active):not(.is-disabled) {
-        background-color: rgba(255, 255, 255, 0.05) !important;
-        color: #fff !important;
+        background-color: #f5f6f7 !important;
       }
     }
   }
@@ -179,7 +183,7 @@ const handleLogout = () => {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  background-color: #f0f2f5;
+  background-color: #f5f6f7;
 }
 
 /* ----- 顶部导航栏样式 ----- */
@@ -189,14 +193,16 @@ const handleLogout = () => {
   justify-content: space-between;
   align-items: center;
   padding: 0 24px;
-  box-shadow: 0 1px 4px rgba(0, 21, 41, 0.05);
+  box-shadow: none;
+  border-bottom: 1px solid #dee0e3;
   z-index: 10;
   flex-shrink: 0;
 
   .nav-left {
     .breadcrumb {
-      font-size: 14px;
-      color: #606266;
+      font-size: 16px;
+      font-weight: 600;
+      color: #1f2329;
     }
   }
 
@@ -208,11 +214,12 @@ const handleLogout = () => {
     .search-input {
       width: 220px;
       :deep(.el-input__wrapper) {
-        border-radius: 20px;
-        background-color: #f8fafc;
+        border-radius: 6px;
+        background-color: #f5f6f7;
         box-shadow: 0 0 0 1px transparent inset;
         &:hover, &.is-focus {
-          box-shadow: 0 0 0 1px #dcdfe6 inset;
+          box-shadow: 0 0 0 1px #3370ff inset;
+          background-color: #ffffff;
         }
       }
     }
@@ -223,7 +230,10 @@ const handleLogout = () => {
       align-items: center;
       .notification-icon {
         font-size: 20px;
-        color: #606266;
+        color: #646a73;
+        &:hover {
+          color: #3370ff;
+        }
       }
     }
 
@@ -231,15 +241,23 @@ const handleLogout = () => {
       display: flex;
       align-items: center;
       cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 6px;
+      transition: background-color 0.2s;
+
+      &:hover {
+        background-color: #f5f6f7;
+      }
 
       .username {
         font-size: 14px;
-        color: #303133;
+        color: #1f2329;
         margin-right: 4px;
+        font-weight: 500;
       }
       .dropdown-icon {
         font-size: 12px;
-        color: #909399;
+        color: #8f959e;
       }
     }
   }
@@ -247,7 +265,7 @@ const handleLogout = () => {
 
 /* ----- 核心画布区域 ----- */
 .main-content {
-  padding: 24px;
+  padding: 24px 32px;
   overflow-y: auto;
   box-sizing: border-box;
 }

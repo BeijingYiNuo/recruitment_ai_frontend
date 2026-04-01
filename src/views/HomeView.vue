@@ -3,8 +3,8 @@
     <header class="home-header">
       <h1>面试助手系统</h1>
       <nav class="home-nav">
-        <a href="/login" class="nav-link">登录</a>
-        <a href="/register" class="nav-link">注册</a>
+        <el-button type="primary" link style="color: white; font-size: 16px;" @click="$router.push('/login')">登录</el-button>
+        <el-button type="primary" link style="color: white; font-size: 16px;" @click="$router.push('/register')">注册</el-button>
       </nav>
     </header>
     <main class="home-content">
@@ -12,29 +12,29 @@
         <h2>提升面试体验</h2>
         <p>专业的面试助手系统，帮助您更好地准备和管理面试过程</p>
         <div class="hero-buttons">
-          <a href="/register" class="btn-primary">立即注册</a>
-          <a href="/login" class="btn-secondary">已有账号？登录</a>
+          <el-button type="primary" size="large" @click="$router.push('/register')">立即注册</el-button>
+          <el-button size="large" @click="$router.push('/login')">已有账号？登录</el-button>
         </div>
       </section>
       <section class="features-section">
         <h3>系统功能</h3>
         <div class="features-grid">
-          <div class="feature-card">
+          <el-card class="feature-card" shadow="hover">
             <h4>智能面试会话</h4>
             <p>创建和管理面试会话，记录面试过程</p>
-          </div>
-          <div class="feature-card">
+          </el-card>
+          <el-card class="feature-card" shadow="hover">
             <h4>实时语音识别</h4>
             <p>自动识别面试中的语音内容</p>
-          </div>
-          <div class="feature-card">
+          </el-card>
+          <el-card class="feature-card" shadow="hover">
             <h4>面试报告生成</h4>
             <p>自动生成面试总结和分析报告</p>
-          </div>
-          <div class="feature-card">
+          </el-card>
+          <el-card class="feature-card" shadow="hover">
             <h4>知识库管理</h4>
             <p>管理和查询面试相关知识</p>
-          </div>
+          </el-card>
         </div>
       </section>
     </main>
@@ -75,17 +75,6 @@ export default {
 .home-nav {
   display: flex;
   gap: 20px;
-}
-
-.nav-link {
-  color: white;
-  text-decoration: none;
-  font-size: 16px;
-  transition: opacity 0.3s;
-}
-
-.nav-link:hover {
-  opacity: 0.8;
 }
 
 .home-content {
@@ -144,10 +133,6 @@ export default {
 }
 
 .feature-card {
-  background-color: white;
-  padding: 30px;
-  border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
   text-align: center;
 }
 

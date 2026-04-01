@@ -5,8 +5,8 @@
         <div class="list-header">
           <span>面试管理</span>
           <div class="header-actions">
-            <el-button type="success" size="small" @click="interviewStore.openModal('online')">新增线上面试</el-button>
-            <el-button type="primary" size="small" @click="interviewStore.openModal('offline')">新增线下面试</el-button>
+            <el-button type="primary" size="small" @click="interviewStore.openModal('online')">新增线上面试</el-button>
+            <el-button size="small" @click="interviewStore.openModal('offline')">新增线下面试</el-button>
           </div>
         </div>
       </template>
@@ -18,8 +18,8 @@
           <div class="resume-info">
             <div>
               <span class="status-badge" :style="{
-                backgroundColor: item.session_type === 'online' ? '#d1fae5' : '#ede9fe',
-                color: item.session_type === 'online' ? '#059669' : '#6d28d9'
+                backgroundColor: item.session_type === 'online' ? '#eef2fe' : '#f5f6f7',
+                color: item.session_type === 'online' ? '#3370ff' : '#646a73'
               }">
                 {{ item.session_type === 'online' ? '线上面试' : '线下面试' }}
               </span>
@@ -37,8 +37,8 @@
             </div>
           </div>
           <div class="actions">
-            <el-button size="small" @click="interviewStore.editInterview(item)">编辑信息</el-button>
-            <el-button size="small" type="danger" @click="handleDelete(item.id)">取消/删除</el-button>
+            <el-button type="primary" text size="small" @click="interviewStore.editInterview(item)">编辑信息</el-button>
+            <el-button type="danger" text size="small" @click="handleDelete(item.id)">取消/删除</el-button>
           </div>
         </li>
       </ul>
@@ -98,13 +98,13 @@ const handleDelete = (id) => {
 <style scoped lang="scss">
 .interview-manage {
   .list-card {
-    border-radius: 8px;
-    border: none;
-    box-shadow: 0 1px 2px -2px rgba(0,0,0,0.08), 0 3px 6px 0 rgba(0,0,0,0.04), 0 5px 12px 4px rgba(0,0,0,0.02);
+    border-radius: 12px;
+    border: 1px solid #dee0e3;
+    box-shadow: 0 4px 12px rgba(31, 35, 41, 0.04);
 
     :deep(.el-card__header) {
       padding: 16px 24px;
-      border-bottom: 1px solid #f0f0f0;
+      border-bottom: 1px solid #dee0e3;
     }
 
     :deep(.el-card__body) {
@@ -117,7 +117,7 @@ const handleDelete = (id) => {
       align-items: center;
       font-size: 16px;
       font-weight: 600;
-      color: #1f2937;
+      color: #1f2329;
 
       .header-actions {
         display: flex;
@@ -134,7 +134,7 @@ const handleDelete = (id) => {
 
   .session-item {
     padding: 16px 0;
-    border-bottom: 1px solid #f0f0f0;
+    border-bottom: 1px solid #dee0e3;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -149,7 +149,7 @@ const handleDelete = (id) => {
   .resume-info {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 6px;
     flex: 1;
   }
 
