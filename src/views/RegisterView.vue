@@ -29,10 +29,31 @@
         </div>
 
         <div class="field">
-          <label for="email">邮箱或手机号</label>
+          <label for="email">邮箱</label>
           <div class="input-with-icon">
             <span class="icon">@</span>
-            <input id="email" type="text" v-model="form.email" placeholder="请输入邮箱或手机号" required />
+            <input id="email" type="email" v-model="form.email" placeholder="请输入邮箱" required />
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="phone">手机号</label>
+          <div class="input-with-icon">
+            <span class="icon">📱</span>
+            <input id="phone" type="tel" v-model="form.phone" placeholder="请输入手机号" required />
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="role">选择角色</label>
+          <div class="input-with-icon">
+            <span class="icon">👥</span>
+            <select id="role" v-model="form.role" required>
+              <option value="" disabled>请选择角色</option>
+              <option value="candidate">候选人 (Candidate)</option>
+              <option value="recruiter">招聘官 (Recruiter)</option>
+              <option value="admin">管理员 (Admin)</option>
+            </select>
           </div>
         </div>
 
@@ -41,7 +62,7 @@
           <div class="input-with-icon">
             <span class="icon">🔒</span>
             <input :type="showPassword ? 'text' : 'password'" id="password" v-model="form.password" placeholder="请输入密码" required />
-            <button type="button" class="eye" @click="showPassword = !showPassword">{{ showPassword ? '🙈' : '👁️' }}</button>
+            <!-- <button type="button" class="eye" @click="showPassword = !showPassword">{{ showPassword ? '🙈' : '👁️' }}</button> -->
           </div>
           <div v-if="form.password" class="pw-hint">
             <div :class="['dot', form.password.length >= 8 ? 'ok' : '']"></div><small> 至少 8 个字符</small>
@@ -55,7 +76,7 @@
           <div class="input-with-icon">
             <span class="icon">🔒</span>
             <input :type="showConfirm ? 'text' : 'password'" id="confirmPassword" v-model="form.confirmPassword" placeholder="请再次输入密码" required />
-            <button type="button" class="eye" @click="showConfirm = !showConfirm">{{ showConfirm ? '🙈' : '👁️' }}</button>
+            <!-- <button type="button" class="eye" @click="showConfirm = !showConfirm">{{ showConfirm ? '🙈' : '👁️' }}</button> -->
           </div>
           <p v-if="form.confirmPassword && form.confirmPassword !== form.password" class="error">两次密码输入不一致</p>
         </div>
@@ -65,7 +86,10 @@
           <label for="agree">我已阅读并同意 <a href="javascript:void(0)" class="link">用户协议</a> 和 <a href="javascript:void(0)" class="link">隐私政策</a></label>
         </div>
 
-        <button type="submit" class="submit-btn" :disabled="!canSubmit" :class="{ 'is-disabled': !canSubmit }">立即注册</button>
+        <div v-if="error" class="alert-error">{{ error }}</div>
+        <div v-if="success" class="alert-success">{{ success }}</div>
+
+        <button type="submit" class="submit-btn" :disabled="!canSubmit" :class="{ 'is-disabled': !canSubmit }">{{ loading ? '注册中...' : '立即注册' }}</button>
 
         <div class="register-row">已有账号？ <a href="/login" class="link">立即登录</a></div>
 
@@ -85,7 +109,7 @@ import AuthCard from '../components/AuthCard.vue'
 import SocialButtons from '../components/SocialButtons.vue'
 
 const router = useRouter()
-const form = reactive({ username: '', email: '', password: '', confirmPassword: '' })
+const form = reactive({ username: '', email: '', phone: '', role: '', password: '', confirmPassword: '' })
 const showPassword = ref(false)
 const showConfirm = ref(false)
 const agree = ref(false)
@@ -101,18 +125,29 @@ const passwordStrength = computed(() => ({
   hasLetter: /[a-zA-Z]/.test(form.password)
 }))
 
-const canSubmit = computed(() => passwordStrength.value.hasLength && passwordStrength.value.hasNumber && passwordStrength.value.hasLetter && form.password === form.confirmPassword && form.username && form.email && agree.value)
+const canSubmit = computed(() => passwordStrength.value.hasLength && passwordStrength.value.hasNumber && passwordStrength.value.hasLetter && form.password === form.confirmPassword && form.username && form.email && form.phone && form.role && agree.value)
 
 async function handleRegister () {
   loading.value = true
   error.value = ''
   success.value = ''
   try {
-    await authService.register({ username: form.username, email: form.email, password: form.password })
+    const payload = {
+      username: form.username,
+      email: form.email,
+      phone: form.phone,
+      password: form.password,
+      role: form.role
+    }
+    await authService.register(payload)
     success.value = '注册成功，正在跳转...'
     setTimeout(() => router.push('/login'), 1400)
   } catch (err) {
-    error.value = err?.detail || '注册失败，请检查输入信息'
+    if (Array.isArray(err?.detail)) {
+      error.value = err.detail.map(e => e.msg).join('; ')
+    } else {
+      error.value = err?.detail || '注册失败，请检查输入信息'
+    }
   } finally {
     loading.value = false
   }
@@ -209,14 +244,24 @@ async function handleRegister () {
   transform: translateY(-50%);
   color: #9ca3af;
 }
-.input-with-icon input {
+.input-with-icon input,
+.input-with-icon select {
   width: 100%;
   padding: 12px 44px 12px 40px;
   border: 1px solid #e5e7eb;
   border-radius: 12px;
   outline: none;
+  font-family: inherit;
+  font-size: 14px;
 }
-.input-with-icon input:focus {
+.input-with-icon select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-color: #fff;
+  cursor: pointer;
+}
+.input-with-icon input:focus,
+.input-with-icon select:focus {
   box-shadow: 0 8px 20px rgba(232, 121, 207, 0.08);
   border-color: transparent;
 }
@@ -308,6 +353,24 @@ async function handleRegister () {
   background: #fff;
   padding: 0 12px;
   color: #6b7280;
+}
+.alert-error {
+  margin-top: 14px;
+  padding: 10px 14px;
+  background-color: #fef2f2;
+  border-left: 4px solid #ef4444;
+  color: #b91c1c;
+  font-size: 14px;
+  border-radius: 4px;
+}
+.alert-success {
+  margin-top: 14px;
+  padding: 10px 14px;
+  background-color: #f0fdf4;
+  border-left: 4px solid #22c55e;
+  color: #15803d;
+  font-size: 14px;
+  border-radius: 4px;
 }
 
 @media (max-width: 900px) {

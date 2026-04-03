@@ -17,7 +17,8 @@ export const useInterviewStore = defineStore('interview', () => {
       resume_id: '',
       session_type: type,
       scheduled_at: '',
-      extra_info: ''
+      extra_info: '',
+      session_id: null
     }
   }
 
@@ -76,7 +77,8 @@ export const useInterviewStore = defineStore('interview', () => {
         ended_at: null,
         notes: parsedNotes,
         created_at: nowStr,
-        updated_at: nowStr
+        updated_at: nowStr,
+        session_id: null
       }
       interviews.value.unshift(newInterview)
     }
@@ -105,6 +107,15 @@ export const useInterviewStore = defineStore('interview', () => {
     return str.replace('T', ' ')
   }
 
+  /** 更新 session_id */
+  const setSessionId = (id, sessionId) => {
+    const target = interviews.value.find(i => i.id === id)
+    if (target) {
+      target.session_id = sessionId
+      target.updated_at = new Date().toISOString().slice(0, 19).replace('T', ' ')
+    }
+  }
+
   return {
     interviews,
     showModal,
@@ -116,6 +127,7 @@ export const useInterviewStore = defineStore('interview', () => {
     saveInterview,
     deleteInterview,
     getExtraInfo,
-    formatTime
+    formatTime,
+    setSessionId
   }
 })

@@ -3,7 +3,7 @@ import router from '../router'
 
 // 1. 创建统一的 Axios 实例
 const request = axios.create({
-  baseURL: 'http://localhost:8001/api', // 统一基础路径
+  baseURL: import.meta.env.VITE_API_BASE_URL || '/api', // 统一基础路径，从环境变量读取，默认为 /api
   timeout: 10000,                       // 统一超时时间
   headers: {
     'Content-Type': 'application/json'

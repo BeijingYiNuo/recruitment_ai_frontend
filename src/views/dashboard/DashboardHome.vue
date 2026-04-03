@@ -11,8 +11,6 @@
           <el-button @click="triggerResumeUpload">上传简历</el-button>
           <el-button type="primary" @click="interviewStore.openModal('online')">新增线上面试</el-button>
           <el-button @click="interviewStore.openModal('offline')">新增线下面试</el-button>
-          <el-button @click="createSession">创建 ASR 会话</el-button>
-          <el-button @click="startASR">启动 ASR</el-button>
           <el-button @click="router.push('/profile')">进入个人中心</el-button>
           <input type="file" ref="resumeInput" style="display: none" accept=".pdf,.doc,.docx" @change="handleResumeUpload" />
         </div>
@@ -41,7 +39,6 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getCurrentUser } from '../../services/authService'
-import { interviewApi } from '../../api/interview'
 import { useResumeStore } from '../../stores/resumeStore'
 import { useInterviewStore } from '../../stores/interviewStore'
 import InterviewFormDialog from '../../components/InterviewFormDialog.vue'
@@ -52,27 +49,6 @@ const currentUser = ref(getCurrentUser() || { id: 1, username: '管理员' })
 const resumeInput = ref(null)
 const resumeStore = useResumeStore()
 const interviewStore = useInterviewStore()
-
-// ASR 会话
-const sessionId = ref('')
-
-const createSession = async () => {
-  try {
-    const data = await interviewApi.createSession()
-    sessionId.value = data.user_id
-    ElMessage.success('面试会话创建成功')
-  } catch (error) {
-    ElMessage.error('创建面试会话失败: ' + (error.detail || error.message))
-  }
-}
-
-const startASR = async () => {
-  if (!sessionId.value) {
-    ElMessage.warning('请先创建面试会话')
-    return
-  }
-  router.push(`/interview/${sessionId.value}`)
-}
 
 // 简历上传
 const triggerResumeUpload = () => {

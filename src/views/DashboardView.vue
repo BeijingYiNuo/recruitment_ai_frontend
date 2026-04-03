@@ -27,11 +27,11 @@
           <el-icon><Calendar /></el-icon>
           <span>约见安排</span>
         </el-menu-item>
-        <!-- <el-menu-item index="" disabled>
+        <el-menu-item index="/dashboard/users">
           <el-icon><User /></el-icon>
           <span>用户管理</span>
         </el-menu-item>
-        <el-menu-item index="" disabled>
+        <!-- <el-menu-item index="" disabled>
           <el-icon><DataLine /></el-icon>
           <span>数据统计</span>
         </el-menu-item>
@@ -106,7 +106,8 @@ const pageTitleMap = {
   '/dashboard/home': '首页',
   '/dashboard/cv': '简历管理',
   '/dashboard/interview-manage': '面试管理',
-  '/dashboard/appointment': '约见安排'
+  '/dashboard/appointment': '约见安排',
+  '/dashboard/users': '用户管理'
 }
 const currentPageTitle = computed(() => pageTitleMap[route.path] || '首页')
 

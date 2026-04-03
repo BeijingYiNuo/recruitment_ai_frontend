@@ -7,6 +7,11 @@ export const useResumeStore = defineStore('resume', () => {
   const selectedResume = ref(null)
 
   // ----- Actions -----
+  /** 设置简历列表 */
+  const setResumes = (list) => {
+    resumes.value = list
+  }
+
   /** 添加一份新简历（上传后调用） */
   const addResume = (resume) => {
     resumes.value.unshift(resume)
@@ -38,6 +43,7 @@ export const useResumeStore = defineStore('resume', () => {
   return {
     resumes,
     selectedResume,
+    setResumes,
     addResume,
     deleteResume,
     selectResume,

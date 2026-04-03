@@ -4,14 +4,23 @@
       <template #header>
         <div class="list-header">
           <span>简历管理</span>
-          <el-button type="primary" size="small" @click="triggerResumeUpload">上传新简历</el-button>
+          <el-upload
+            class="upload-demo"
+            :show-file-list="false"
+            :http-request="customUpload"
+            accept=".pdf,.doc,.docx"
+            action=""
+          >
+            <el-button type="primary" size="small">上传新简历</el-button>
+          </el-upload>
         </div>
       </template>
 
-      <el-empty v-if="resumeStore.resumes.length === 0" description="暂无简历，请点击上方按钮上传" />
+      <el-empty v-if="resumeStore.resumes.length === 0 && !listLoading" description="暂无简历，请点击上方按钮上传" />
 
       <el-table
         v-else
+        v-loading="listLoading"
         :data="resumeStore.resumes"
         style="width: 100%"
         :header-cell-style="{ background: '#f5f6f7', color: '#646a73', fontWeight: 500, borderBottom: '1px solid #dee0e3' }"
@@ -39,9 +48,6 @@
       </el-table>
     </el-card>
 
-    <!-- 隐藏的文件上传 -->
-    <input type="file" ref="resumeInput" style="display: none" accept=".pdf,.doc,.docx" @change="handleResumeUpload" />
-
     <!-- 简历详情弹窗 -->
     <ResumeDetailModal
       :resume="resumeStore.selectedResume"
@@ -51,22 +57,36 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getCurrentUser } from '../../services/authService'
 import { useResumeStore } from '../../stores/resumeStore'
 import ResumeDetailModal from '../../components/ResumeDetailModal.vue'
+import { resumeApi } from '../../api/resume'
 
 const resumeStore = useResumeStore()
 const currentUser = ref(getCurrentUser() || { id: 1, username: '管理员' })
-const resumeInput = ref(null)
+const listLoading = ref(false)
 
-const triggerResumeUpload = () => {
-  resumeInput.value.click()
+const fetchResumes = async () => {
+  listLoading.value = true
+  try {
+    const data = await resumeApi.getResumes()
+    const list = Array.isArray(data) ? data : (data.items || data.data || [])
+    resumeStore.setResumes(list)
+  } catch (error) {
+    ElMessage.error('获取简历列表失败: ' + (error?.detail || error?.message || '未知错误'))
+  } finally {
+    listLoading.value = false
+  }
 }
 
-const handleResumeUpload = async (event) => {
-  const file = event.target.files[0]
+onMounted(() => {
+  fetchResumes()
+})
+
+const customUpload = async (options) => {
+  const file = options.file
   if (!file) return
 
   const allowedTypes = [
@@ -77,43 +97,41 @@ const handleResumeUpload = async (event) => {
 
   if (!allowedTypes.includes(file.type) && !file.name.match(/\.(pdf|doc|docx)$/i)) {
     ElMessage.error('只支持 PDF 或 Word 格式的简历文件')
-    event.target.value = ''
-    return
+    return false
   }
 
   if (file.size > 5 * 1024 * 1024) {
     ElMessage.error('简历文件大小不能超过 5MB')
-    event.target.value = ''
-    return
+    return false
   }
 
   ElMessage.info('正在解析并上传简历...')
 
   try {
-    await new Promise(resolve => setTimeout(resolve, 1500))
-    const nowStr = new Date().toISOString().slice(0, 19).replace('T', ' ')
-    const fileExt = file.name.split('.').pop().toLowerCase()
-    const mockId = Date.now()
+    const response = await resumeApi.uploadResume(currentUser.value.id, file)
+    
     const blobUrl = URL.createObjectURL(file)
-
-    resumeStore.addResume({
-      id: mockId,
+    const newResume = Object.assign({
+      id: Date.now(),
       user_id: currentUser.value.id,
       file_name: file.name,
-      file_path: '/mock/resumes/' + mockId + '_' + file.name,
-      file_type: fileExt,
+      file_path: '',
+      file_type: file.name.split('.').pop().toLowerCase(),
       status: 'uploaded',
-      content: '暂无提取内容...',
-      created_at: nowStr,
-      updated_at: nowStr,
-      extracted_at: null,
-      preview_url: blobUrl
-    })
+      created_at: new Date().toISOString().slice(0, 19).replace('T', ' ')
+    }, response)
+    
+    newResume.preview_url = blobUrl
+
+    resumeStore.addResume(newResume)
     ElMessage.success(`简历 ${file.name} 上传成功！`)
   } catch (error) {
-    ElMessage.error('上传失败: ' + (error.detail || error.message))
-  } finally {
-    event.target.value = ''
+    if (Array.isArray(error?.detail)) {
+      const msgs = error.detail.map(e => e.msg).join('; ')
+      ElMessage.error(`上传失败: ${msgs}`)
+    } else {
+      ElMessage.error('上传失败: ' + (error?.detail || error?.message || '未知错误'))
+    }
   }
 }
 

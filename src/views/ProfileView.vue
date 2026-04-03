@@ -14,8 +14,8 @@
       <el-card class="box-card" shadow="hover">
         <template #header>
           <div class="card-header">
-            <span>基础账户信息 <span style="color: #999; font-size: 13px; margin-left:10px;">(当前仅限查看，信息修改功能开发中)</span></span>
-            <el-button type="primary" disabled plain>编辑信息</el-button>
+            <span>基础账户信息</span>
+            <el-button type="primary" size="small" @click="handleEdit">编辑信息</el-button>
           </div>
         </template>
         
@@ -55,9 +55,6 @@
             <el-descriptions-item label="账户创建时间 (created_at)">
               {{ userProfile.created_at }}
             </el-descriptions-item>
-            <el-descriptions-item label="最后修改时间 (updated_at)">
-              {{ userProfile.updated_at }}
-            </el-descriptions-item>
             <el-descriptions-item label="最后登录记录 (last_login_at)">
               {{ userProfile.last_login_at }}
             </el-descriptions-item>
@@ -65,37 +62,85 @@
         </div>
         
       </el-card>
+
+      <!-- 编辑个人信息弹窗组件 -->
+      <UserEditModal 
+        v-model:visible="editDialogVisible"
+        :user-data="userProfile"
+        :show-role="false"
+        title="修改个人信息"
+        @success="fetchProfile"
+      />
     </main>
   </div>
 </template>
 
-<script>
+<script setup>
+import { ref, onMounted } from 'vue'
+import { ElMessage } from 'element-plus'
+import { authApi } from '../api/auth'
 import { getCurrentUser } from '../services/authService'
+import UserEditModal from '../components/UserEditModal.vue'
 
-export default {
-  name: 'ProfileView',
-  data() {
-    // 从现在的 token 缓存里拿基础数据，不足的字段目前采用符合 Schema 的安全缺省值填补
-    const authData = getCurrentUser() || {}
-    const nowStr = new Date().toISOString().slice(0, 19).replace('T', ' ')
-    
-    return {
-      userProfile: {
-        id: authData.id || '--',
-        username: authData.username || '未知用户',
-        email: authData.email || '未知邮箱',
-        
-        // 以下由于当前后端 token 暂未下发这几个新定义的元数据 Schema，进行前端安全 Mock：
-        phone: authData.phone || '',
-        role: authData.role || 'recruiter', // 默认按招聘业务为招聘官兜底展示
-        status: authData.status || 'activate',
-        created_at: authData.created_at || '2026-01-01 10:00:00', // 伪造兜底注册时间
-        updated_at: authData.updated_at || nowStr,
-        last_login_at: authData.last_login_at || nowStr
-      }
+const editDialogVisible = ref(false)
+
+const userProfile = ref({
+  id: '--',
+  username: '加载中...',
+  email: '--',
+  phone: '--',
+  role: '--',
+  status: '--',
+  created_at: '--',
+  last_login_at: '--'
+})
+
+const formatTime = (timeStr) => {
+  if (!timeStr || timeStr === '--') return '--'
+  return timeStr.replace('T', ' ').substring(0, 19)
+}
+
+const fetchProfile = async () => {
+  try {
+    const currentUser = getCurrentUser()
+    if (!currentUser || !currentUser.id) {
+      throw new Error('未获取到当前登录用户的 ID，请重新登录。')
     }
+    
+    const res = await authApi.getUserProfile(currentUser.id) // 请求后端个人信息数据
+    
+    let data;
+    // 兼容取出返回的数据：按你给定的结构是包在一个数组内
+    if (Array.isArray(res) && res.length > 0) {
+      data = res[0]
+    } else if (res && !Array.isArray(res)) {
+      data = res
+    } else {
+      throw new Error('未获取到有效的个人信息数据')
+    }
+
+    userProfile.value = {
+      id: data.id ?? '--',
+      username: data.username || '未知用户',
+      email: data.email || '--',
+      phone: data.phone || '未绑定手机号',
+      role: data.role || '--',
+      status: data.status || '未激活',
+      created_at: formatTime(data.created_at),
+      last_login_at: formatTime(data.last_login_at)
+    }
+  } catch (error) {
+    ElMessage.error('获取个人信息失败: ' + (error?.detail || error?.message || '未知错误'))
   }
 }
+
+const handleEdit = () => {
+  editDialogVisible.value = true
+}
+
+onMounted(() => {
+  fetchProfile()
+})
 </script>
 
 <style scoped>

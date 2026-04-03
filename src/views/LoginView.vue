@@ -28,7 +28,7 @@
           <label for="email">邮箱或手机号</label>
           <div class="input-with-icon">
             <span class="icon">@</span>
-            <input id="email" type="text" v-model="email" placeholder="请输入邮箱或手机号" required />
+            <input id="email" type="text" v-model="username" placeholder="请输入邮箱或手机号" required />
           </div>
         </div>
 
@@ -65,7 +65,7 @@ import AuthCard from '../components/AuthCard.vue'
 import SocialButtons from '../components/SocialButtons.vue'
 
 const router = useRouter()
-const email = ref('')
+const username = ref('')
 const password = ref('')
 const showPassword = ref(false)
 const loading = ref(false)
@@ -78,7 +78,7 @@ async function handleLogin () {
   loading.value = true
   error.value = ''
   try {
-    await authService.login({ email: email.value, password: password.value })
+    await authService.login({ username:  username.value, password: password.value })
     router.push('/dashboard')
   } catch (err) {
     error.value = err?.detail || '登录失败，请检查邮箱和密码'

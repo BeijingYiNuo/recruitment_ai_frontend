@@ -52,6 +52,11 @@ const routes = [
         path: 'appointment',
         name: 'appointment',
         component: () => import('../views/dashboard/AppointmentView.vue')
+      },
+      {
+        path: 'users',
+        name: 'userManage',
+        component: () => import('../views/dashboard/UserManageView.vue')
       }
     ]
   },
@@ -95,24 +100,24 @@ const router = createRouter({
 })
 
 // 路由守卫
-router.beforeEach((to, from, next) => {
-  const isAuth = isAuthenticated()
+// router.beforeEach((to, from, next) => {
+//   const isAuth = isAuthenticated()
 
-  // 已登录状态下访问 首页、登录、注册 页面，直接跳转到控制台
-  if (isAuth && ['home', 'login', 'register'].includes(to.name)) {
-    next({ path: '/dashboard' })
-    return
-  }
+//   // 已登录状态下访问 首页、登录、注册 页面，直接跳转到控制台
+//   if (isAuth && ['home', 'login', 'register'].includes(to.name)) {
+//     next({ path: '/dashboard' })
+//     return
+//   }
 
-  if (to.matched.some(record => record.meta.requiresAuth)) {
-    if (!isAuth) {
-      next({ name: 'login' })
-    } else {
-      next()
-    }
-  } else {
-    next()
-  }
-})
+//   if (to.matched.some(record => record.meta.requiresAuth)) {
+//     if (!isAuth) {
+//       next({ name: 'login' })
+//     } else {
+//       next()
+//     }
+//   } else {
+//     next()
+//   }
+// })
 
 export default router

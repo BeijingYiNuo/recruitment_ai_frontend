@@ -37,6 +37,8 @@
             </div>
           </div>
           <div class="actions">
+            <el-button type="primary" link size="small" v-if="!item.session_id" @click="handleCreateSession(item)">创建 ASR</el-button>
+            <el-button type="success" link size="small" v-if="item.session_id" @click="handleStartASR(item)">启动 ASR</el-button>
             <el-button type="primary" text size="small" @click="interviewStore.editInterview(item)">编辑信息</el-button>
             <el-button type="danger" text size="small" @click="handleDelete(item.id)">取消/删除</el-button>
           </div>
@@ -57,8 +59,10 @@
 
 <script setup>
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getCurrentUser } from '../../services/authService'
+import { interviewApi } from '../../api/interview'
 import { useInterviewStore } from '../../stores/interviewStore'
 import { useResumeStore } from '../../stores/resumeStore'
 import InterviewFormDialog from '../../components/InterviewFormDialog.vue'
@@ -66,6 +70,7 @@ import InterviewFormDialog from '../../components/InterviewFormDialog.vue'
 const interviewStore = useInterviewStore()
 const resumeStore = useResumeStore()
 const currentUser = ref(getCurrentUser() || { id: 1, username: '管理员' })
+const router = useRouter()
 
 const handleSave = () => {
   const form = interviewStore.interviewForm
@@ -92,6 +97,24 @@ const handleDelete = (id) => {
     interviewStore.deleteInterview(id)
     ElMessage.success('面试删除成功')
   }
+}
+
+const handleCreateSession = async (item) => {
+  try {
+    const data = await interviewApi.createSession()
+    interviewStore.setSessionId(item.id, data.user_id)
+    ElMessage.success('面试会话创建成功')
+  } catch (error) {
+    ElMessage.error('创建面试会话失败: ' + (error.detail || error.message))
+  }
+}
+
+const handleStartASR = (item) => {
+  if (!item.session_id) {
+    ElMessage.warning('请先创建面试会话')
+    return
+  }
+  router.push(`/interview/${item.session_id}`)
 }
 </script>
 
