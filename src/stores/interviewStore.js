@@ -13,11 +13,12 @@ export const useInterviewStore = defineStore('interview', () => {
   function createEmptyForm(type = 'online') {
     return {
       id: null,
-      candidate_id: '',
-      resume_id: '',
       session_type: type,
-      scheduled_at: '',
-      extra_info: '',
+      candidate_name: '',
+      resume_id: null,
+      scheduled_start_at: '',
+      scheduled_end_at: '',
+      notes: '',
       session_id: null
     }
   }
@@ -35,11 +36,12 @@ export const useInterviewStore = defineStore('interview', () => {
     isEditMode.value = true
     interviewForm.value = {
       id: item.id,
-      candidate_id: item.candidate_id,
+      candidate_name: item.candidate_name,
       resume_id: item.resume_id,
       session_type: item.session_type,
-      scheduled_at: item.scheduled_at || '',
-      extra_info: getExtraInfo(item)
+      scheduled_start_at: item.scheduled_start_at ? item.scheduled_start_at.substring(0, 19).replace('T', ' ') : '',
+      scheduled_end_at: item.scheduled_end_at ? item.scheduled_end_at.substring(0, 19).replace('T', ' ') : '',
+      notes: item.notes || ''
     }
     showModal.value = true
   }
