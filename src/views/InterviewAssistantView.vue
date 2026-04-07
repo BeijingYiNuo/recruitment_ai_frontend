@@ -25,44 +25,36 @@ import InterviewHeader from '../components/interview/InterviewHeader.vue'
 import TranscriptPanel from '../components/interview/TranscriptPanel.vue'
 import FollowUpPanel from '../components/interview/FollowUpPanel.vue'
 import EvaluationPanel from '../components/interview/EvaluationPanel.vue'
-import { interviewInfo as mockInterviewInfo, transcriptConversation as mockTranscript, followUpQuestions as mockFollowUp, evaluationSummary as mockEvaluation } from '../data/mockInterview'
 
-const interviewInfo = ref(mockInterviewInfo)
-const transcriptConversation = ref(mockTranscript)
-const followUpQuestions = ref(mockFollowUp)
-const evaluationSummary = ref(mockEvaluation)
+const interviewInfo = ref({
+  status: '服务初始化中...',
+  statusColor: '#e6a23c', // 默认黄色等待态
+  timer: '00:00',
+  candidateName: '候选人数据获取中',
+  candidateTitle: '',
+  currentRound: 1
+})
+
+const transcriptConversation = ref([])
+const followUpQuestions = ref([])
+const evaluationSummary = ref({
+  score: 0.0,
+  summary: '暂无大模型分析结论',
+  metrics: []
+})
 
 function onManualFollowUp() {
-  // 触发实时追问逻辑（mock）
-  followUpQuestions.value = [
-    {
-      id: Date.now().toString(),
-      priority: '高优先级',
-      title: '请你补充一下当前架构的性能监控方案。',
-      description: '重点关注端到端应答时延、错误率以及实时告警策略。',
-      tags: ['系统架构', '性能监控']
-    },
-    ...followUpQuestions.value
-  ]
+  // TODO: 接入真正的大模型追问请求
 }
 
 function onEndInterview() {
-  interviewInfo.value.status = '已结束'
-  interviewInfo.value.statusColor = '#C0C4CC'
+  interviewInfo.value.status = '通话已结束'
+  interviewInfo.value.statusColor = '#909399'
+  // TODO: 触发结束动作
 }
 
 function onGenerateMoreSuggestions() {
-  const nextId = followUpQuestions.value.length + 1
-  followUpQuestions.value = [
-    ...followUpQuestions.value,
-    {
-      id: `sug-${nextId}`,
-      priority: nextId % 2 === 0 ? '中优先级' : '高优先级',
-      title: `补充问题 ${nextId}：请说明团队协作过程中的冲突解决方法。`,
-      description: '可参考具体场景，并给出你的分析步骤。',
-      tags: ['协作能力', '沟通技巧']
-    }
-  ]
+  // TODO: 通过后端要求大模型根据当前上下文产出下一批发问题库
 }
 </script>
 

@@ -53,6 +53,7 @@
       :is-edit-mode="interviewStore.isEditMode"
       :form="interviewStore.interviewForm"
       :resumes="resumeStore.resumes"
+      :all-interviews="interviewStore.interviews"
       @save="handleSave"
     />
 
@@ -239,12 +240,25 @@ const handleDelete = (id) => {
 }
 
 const handleCreateSession = async (item) => {
+  const loading = ElLoading.service({ lock: true, text: '配置 ASR 大模型辅助引擎中...' })
   try {
-    const data = await interviewApi.createSession()
-    interviewStore.setSessionId(item.id, data.user_id)
-    ElMessage.success('面试会话创建成功')
+    const payload = {
+      "url": "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async",
+      "seg_duration": 200,
+      "mic": true,
+      "file": "string",
+      "use_llm": true
+    }
+    await interviewApi.startASR(item.id, payload)
+    
+    // 如果返回没有报错，记录 session 标识使得 UI 继续往下推进
+    interviewStore.setSessionId(item.id, item.id)
+    ElMessage.success('ASR 服务挂载完毕，切入全双工面试间！')
+    router.push('/interview-assistant')
   } catch (error) {
-    ElMessage.error('创建面试会话失败: ' + (error.detail || error.message))
+    ElMessage.error('创建大模型 ASR 进程失败: ' + (error?.detail || error?.message || '网络异常'))
+  } finally {
+    loading.close()
   }
 }
 

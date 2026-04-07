@@ -99,25 +99,25 @@ const router = createRouter({
   routes
 })
 
-// 路由守卫
-// router.beforeEach((to, from, next) => {
-//   const isAuth = isAuthenticated()
+//路由守卫
+router.beforeEach((to, from, next) => {
+  const isAuth = isAuthenticated()
 
-//   // 已登录状态下访问 首页、登录、注册 页面，直接跳转到控制台
-//   if (isAuth && ['home', 'login', 'register'].includes(to.name)) {
-//     next({ path: '/dashboard' })
-//     return
-//   }
+  // 已登录状态下访问 首页、登录、注册 页面，直接跳转到控制台
+  if (isAuth && ['home', 'login', 'register'].includes(to.name)) {
+    next({ path: '/dashboard' })
+    return
+  }
 
-//   if (to.matched.some(record => record.meta.requiresAuth)) {
-//     if (!isAuth) {
-//       next({ name: 'login' })
-//     } else {
-//       next()
-//     }
-//   } else {
-//     next()
-//   }
-// })
+  if (to.matched.some(record => record.meta.requiresAuth)) {
+    if (!isAuth) {
+      next({ name: 'login' })
+    } else {
+      next()
+    }
+  } else {
+    next()
+  }
+})
 
 export default router

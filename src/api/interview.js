@@ -25,7 +25,7 @@ export const interviewApi = {
   // 获取单个会话详情
   getSession: (sessionId) => request.get(`/sessions/${sessionId}`),
 
-  // 启动 ASR 语音识别
+  // 启动 ASR 语音识别 (基于 Session ID)
   startASR: (sessionId, data) => request.post(`/asr/start/${sessionId}`, data),
 
   // 停止 ASR 语音识别
