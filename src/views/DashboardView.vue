@@ -31,7 +31,7 @@
           <el-icon><User /></el-icon>
           <span>用户管理</span>
         </el-menu-item>
-        <el-menu-item index="/dashboard/knowledge-base">
+        <el-menu-item :index="lastKnowledgePath">
           <el-icon><DocumentCopy /></el-icon>
           <span>知识库管理</span>
         </el-menu-item>
@@ -94,7 +94,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { getCurrentUser } from '../services/authService'
 import authService from '../services/authService'
@@ -106,10 +106,23 @@ const router = useRouter()
 const route = useRoute()
 const currentUser = ref(getCurrentUser() || { id: 1, username: '管理员' })
 
+// 记录知识库最后所处的完整路径（如详情页）
+const lastKnowledgePath = ref('/dashboard/knowledge-base')
+
+watch(
+  () => route.path,
+  (newPath) => {
+    if (newPath.startsWith('/dashboard/knowledge-base')) {
+      lastKnowledgePath.value = newPath
+    }
+  },
+  { immediate: true }
+)
+
 // 菜单高亮：如果匹配到知识库的子路由，始终高亮知识库管理菜单
 const activeMenu = computed(() => {
   if (route.path.startsWith('/dashboard/knowledge-base')) {
-    return '/dashboard/knowledge-base'
+    return lastKnowledgePath.value
   }
   return route.path
 })

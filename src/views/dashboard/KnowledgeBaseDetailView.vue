@@ -19,7 +19,7 @@
 
       <!-- Active Tab Content Area -->
       <div class="tab-content-area" :class="{ 'no-padding': activeTab === 'search' || activeTab === 'qa' }">
-        <TabOriginalDocs v-if="activeTab === 'original_docs'" />
+        <TabOriginalDocs v-if="activeTab === 'original_docs'" :knowledge-id="kbInfo.id" />
         <TabSliceDetails v-if="activeTab === 'slice_details'" />
         <TabKnowledgeSearch v-if="activeTab === 'search'" />
         <TabKnowledgeQA v-if="activeTab === 'qa'" />

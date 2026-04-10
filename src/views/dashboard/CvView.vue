@@ -1,57 +1,169 @@
 <template>
-  <div class="cv-manage">
-    <el-card class="list-card" shadow="never">
-      <template #header>
-        <div class="list-header">
-          <span>简历管理</span>
-          <el-button type="primary" size="small" @click="uploadDialogVisible = true">导入新简历</el-button>
+  <div class="feishu-page">
+    <div class="card-container">
+      
+      <!-- Header Area -->
+      <div class="header-area">
+        <div class="header-top">
+          <div class="title-area">
+            <h1>简历管理</h1>
+            <span class="badge">{{ resumeStore.resumes?.length || 0 }}</span>
+          </div>
+          <div class="action-btn-group">
+            <el-button type="primary" class="lark-btn-primary" @click="uploadDialogVisible = true">添加简历</el-button>
+          </div>
         </div>
-      </template>
+      </div>
 
-      <el-empty v-if="resumeStore.resumes.length === 0 && !listLoading" description="暂无简历，请点击上方按钮上传" />
+      <!-- Main List Area -->
+      <div class="list-area" v-loading="listLoading">
+        <div class="list-header-row">
+          <div class="col-name">候选人</div>
+          <div class="col-type">格式</div>
+          <div class="col-status">解析状态</div>
+          <div class="col-time">上传时间</div>
+          <div class="col-action">操作</div>
+        </div>
+        
+        <div class="list-body">
+          <el-empty 
+            v-if="(!resumeStore.resumes || resumeStore.resumes.length === 0) && !listLoading" 
+            description="暂无简历，请点击上方按钮添加导入" 
+            style="padding: 60px 0"
+          />
+          
+          <div 
+            v-else
+            class="list-row"
+            v-for="resume in resumeStore.resumes" 
+            :key="resume.id"
+            @click="openDrawer(resume.id)"
+          >
+            <div class="col-name">
+              <el-avatar :size="32" class="lark-avatar">{{ resume.candidate_name?.charAt(0) || 'U' }}</el-avatar>
+              <span class="name-text">{{ resume.candidate_name }}</span>
+              <span class="lark-tag tag-blue" v-if="resume.file_type === 'pdf'">名企概率高</span>
+              <span class="lark-tag tag-purple">高学历潜力</span>
+            </div>
+            
+            <div class="col-type">
+              <span class="lark-tag tag-gray">{{ resume.file_type?.toUpperCase() }}</span>
+            </div>
+            
+            <div class="col-status">
+              <div class="status-indicator">
+                <span class="dot" :class="resume.status === 'uploaded' ? 'dot-loading' : 'dot-success'"></span>
+                <span>{{ resume.status === 'uploaded' ? '解析中...' : '解析成功' }}</span>
+              </div>
+            </div>
+            
+            <div class="col-time">{{ resume.created_at || '刚刚' }}</div>
+            
+            <div class="col-action">
+              <el-button type="primary" link @click.stop="handleDownload(resume)">下载</el-button>
+              <el-button type="danger" link @click.stop="handleDelete(resume.id)">删除</el-button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
-      <el-table
-        v-else
-        v-loading="listLoading"
-        :data="resumeStore.resumes"
-        style="width: 100%"
-        :header-cell-style="{ background: '#f5f6f7', color: '#646a73', fontWeight: 500, borderBottom: '1px solid #dee0e3' }"
-      >
-        <el-table-column prop="candidate_name" label="候选人姓名" min-width="150" show-overflow-tooltip></el-table-column>
-        <el-table-column prop="file_type" label="格式" width="100">
-          <template #default="scope">
-            {{ scope.row.file_type.toUpperCase() }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="status" label="解析状态" width="120">
-          <template #default="scope">
-            <el-tag size="small" type="success" class="status-tag status-success">
-              {{ scope.row.status }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="created_at" label="上传时间" width="180"></el-table-column>
-        <el-table-column label="操作" width="380" fixed="right">
-          <template #default="scope">
-            <el-button type="primary" link size="small" @click="handleViewResume(scope.row.id)">全貌</el-button>
-            <el-button type="success" link size="small" @click="handleFetchSpecial(scope.row, 'educations', '教育经历')">教育</el-button>
-            <el-button type="warning" link size="small" @click="handleFetchSpecial(scope.row, 'work-experiences', '工作经历')">工作</el-button>
-            <el-button type="info" link size="small" @click="handleFetchSpecial(scope.row, 'skills', '技能')">技能</el-button>
-            <el-button type="primary" link size="small" @click="handleFetchSpecial(scope.row, 'projects', '项目经历')">项目</el-button>
-            <el-button type="success" link size="small" @click="handleDownload(scope.row)">下载</el-button>
-            <el-button type="danger" link size="small" @click="handleDelete(scope.row.id)">删除</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-    </el-card>
+    <!-- 详情侧滑抽屉 -->
+    <Teleport to="body">
+      <transition name="fade">
+        <div v-if="drawerVisible" class="lark-drawer-overlay" @click="closeDrawer"></div>
+      </transition>
+      
+      <transition name="drawer-slide">
+        <div v-if="drawerVisible" class="lark-drawer" @click.stop v-loading="drawerLoading">
+          <div class="drawer-header">
+            <div class="drawer-title">{{ currentDetail?.candidate_name || '加载中...' }} - 候选人详情</div>
+            <div class="drawer-actions">
+              <el-button size="small" class="lark-btn-ghost">简历预览</el-button>
+              <el-button size="small" class="lark-btn-ghost">评价</el-button>
+              <el-button size="small" type="primary" class="lark-btn-primary">流转</el-button>
+              <el-button size="small" type="danger" plain>淘汰</el-button>
+              <el-icon class="close-icon" @click="closeDrawer"><Close /></el-icon>
+            </div>
+          </div>
+          
+          <div class="drawer-tabs">
+            <div class="tab-item" :class="{ active: activeTab === 'basic' }" @click="activeTab = 'basic'">基本信息</div>
+            <div class="tab-item" :class="{ active: activeTab === 'original' }" @click="activeTab = 'original'">简历原文</div>
+            <div class="tab-item" :class="{ active: activeTab === 'interview' }" @click="activeTab = 'interview'">面试记录</div>
+          </div>
+          
+          <div class="drawer-body">
+            <!-- 基本信息 Tab -->
+            <div v-show="activeTab === 'basic'">
+              <div class="detail-card">
+                <h3>人才亮点标记</h3>
+                <div v-if="currentDetail" class="highlight-tags">
+                   <span class="lark-tag tag-blue">工作经验丰富</span>
+                   <span class="lark-tag tag-purple">名企背景</span>
+                   <span class="lark-tag tag-green">技能匹配度极高</span>
+                </div>
+              </div>
+              
+              <div class="detail-card">
+                <h3>基础信息字段</h3>
+                <el-descriptions :column="2" border v-if="currentDetail">
+                  <el-descriptions-item label="候选人姓名">{{ currentDetail.candidate_name }}</el-descriptions-item>
+                  <el-descriptions-item label="文件格式">{{ currentDetail.file_type?.toUpperCase() }}</el-descriptions-item>
+                  <el-descriptions-item label="解析状态">{{ currentDetail.status }}</el-descriptions-item>
+                  <el-descriptions-item label="上传时间">{{ currentDetail.created_at || '未知' }}</el-descriptions-item>
+                </el-descriptions>
+              </div>
 
-    <!-- 简历详情弹窗 -->
-    <ResumeDetailModal
-      :resume="resumeStore.selectedResume"
-      @close="resumeStore.clearSelection()"
-    />
+              <div class="detail-card">
+                <h3>全文极客解析结果</h3>
+                <div class="resume-content-view" v-if="currentDetail">
+                  <!-- 适配文本串以及后端返回结构对象 -->
+                  <pre v-if="typeof currentDetail.parsed_content === 'string' || typeof currentDetail.content === 'string'" class="code-block" style="background-color: #1e1e1e; color: #d4d4d4;">{{ currentDetail.parsed_content || currentDetail.content }}</pre>
+                  <pre v-else class="code-block" style="background-color: #1e1e1e; color: #d4d4d4;">{{ formatJson(currentDetail) }}</pre>
+                </div>
+              </div>
 
-    <!-- 简历导入弹窗 -->
+              <div class="detail-card">
+                <h3>AI 智能专项解析</h3>
+                <div class="special-actions">
+                  <el-button @click="handleFetchSpecialInDrawer('educations', '教育经历')" size="small">教育经历提取</el-button>
+                  <el-button @click="handleFetchSpecialInDrawer('work-experiences', '工作经历')" size="small">工作经历提取</el-button>
+                  <el-button @click="handleFetchSpecialInDrawer('skills', '技能')" size="small">核心技能打标</el-button>
+                  <el-button @click="handleFetchSpecialInDrawer('projects', '项目经历')" size="small">项目经验总结</el-button>
+                </div>
+                <!-- 显示内容区域 -->
+                <div class="special-content" v-if="specialDataStr" v-loading="specialDataLoading" style="margin-top: 16px;">
+                  <pre class="code-block">{{ specialDataStr }}</pre>
+                </div>
+              </div>
+            </div>
+
+            <!-- 简历原文 Tab -->
+            <div v-show="activeTab === 'original'">
+              <div class="detail-card text-center" style="padding: 40px;">
+                <el-icon :size="48" color="#8F959E"><Document /></el-icon>
+                <h3 style="margin-top: 16px; color: #1F2329;">源文件操作</h3>
+                <p style="color: #646A73; font-size: 14px; margin-bottom: 24px;">（当前版本不支持直接在此处内联渲染 PDF/WORD 预览，请下载后查看）</p>
+                <el-button type="primary" class="lark-btn-primary" @click="handleDownload(currentDetail)">
+                  <el-icon style="margin-right: 6px;"><Download/></el-icon> 下载原始文件
+                </el-button>
+              </div>
+            </div>
+
+            <!-- 面试记录 Tab -->
+            <div v-show="activeTab === 'interview'">
+              <div class="detail-card">
+                <h3>面试流程进度流转表</h3>
+                <el-empty description="该候选人暂无已录入的面试流水记录与跟进评价" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </transition>
+    </Teleport>
+
+    <!-- 简历导入弹窗 (保留原逻辑与布局) -->
     <el-dialog v-model="uploadDialogVisible" title="导入新简历" width="440px" @close="resetUploadForm">
       <el-form ref="uploadFormRef" :model="uploadForm" :rules="uploadRules" label-width="95px">
         <el-form-item label="候选人姓名" prop="candidateName">
@@ -79,7 +191,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="uploadDialogVisible = false">取消</el-button>
-          <el-button type="primary" :loading="listLoading" @click="submitUpload">确认导入</el-button>
+          <el-button type="primary" class="lark-btn-primary" :loading="listLoading" @click="submitUpload">确认导入</el-button>
         </span>
       </template>
     </el-dialog>
@@ -87,18 +199,18 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { ElMessage, ElLoading, ElMessageBox } from 'element-plus'
-import { UploadFilled } from '@element-plus/icons-vue'
+import { UploadFilled, Download, Close, Document } from '@element-plus/icons-vue'
 import { getCurrentUser } from '../../services/authService'
 import { useResumeStore } from '../../stores/resumeStore'
-import ResumeDetailModal from '../../components/ResumeDetailModal.vue'
 import { resumeApi } from '../../api/resume'
 
 const resumeStore = useResumeStore()
 const currentUser = ref(getCurrentUser() || { id: 1, username: '管理员' })
 const listLoading = ref(false)
 
+// List retrieval
 const fetchResumes = async () => {
   listLoading.value = true
   try {
@@ -116,6 +228,7 @@ onMounted(() => {
   fetchResumes()
 })
 
+// Upload Drawer
 const uploadDialogVisible = ref(false)
 const uploadFormRef = ref(null)
 const uploadRef = ref(null)
@@ -188,7 +301,7 @@ const submitUpload = () => {
       
       ElMessage.success(`简历 ${file.name} 导入成功！`)
       uploadDialogVisible.value = false
-      fetchResumes() // 可选：如果后端返回了最新全量数据，可以选择拉取
+      fetchResumes()
     } catch (error) {
       if (Array.isArray(error?.detail)) {
         const msgs = error.detail.map(e => e.msg).join('; ')
@@ -202,41 +315,80 @@ const submitUpload = () => {
   })
 }
 
-const handleViewResume = async (id) => {
-  const loading = ElLoading.service({ lock: true, text: '正在拉取完整简历内容...' })
+// Custom Drawer logic
+const drawerVisible = ref(false)
+const drawerLoading = ref(false)
+const currentDetail = ref(null)
+const activeTab = ref('basic')
+const specialDataStr = ref('')
+const specialDataLoading = ref(false)
+
+watch(drawerVisible, (val) => {
+  if (val) document.body.style.overflow = 'hidden'
+  else document.body.style.overflow = ''
+})
+
+const openDrawer = async (id) => {
+  drawerVisible.value = true
+  drawerLoading.value = true
+  activeTab.value = 'basic'
+  specialDataStr.value = ''
+  
   try {
     const detail = await resumeApi.getResumeDetail(id)
-    resumeStore.selectResume(detail) // 放入 store 供给弹出层渲染
+    currentDetail.value = detail || resumeStore.resumes.find(r => r.id === id)
+    // Optionally trigger store setup if deeply tied into other components
+    resumeStore.selectResume(currentDetail.value)
   } catch (error) {
-    ElMessage.error('无法获取简历详细内容: ' + (error?.detail || error?.message || '网络异常'))
+    ElMessage.error('无法获取简历详细内容')
+    // Fallback if detail fetch fails but we've got summary list
+    currentDetail.value = resumeStore.resumes.find(r => r.id === id)
   } finally {
-    loading.close()
+    drawerLoading.value = false
   }
 }
 
-const handleFetchSpecial = async (row, type, titleName) => {
-  const loading = ElLoading.service({ lock: true, text: `正在提取大模型解析的 ${titleName}...` })
+const closeDrawer = () => {
+  drawerVisible.value = false
+  setTimeout(() => {
+    currentDetail.value = null
+    specialDataStr.value = ''
+    resumeStore.clearSelection()
+  }, 300) // matches transition timing
+}
+
+// 格式化解析数据，剔除不相关字段
+const formatJson = (data) => {
+  if (!data) return ''
+  const displayData = { ...data }
+  delete displayData.preview_url
+  delete displayData.file_path
+  return JSON.stringify(displayData, null, 2)
+}
+
+const handleFetchSpecialInDrawer = async (type, titleName) => {
+  if (!currentDetail.value?.id) return
+  specialDataLoading.value = true
+  specialDataStr.value = '正在提取并由智能分析模型组装中...'
   try {
     let data;
-    if (type === 'educations') data = await resumeApi.getResumeEducations(row.id)
-    else if (type === 'work-experiences') data = await resumeApi.getResumeWorkExperiences(row.id)
-    else if (type === 'skills') data = await resumeApi.getResumeSkills(row.id)
-    else if (type === 'projects') data = await resumeApi.getResumeProjects(row.id)
+    if (type === 'educations') data = await resumeApi.getResumeEducations(currentDetail.value.id)
+    else if (type === 'work-experiences') data = await resumeApi.getResumeWorkExperiences(currentDetail.value.id)
+    else if (type === 'skills') data = await resumeApi.getResumeSkills(currentDetail.value.id)
+    else if (type === 'projects') data = await resumeApi.getResumeProjects(currentDetail.value.id)
 
-    // 精巧构建返回体，复用并欺骗原有基于 parsed_content 展示的极客暗黑框架构
-    resumeStore.selectResume({
-      candidate_name: `${row.candidate_name || '候选人'} 的专项分析 - ${titleName}`,
-      parsed_content: JSON.stringify(data, null, 2)
-    })
+    specialDataStr.value = JSON.stringify(data, null, 2)
   } catch (error) {
-    ElMessage.error(`提取 ${titleName} 失败: ` + (error?.detail || error?.message || '网络异常'))
+    ElMessage.error(`提取 ${titleName} 失败`)
+    specialDataStr.value = '提取失败或返回格式解析出错'
   } finally {
-    loading.close()
+    specialDataLoading.value = false
   }
 }
 
 const handleDownload = async (row) => {
-  const loading = ElLoading.service({ lock: true, text: '正在下载简历...' })
+  if (!row) return
+  const loading = ElLoading.service({ lock: true, text: '正在下载源文件...' })
   try {
     const blob = await resumeApi.downloadResume(row.id)
     const fileName = row.file_name || `${row.candidate_name || '简历'}.${row.file_type || 'pdf'}`
@@ -248,7 +400,7 @@ const handleDownload = async (row) => {
     link.click()
     document.body.removeChild(link)
     window.URL.revokeObjectURL(url)
-    ElMessage.success('简历下载成功')
+    ElMessage.success('简历下载完成')
   } catch (error) {
     ElMessage.error('下载失败: ' + (error?.detail || error?.message || '网络异常'))
   } finally {
@@ -269,9 +421,9 @@ const handleDelete = (id) => {
     const loading = ElLoading.service({ lock: true, text: '正在斩草除根删除中...' })
     try {
       await resumeApi.deleteResume(id)
-      resumeStore.deleteResume(id) // 同步剔除本地前端缓层缓存
+      resumeStore.deleteResume(id)
       ElMessage.success('物理删除简历成功！')
-      fetchResumes() // 可再次安全确认云端状态一致性
+      fetchResumes()
     } catch (error) {
       ElMessage.error('无法删除此简历: ' + (error?.detail || error?.message || '未知错误'))
     } finally {
@@ -281,39 +433,326 @@ const handleDelete = (id) => {
 }
 </script>
 
-<style scoped lang="scss">
-.cv-manage {
-  .list-card {
-    border-radius: 12px;
-    border: 1px solid #dee0e3;
-    box-shadow: 0 4px 12px rgba(31, 35, 41, 0.04);
+<style scoped>
+/* 核心设计令牌 (Lark Design Tokens) */
+.feishu-page {
+  background-color: #F5F6F7;
+  padding: 16px 24px;
+  min-height: calc(100vh - 60px);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
 
-    :deep(.el-card__header) {
-      padding: 16px 24px;
-      border-bottom: 1px solid #dee0e3;
-    }
+.card-container {
+  background-color: #FFFFFF;
+  border-radius: 8px;
+  border: 1px solid #DEE0E3;
+  min-height: 80vh;
+  box-shadow: 0 2px 8px rgba(31, 35, 41, 0.04);
+  display: flex;
+  flex-direction: column;
+}
 
-    :deep(.el-card__body) {
-      padding: 24px;
-    }
+/* 顶部配置与筛选控制流 */
+.header-area {
+  padding: 20px 24px;
+  border-bottom: 1px solid #DEE0E3;
+}
 
-    .list-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-size: 16px;
-      font-weight: 600;
-      color: #1f2329;
-    }
-  }
+.header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
 
-  .status-tag {
-    border: none;
-    font-weight: 500;
-    &.status-success {
-      background-color: #eaf8f1;
-      color: #17a05d;
-    }
-  }
+.title-area {
+  display: flex;
+  align-items: center;
+}
+
+.title-area h1 {
+  font-size: 20px;
+  font-weight: 600;
+  color: #1F2329;
+  margin: 0;
+}
+
+.badge {
+  background-color: #E1EAFF;
+  color: #3370FF;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  margin-left: 12px;
+}
+
+.lark-btn-primary {
+  background-color: #3370FF;
+  border-color: #3370FF;
+  border-radius: 6px;
+  font-weight: 500;
+  box-shadow: 0 2px 4px rgba(51, 112, 255, 0.2);
+}
+.lark-btn-primary:hover {
+  background-color: #2458D9;
+}
+
+.lark-btn-ghost {
+  border: 1px solid #DEE0E3;
+  color: #1F2329;
+  background: transparent;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+.lark-btn-ghost:hover {
+  background: #F5F6F7;
+}
+
+.lark-btn-ghost:hover {
+  background: #F5F6F7;
+}
+
+/* 列表渲染与微交互 */
+.list-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.list-header-row {
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  height: 44px;
+  color: #646A73;
+  font-size: 14px;
+  font-weight: 500;
+  border-bottom: 1px solid #DEE0E3;
+  background-color: #FFFFFF;
+}
+
+.list-body {
+  flex: 1;
+}
+
+.list-row {
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  height: 64px;
+  border-bottom: 1px solid #F5F6F7;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.list-row:hover {
+  background-color: #F5F6F7;
+}
+
+.col-name { flex: 2.5; min-width: 240px; display: flex; align-items: center; }
+.col-type { flex: 0.8; min-width: 100px; display: flex; align-items: center; }
+.col-status { flex: 1.2; min-width: 140px; display: flex; align-items: center; }
+.col-time { flex: 1.5; min-width: 160px; display: flex; align-items: center; color: #646A73; font-size: 14px; }
+.col-action { flex: 1; min-width: 120px; display: flex; gap: 8px; justify-content: flex-end; align-items: center; }
+
+.lark-avatar {
+  background-color: #3370FF;
+  color: #FFF;
+  font-weight: 600;
+  margin-right: 12px;
+}
+
+.name-text {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1F2329;
+  margin-right: 12px;
+}
+
+/* 标签域 */
+.lark-tag {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  margin-right: 6px;
+}
+.tag-blue { background: #E1EAFF; color: #3370FF; }
+.tag-purple { background: #F0E5FF; color: #722ED1; }
+.tag-gray { background: #F5F6F7; color: #646A73; }
+.tag-green { background: #E4F8EB; color: #13A248; }
+
+/* 进度/状态标识 */
+.status-indicator {
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+  color: #1F2329;
+}
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 8px;
+}
+.dot-success { background-color: #13A248; }
+.dot-loading { background-color: #3370FF; animation: blink 1s infinite alternate; }
+@keyframes blink {
+  from { opacity: 0.4; }
+  to { opacity: 1; }
+}
+
+/* 详情侧滑抽屉样式 (Drawer) */
+.lark-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(31, 35, 41, 0.4);
+  z-index: 2000;
+}
+
+.lark-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 680px;
+  background: #FFFFFF;
+  z-index: 2001;
+  box-shadow: -4px 0 24px rgba(0,0,0,0.1);
+  display: flex;
+  flex-direction: column;
+}
+
+/* 飞书动效 */
+.drawer-slide-enter-active,
+.drawer-slide-leave-active {
+  transition: transform 0.35s cubic-bezier(0.23, 1, 0.32, 1);
+}
+.drawer-slide-enter-from,
+.drawer-slide-leave-to {
+  transform: translateX(100%);
+}
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+/* Drawer Header */
+.drawer-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid #DEE0E3;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.drawer-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1F2329;
+}
+.drawer-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.close-icon {
+  font-size: 20px;
+  color: #646A73;
+  cursor: pointer;
+  transition: color 0.2s;
+  margin-left: 8px;
+}
+.close-icon:hover {
+  color: #1F2329;
+}
+
+/* Drawer Tabs */
+.drawer-tabs {
+  display: flex;
+  padding: 0 24px;
+  border-bottom: 1px solid #DEE0E3;
+  gap: 32px;
+}
+.tab-item {
+  padding: 16px 0;
+  font-size: 14px;
+  color: #646A73;
+  cursor: pointer;
+  position: relative;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+.tab-item:hover {
+  color: #1F2329;
+}
+.tab-item.active {
+  color: #3370FF;
+}
+.tab-item.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: #3370FF;
+  border-radius: 2px 2px 0 0;
+}
+
+/* Drawer Body */
+.drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  background-color: #F5F6F7;
+}
+
+.detail-card {
+  background: #FFFFFF;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 16px;
+  border: 1px solid #DEE0E3;
+}
+.detail-card h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1F2329;
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+.highlight-tags {
+  display: flex;
+  gap: 8px;
+}
+
+.special-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.code-block {
+  background: #F8F9FA; 
+  padding: 16px; 
+  border-radius: 6px; 
+  font-size: 13px; 
+  color: #1F2329; 
+  white-space: pre-wrap; 
+  font-family: Monaco, Menlo, Consolas, "Courier New", monospace;
+  max-height: 480px;
+  overflow-y: auto;
+  border: 1px solid #DEE0E3;
+  line-height: 1.5;
 }
 </style>
