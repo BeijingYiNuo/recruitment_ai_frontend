@@ -33,6 +33,13 @@ export const resumeApi = {
   getResumeSkills: (resumeId) => request.get(`/resumes/${resumeId}/skills`),
   getResumeProjects: (resumeId) => request.get(`/resumes/${resumeId}/projects`),
 
+  // 下载简历原始文件
+  downloadResume: (resumeId) => {
+    return request.get(`/resumes/download/${resumeId}`, {
+      responseType: 'blob'
+    })
+  },
+
   // 彻底删除单份简历
   deleteResume: (resumeId) => {
     return request.delete(`/resumes/${resumeId}`)

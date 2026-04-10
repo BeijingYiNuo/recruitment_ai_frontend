@@ -109,7 +109,10 @@
                   v-for="evt in getEventsForDay(day.dateStr)"
                   :key="evt.id"
                   class="cal-event"
-                  :class="'cal-event--' + evt.session_type"
+                  :class="[
+                    'cal-event--' + evt.session_type,
+                    { 'cal-event--editing': excludeId != null && evt.id === excludeId }
+                  ]"
                   :style="getEventStyle(evt)"
                   :title="evt.candidate_name + ' ' + formatEventTime(evt)"
                 >
@@ -149,7 +152,9 @@ const props = defineProps({
   /** 已有面试安排列表 */
   interviews: { type: Array, default: () => [] },
   /** 外部传入的初始日期（可选） */
-  initialDate: { type: String, default: '' }
+  initialDate: { type: String, default: '' },
+  /** 编辑模式下排除当前面试的 ID，使其时段可重新选择 */
+  excludeId: { type: [Number, String, null], default: null }
 })
 
 const emit = defineEmits(['select-slot'])
@@ -498,6 +503,8 @@ function minuteToTimeStr(minute) {
 function isOccupied(dateStr, minute) {
   const events = getEventsForDay(dateStr)
   return events.some(evt => {
+    // 编辑模式下当前面试的时段不视为占用
+    if (props.excludeId != null && evt.id === props.excludeId) return false
     const s = getMinuteOfDay(evt.scheduled_start_at)
     const e = getMinuteOfDay(evt.scheduled_end_at)
     return minute >= s && minute < e
@@ -872,6 +879,13 @@ defineExpose({ clearSelection, goToday })
     background: #fef0e5;
     border-left: 3px solid #ff8800;
     color: #b85c00;
+  }
+
+  &--editing {
+    opacity: 0.5;
+    border: 1.5px dashed #8f959e;
+    border-left-width: 3px;
+    pointer-events: none; /* 让鼠标穿透它，从而能点到底部的网格进行重新选择 */
   }
 }
 

@@ -57,6 +57,21 @@ const routes = [
         path: 'users',
         name: 'userManage',
         component: () => import('../views/dashboard/UserManageView.vue')
+      },
+      {
+        path: 'knowledge-base',
+        name: 'knowledgeBase',
+        component: () => import('../views/dashboard/KnowledgeBaseView.vue')
+      },
+      {
+        path: 'knowledge-base/:id',
+        name: 'knowledgeBaseDetail',
+        component: () => import('../views/dashboard/KnowledgeBaseDetailView.vue')
+      },
+      {
+        path: 'file-manager',
+        name: 'fileManager',
+        component: () => import('../views/dashboard/FileManagerView.vue')
       }
     ]
   },
@@ -85,7 +100,7 @@ const routes = [
     }
   },
   {
-    path: '/interview-assistant',
+    path: '/interview-assistant/:id',
     name: 'interviewAssistant',
     component: () => import('../views/InterviewAssistantView.vue'),
     meta: {

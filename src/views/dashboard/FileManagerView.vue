@@ -1,0 +1,874 @@
+<template>
+  <div class="file-manager-container">
+    <!-- 1. 侧边导航栏 (Sidebar) -->
+    <div class="sidebar" :style="{ width: sidebarWidth + 'px' }">
+      <!-- 拖拽缩放手柄 -->
+      <div class="resize-handle" @mousedown="startResize"></div>
+
+      <!-- 顶部操作 (新建按钮) -->
+      <div class="sidebar-header">
+        <button class="new-btn" @click="uploadDialogVisible = true">
+          <el-icon class="mr-1"><Plus /></el-icon>
+          <span>新建</span>
+        </button>
+      </div>
+
+      <!-- 功能列表 -->
+      <div class="nav-list">
+        <div 
+          v-for="item in navItems" 
+          :key="item.id"
+          class="nav-item"
+          :class="{ active: activeNav === item.id }"
+          @click="activeNav = item.id"
+        >
+          <el-icon class="nav-icon"><component :is="item.icon" /></el-icon>
+          <span class="nav-label">{{ item.label }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右侧容器 -->
+    <div class="main-wrapper">
+      <!-- 2. 顶部操作栏 (Header) -->
+      <div class="header">
+        <!-- 面包屑导航 -->
+        <div class="breadcrumb">
+        </div>
+
+        <!-- 右侧工具栏 -->
+        <div class="toolbar">
+          <!-- 搜索框 -->
+          <div class="search-box">
+            <el-icon class="search-icon"><Search /></el-icon>
+            <input type="text" placeholder="搜索文件夹及文件" />
+          </div>
+
+          <div class="divider"></div>
+
+          <!-- 视图切换 & 详情面板开关 -->
+          <div class="view-toggles">
+            <button 
+              class="icon-btn" 
+              :class="{ active: viewMode === 'list' }"
+              @click="viewMode = 'list'"
+              title="列表视图"
+            >
+              <el-icon><Expand /></el-icon>
+            </button>
+            <button 
+              class="icon-btn" 
+              :class="{ active: viewMode === 'grid' }"
+              @click="viewMode = 'grid'"
+              title="网格视图"
+            >
+              <el-icon><Menu /></el-icon>
+            </button>
+            <div style="width: 4px;"></div>
+            <button 
+              class="icon-btn" 
+              :class="{ active: showDetail }"
+              @click="showDetail = !showDetail"
+              title="查看详情"
+            >
+              <el-icon><InfoFilled /></el-icon>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. 内容区 (含详情面板) -->
+      <div class="content-area">
+        <!-- 文件列表区 -->
+        <div class="file-list-container">
+          <div v-if="files.length > 0" class="file-list-wrapper">
+            <!-- 表头 -->
+            <div class="list-header">
+              <div class="col-name">文件名</div>
+              <div class="col-owner">所有者</div>
+              <div class="col-time">更新时间</div>
+              <div class="col-size">大小</div>
+            </div>
+
+            <!-- 文件行列表 -->
+            <div class="file-list">
+              <div 
+                v-for="file in files" 
+                :key="file.id"
+                class="file-row"
+              >
+                <!-- 文件名 & 图标 -->
+                <div class="col-name">
+                  <div class="file-icon-wrapper" :style="{ color: file.iconColor }">
+                    <el-icon><component :is="file.icon" /></el-icon>
+                  </div>
+                  <span class="file-name-text">{{ file.name }}</span>
+                </div>
+                
+                <!-- 所有者 -->
+                <div class="col-owner">
+                  <div class="owner-info">
+                    <div class="owner-avatar">{{ file.owner.charAt(0) }}</div>
+                    <span class="owner-name">{{ file.owner }}</span>
+                  </div>
+                </div>
+
+                <!-- 更新时间 -->
+                <div class="col-time">{{ file.updateTime }}</div>
+
+                <!-- 大小 & 快捷操作栏 (Hover展现) -->
+                <div class="col-size has-actions">
+                  <span class="size-text">{{ file.size }}</span>
+                  
+                  <!-- Hover 出现的按钮组 -->
+                  <div class="quick-actions">
+                    <button class="action-btn share-btn" title="分享">
+                      <el-icon><Share /></el-icon>
+                    </button>
+                    <button class="action-btn delete-btn" title="删除" @click.stop="deleteFile(file.id)">
+                      <el-icon><Delete /></el-icon>
+                    </button>
+                    <button class="action-btn more-btn" title="更多操作">
+                      <el-icon><MoreFilled /></el-icon>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- 空状态插画 -->
+          <div v-else class="empty-state">
+            <div class="empty-icon-wrapper">
+              <el-icon class="empty-icon"><FolderOpened /></el-icon>
+            </div>
+            <p class="empty-title">文件夹为空</p>
+            <p class="empty-subtitle">点击左上角“新建”按钮上传文件</p>
+          </div>
+        </div>
+
+        <!-- 详情面板 (右侧弹出) -->
+        <transition name="slide-fade">
+          <div v-if="showDetail" class="detail-panel">
+            <div class="detail-header">
+              <h3>详情</h3>
+              <button class="close-btn" @click="showDetail = false">
+                <el-icon><Close /></el-icon>
+              </button>
+            </div>
+            <div class="detail-body">
+              <el-icon class="detail-empty-icon"><InfoFilled /></el-icon>
+              <p>选中文件或文件夹以查看详细信息</p>
+            </div>
+          </div>
+        </transition>
+      </div>
+    </div>
+
+    <!-- 上传文件弹窗 -->
+    <el-dialog v-model="uploadDialogVisible" title="新建与上传" width="480px" destroy-on-close>
+      <el-form :model="uploadForm" label-position="top">
+        <el-form-item label="文件类别 (file_type)" required>
+          <el-select v-model="uploadForm.file_type" placeholder="请选择类别" style="width: 100%">
+            <el-option label="简历 (resume)" value="resume" />
+            <el-option label="语音 (voice)" value="voice" />
+            <el-option label="对话 (dialogue)" value="dialogue" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="文件" required>
+          <el-upload
+            class="upload-demo"
+            drag
+            action="#"
+            :auto-upload="false"
+            :on-change="handleFileChange"
+            :on-remove="handleFileRemove"
+            :limit="1"
+            style="width: 100%"
+          >
+            <el-icon class="el-icon--upload"><Document /></el-icon>
+            <div class="el-upload__text">
+              将文件拖到此处，或 <em>点击上传</em>
+            </div>
+          </el-upload>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="uploadDialogVisible = false">取消</el-button>
+          <el-button type="primary" :loading="isUploading" @click="submitUpload">
+            确认上传
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
+  </div>
+</template>
+
+<script setup>
+import { ref, onMounted, onUnmounted } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import request from '../../utils/request'
+import { 
+  Plus, Clock, Monitor, Share, Star, Delete,
+  ArrowRight, Search, Expand, Menu, InfoFilled,
+  Document, Picture, FolderOpened, Close, MoreFilled
+} from '@element-plus/icons-vue'
+
+// --- 独立组件逻辑 ---
+
+// 1. 侧边栏拖拽缩放
+const sidebarWidth = ref(240)
+let isResizing = false
+
+const startResize = () => {
+  isResizing = true
+  document.addEventListener('mousemove', onResize)
+  document.addEventListener('mouseup', stopResize)
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none' 
+}
+
+const onResize = (e) => {
+  if (!isResizing) return
+  const newWidth = e.clientX
+  if (newWidth >= 160 && newWidth <= 400) {
+    sidebarWidth.value = newWidth
+  }
+}
+
+const stopResize = () => {
+  isResizing = false
+  document.removeEventListener('mousemove', onResize)
+  document.removeEventListener('mouseup', stopResize)
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+}
+
+onUnmounted(() => {
+  document.removeEventListener('mousemove', onResize)
+  document.removeEventListener('mouseup', stopResize)
+})
+
+// 2. 导航与视图状态管理
+const activeNav = ref('')
+const navItems = []
+
+const viewMode = ref('list') // 'list' | 'grid'
+const showDetail = ref(true)
+
+// 3. 真实拉取文件列表数据
+const files = ref([])
+
+const fetchFileList = async () => {
+  try {
+    const res = await request.get('/file/list')
+    const list = res.data || [] 
+    
+    files.value = list.map(item => {
+      const ext = item.file_name?.split('.').pop()?.toLowerCase() || ''
+      let fileIcon = Document
+      let fileColor = '#3370FF'
+      
+      if (['png', 'jpg', 'jpeg', 'gif'].includes(ext)) {
+        fileIcon = Picture
+        fileColor = '#8F959E'
+      } else if (['xls', 'xlsx', 'csv'].includes(ext)) {
+        fileColor = '#10B981'
+      } else if (['ppt', 'pptx'].includes(ext)) {
+        fileColor = '#F59E0B'
+      } else if (['pdf'].includes(ext) || item.file_type === 'resume') {
+        fileColor = '#EF4444'
+      }
+
+      // 格式化文件大小
+      const sizeBytes = item.file_size || 0
+      const kb = sizeBytes / 1024
+      const mb = kb / 1024
+      const sizeStr = mb > 1 ? mb.toFixed(2) + ' MB' : kb.toFixed(2) + ' KB'
+      
+      // 格式化日期并且简单把 T 替换掉看着舒服些
+      const timeStr = item.updated_at ? item.updated_at.replace('T', ' ') : '未知'
+
+      return {
+        id: item.id,
+        name: item.file_name,
+        owner: '用户 ' + (item.user_id || '-'),
+        updateTime: timeStr,
+        size: sizeStr,
+        icon: fileIcon,
+        iconColor: fileColor
+      }
+    })
+  } catch (error) {
+    console.error('获取文件列表失败:', error)
+    ElMessage.error(error.message || '获取文件列表失败')
+  }
+}
+
+onMounted(() => {
+  fetchFileList()
+})
+
+// --- 4. 上传文件逻辑 ---
+const uploadDialogVisible = ref(false)
+const isUploading = ref(false)
+const uploadForm = ref({
+  file_type: 'resume',
+  file: null
+})
+
+const handleFileChange = (uploadFile) => {
+  uploadForm.value.file = uploadFile.raw
+}
+
+const handleFileRemove = () => {
+  uploadForm.value.file = null
+}
+
+const submitUpload = async () => {
+  if (!uploadForm.value.file) {
+    ElMessage.warning('请选择需要上传的文件')
+    return
+  }
+  if (!uploadForm.value.file_type) {
+    ElMessage.warning('请选择文件类别')
+    return
+  }
+
+  const formData = new FormData()
+  formData.append('file', uploadForm.value.file)
+  formData.append('file_type', uploadForm.value.file_type)
+
+  isUploading.value = true
+  try {
+    await request.post('/file/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    })
+    ElMessage.success('上传成功')
+    
+    uploadDialogVisible.value = false
+    uploadForm.value = { file_type: 'resume', file: null }
+    // 刷新列表以显示刚刚上传的文件
+    fetchFileList()
+  } catch (error) {
+    console.error('Upload Error:', error)
+    ElMessage.error(error.message || '接口调用失败，请检查后端状态')
+  } finally {
+    isUploading.value = false
+  }
+}
+
+// --- 5. 删除文件逻辑 ---
+const deleteFile = async (fileId) => {
+  try {
+    await ElMessageBox.confirm(
+      '确定要删除该文件吗？删除后将无法恢复。',
+      '删除确认',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    )
+    
+    await request.delete(`/file/delete?file_id=${fileId}`)
+    ElMessage.success('删除成功')
+    
+    fetchFileList()
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('删除失败:', error)
+      ElMessage.error(error.message || '删除失败，请稍后重试')
+    }
+  }
+}
+</script>
+
+<style scoped lang="scss">
+/* ----- 全局容器 ----- */
+.file-manager-container {
+  display: flex;
+  height: 100%;
+  width: 100%;
+  background-color: #ffffff;
+  color: #1f2329;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+  overflow: hidden;
+}
+
+/* ----- 侧边栏 ----- */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid #dee1e5;
+  background-color: #f5f6f7;
+  transition: width 0.3s;
+  position: relative;
+  flex-shrink: 0;
+  
+  .resize-handle {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    cursor: col-resize;
+    z-index: 10;
+    transition: background-color 0.2s;
+    &:hover {
+      background-color: rgba(51, 112, 255, 0.5);
+    }
+  }
+
+  .sidebar-header {
+    padding: 16px 20px;
+    .new-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      background-color: #3370ff;
+      color: #ffffff;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 16px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+      transition: background-color 0.2s;
+      
+      .mr-1 {
+        margin-right: 4px;
+      }
+      
+      &:hover {
+        background-color: #2b5dd9;
+      }
+    }
+  }
+
+  .nav-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 12px;
+    
+    .nav-item {
+      display: flex;
+      align-items: center;
+      padding: 10px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      color: #646a73;
+      margin-bottom: 4px;
+      transition: all 0.2s;
+
+      .nav-icon {
+        font-size: 18px;
+        margin-right: 12px;
+      }
+      
+      .nav-label {
+        font-size: 14px;
+        font-weight: 500;
+      }
+
+      &:hover {
+        background-color: #ebeced;
+        color: #1f2329;
+      }
+
+      &.active {
+        background-color: #e1eaff;
+        color: #3370ff;
+      }
+    }
+  }
+}
+
+/* ----- 主内容外层包裹 ----- */
+.main-wrapper {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  background-color: #ffffff;
+}
+
+/* ----- 顶部 Header ----- */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  height: 56px;
+  border-bottom: 1px solid #dee1e5;
+  flex-shrink: 0;
+
+  .breadcrumb {
+    display: flex;
+    align-items: center;
+    font-size: 14px;
+    color: #646a73;
+    
+    .breadcrumb-item {
+      &.link {
+        cursor: pointer;
+        &:hover {
+          color: #3370ff;
+        }
+      }
+      &.current {
+        color: #1f2329;
+        font-weight: 500;
+      }
+    }
+    .breadcrumb-separator {
+      margin: 0 6px;
+      color: #8f959e;
+      font-size: 12px;
+    }
+  }
+
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+
+    .search-box {
+      position: relative;
+      display: flex;
+      align-items: center;
+      
+      .search-icon {
+        position: absolute;
+        left: 12px;
+        color: #8f959e;
+      }
+      
+      input {
+        width: 240px;
+        background-color: #f5f6f7;
+        border: 1px solid transparent;
+        border-radius: 6px;
+        padding: 6px 12px 6px 36px;
+        font-size: 14px;
+        color: #1f2329;
+        outline: none;
+        transition: all 0.2s;
+        
+        &::placeholder {
+          color: #8f959e;
+        }
+        
+        &:focus {
+          background-color: #ffffff;
+          border-color: #3370ff;
+          box-shadow: 0 0 0 2px rgba(51, 112, 255, 0.2);
+        }
+      }
+    }
+
+    .divider {
+      height: 14px;
+      width: 1px;
+      background-color: #dee1e5;
+    }
+
+    .view-toggles {
+      display: flex;
+      gap: 4px;
+      
+      .icon-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 6px;
+        border: none;
+        background: transparent;
+        border-radius: 6px;
+        color: #646a73;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-size: 16px;
+        
+        &:hover {
+          background-color: #f5f6f7;
+        }
+        
+        &.active {
+          background-color: #e1eaff;
+          color: #3370ff;
+        }
+      }
+    }
+  }
+}
+
+/* ----- 主体内容区 ----- */
+.content-area {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+
+  /* 文件列表区 */
+  .file-list-container {
+    flex: 1;
+    min-width: 0;
+    overflow-y: auto;
+    padding: 16px 24px;
+    
+    .list-header {
+      display: flex;
+      align-items: center;
+      padding: 12px 16px;
+      font-size: 13px;
+      color: #8f959e;
+      border-bottom: 1px solid #dee1e5;
+    }
+
+    .col-name { width: 50%; display: flex; align-items: center; padding-right: 16px; }
+    .col-owner { width: 15%; }
+    .col-time { width: 20%; }
+    .col-size { width: 15%; position: relative; display: flex; align-items: center; justify-content: space-between; }
+
+    .file-row {
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      height: 52px;
+      border-radius: 6px;
+      cursor: pointer;
+      border-bottom: 1px solid transparent;
+      transition: background-color 0.2s;
+      
+      &:hover {
+        background-color: #f5f6f7;
+        
+        .size-text {
+          opacity: 0;
+        }
+        .quick-actions {
+          opacity: 1;
+          pointer-events: auto;
+        }
+      }
+
+      .file-icon-wrapper {
+        font-size: 22px;
+        margin-right: 12px;
+        display: flex;
+        align-items: center;
+        flex-shrink: 0;
+      }
+      
+      .file-name-text {
+        font-size: 14px;
+        color: #1f2329;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      
+      .owner-info {
+        display: flex;
+        align-items: center;
+        
+        .owner-avatar {
+          width: 22px;
+          height: 22px;
+          border-radius: 50%;
+          background-color: #3370ff;
+          color: #ffffff;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 11px;
+          margin-right: 8px;
+          flex-shrink: 0;
+        }
+        .owner-name {
+          font-size: 14px;
+          color: #646a73;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+      }
+
+      .col-time, .size-text {
+        font-size: 14px;
+        color: #646a73;
+        white-space: nowrap;
+      }
+      .size-text {
+        transition: opacity 0.2s;
+      }
+
+      .quick-actions {
+        position: absolute;
+        right: 0;
+        top: 50%;
+        transform: translateY(-50%);
+        display: flex;
+        gap: 4px;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s;
+        background-color: #f5f6f7;
+        padding: 4px 8px;
+        border-radius: 6px;
+        
+        .action-btn {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 28px;
+          height: 28px;
+          border: none;
+          background: transparent;
+          border-radius: 4px;
+          color: #646a73;
+          cursor: pointer;
+          transition: all 0.2s;
+          font-size: 14px;
+          
+          &.share-btn:hover { color: #3370ff; background-color: #e1eaff; }
+          &.star-btn:hover { color: #f59e0b; background-color: #fff4e4; }
+          &.delete-btn:hover { color: #f56c6c; background-color: #fef0f0; }
+          &.more-btn:hover { color: #1f2329; background-color: #dee1e5; }
+        }
+      }
+    }
+  }
+
+  /* 空状态 */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    
+    .empty-icon-wrapper {
+      width: 160px;
+      height: 160px;
+      background-color: #f5f6f7;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 16px;
+      
+      .empty-icon {
+        font-size: 64px;
+        color: #dee1e5;
+      }
+    }
+    
+    .empty-title {
+      font-size: 16px;
+      font-weight: 500;
+      color: #1f2329;
+      margin: 0 0 6px 0;
+    }
+    
+    .empty-subtitle {
+      font-size: 14px;
+      color: #8f959e;
+      margin: 0;
+    }
+  }
+
+  /* 右侧详情面板 */
+  .detail-panel {
+    width: 300px;
+    border-left: 1px solid #dee1e5;
+    background-color: #ffffff;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    
+    .detail-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+      
+      h3 {
+        margin: 0;
+        font-size: 15px;
+        font-weight: 500;
+        color: #1f2329;
+      }
+      
+      .close-btn {
+        background: transparent;
+        border: none;
+        color: #8f959e;
+        cursor: pointer;
+        font-size: 18px;
+        padding: 4px;
+        border-radius: 4px;
+        display: flex;
+        
+        &:hover {
+          color: #1f2329;
+          background-color: #f5f6f7;
+        }
+      }
+    }
+    
+    .detail-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      
+      .detail-empty-icon {
+        font-size: 48px;
+        color: #dee1e5;
+        margin-bottom: 12px;
+      }
+      
+      p {
+        font-size: 13px;
+        color: #646a73;
+        margin: 0;
+      }
+    }
+  }
+}
+
+/* 面板动画 */
+.slide-fade-enter-active,
+.slide-fade-leave-active {
+  transition: all 0.3s cubic-bezier(0.2, 0, 0, 1);
+}
+.slide-fade-enter-from,
+.slide-fade-leave-to {
+  transform: translateX(100%);
+  opacity: 0;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #dee1e5;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #8f959e;
+}
+</style>

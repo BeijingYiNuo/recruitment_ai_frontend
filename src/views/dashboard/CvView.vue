@@ -31,13 +31,14 @@
           </template>
         </el-table-column>
         <el-table-column prop="created_at" label="上传时间" width="180"></el-table-column>
-        <el-table-column label="操作" width="340" fixed="right">
+        <el-table-column label="操作" width="380" fixed="right">
           <template #default="scope">
             <el-button type="primary" link size="small" @click="handleViewResume(scope.row.id)">全貌</el-button>
             <el-button type="success" link size="small" @click="handleFetchSpecial(scope.row, 'educations', '教育经历')">教育</el-button>
             <el-button type="warning" link size="small" @click="handleFetchSpecial(scope.row, 'work-experiences', '工作经历')">工作</el-button>
             <el-button type="info" link size="small" @click="handleFetchSpecial(scope.row, 'skills', '技能')">技能</el-button>
             <el-button type="primary" link size="small" @click="handleFetchSpecial(scope.row, 'projects', '项目经历')">项目</el-button>
+            <el-button type="success" link size="small" @click="handleDownload(scope.row)">下载</el-button>
             <el-button type="danger" link size="small" @click="handleDelete(scope.row.id)">删除</el-button>
           </template>
         </el-table-column>
@@ -229,6 +230,27 @@ const handleFetchSpecial = async (row, type, titleName) => {
     })
   } catch (error) {
     ElMessage.error(`提取 ${titleName} 失败: ` + (error?.detail || error?.message || '网络异常'))
+  } finally {
+    loading.close()
+  }
+}
+
+const handleDownload = async (row) => {
+  const loading = ElLoading.service({ lock: true, text: '正在下载简历...' })
+  try {
+    const blob = await resumeApi.downloadResume(row.id)
+    const fileName = row.file_name || `${row.candidate_name || '简历'}.${row.file_type || 'pdf'}`
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', fileName)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    ElMessage.success('简历下载成功')
+  } catch (error) {
+    ElMessage.error('下载失败: ' + (error?.detail || error?.message || '网络异常'))
   } finally {
     loading.close()
   }

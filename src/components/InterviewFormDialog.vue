@@ -18,6 +18,7 @@
         <InterviewCalendar
           ref="calendarRef"
           :interviews="allInterviews"
+          :exclude-id="editingId"
           @select-slot="onSlotSelected"
         />
       </div>
@@ -38,7 +39,7 @@
             </div>
           </el-form-item>
 
-          <el-form-item label="预定开始时间" required>
+          <el-form-item label="预定开始时间" required :disabled="isEditMode">
             <el-date-picker
               v-model="form.scheduled_start_at"
               type="datetime"
@@ -47,7 +48,7 @@
               style="width: 100%" />
           </el-form-item>
           
-          <el-form-item label="预定结束时间" required>
+          <el-form-item label="预定结束时间" required :disabled="isEditMode">
             <el-date-picker
               v-model="form.scheduled_end_at"
               type="datetime"
@@ -86,7 +87,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import InterviewCalendar from './calendar/InterviewCalendar.vue'
 
 const props = defineProps({
@@ -99,6 +100,9 @@ const props = defineProps({
 })
 
 const calendarRef = ref(null)
+
+/** 编辑模式下排除当前面试的 ID，新增模式为 null */
+const editingId = computed(() => props.isEditMode ? props.form.id : null)
 
 const handleResumeChange = (val) => {
   if (val && !props.form.candidate_name) {

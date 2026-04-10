@@ -7,7 +7,7 @@ Learn more about IDE Support for Vue in the [Vue Docs Scaling up Guide](https://
 
 
 # 后端服务启动
-cd recruitment_ai\assistant
+git reset --hard origin/main
 python main.py
 
 # 前端服务启动

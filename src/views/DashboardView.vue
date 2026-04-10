@@ -31,6 +31,14 @@
           <el-icon><User /></el-icon>
           <span>用户管理</span>
         </el-menu-item>
+        <el-menu-item index="/dashboard/knowledge-base">
+          <el-icon><DocumentCopy /></el-icon>
+          <span>知识库管理</span>
+        </el-menu-item>
+        <el-menu-item index="/dashboard/file-manager">
+          <el-icon><Folder /></el-icon>
+          <span>文件管理</span>
+        </el-menu-item>
         <!-- <el-menu-item index="" disabled>
           <el-icon><DataLine /></el-icon>
           <span>数据统计</span>
@@ -91,15 +99,20 @@ import { useRouter, useRoute } from 'vue-router'
 import { getCurrentUser } from '../services/authService'
 import authService from '../services/authService'
 import {
-  House, Document, User, ChatLineRound, Calendar, DataLine, Setting, Search, Bell, ArrowDown
+  House, Document, User, ChatLineRound, Calendar, DataLine, Setting, Search, Bell, ArrowDown, DocumentCopy, Folder
 } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const route = useRoute()
 const currentUser = ref(getCurrentUser() || { id: 1, username: '管理员' })
 
-// 菜单高亮：取当前路由 path
-const activeMenu = computed(() => route.path)
+// 菜单高亮：如果匹配到知识库的子路由，始终高亮知识库管理菜单
+const activeMenu = computed(() => {
+  if (route.path.startsWith('/dashboard/knowledge-base')) {
+    return '/dashboard/knowledge-base'
+  }
+  return route.path
+})
 
 // 面包屑标题
 const pageTitleMap = {
@@ -107,9 +120,16 @@ const pageTitleMap = {
   '/dashboard/cv': '简历管理',
   '/dashboard/interview-manage': '面试管理',
   '/dashboard/appointment': '约见安排',
-  '/dashboard/users': '用户管理'
+  '/dashboard/users': '用户管理',
+  '/dashboard/knowledge-base': '知识库管理',
+  '/dashboard/file-manager': '文件管理'
 }
-const currentPageTitle = computed(() => pageTitleMap[route.path] || '首页')
+const currentPageTitle = computed(() => {
+  if (route.path.startsWith('/dashboard/knowledge-base')) {
+    return '知识库管理'
+  }
+  return pageTitleMap[route.path] || '首页'
+})
 
 const handleLogout = () => {
   authService.logout()
