@@ -62,7 +62,7 @@
           <div class="input-with-icon">
             <span class="icon">🔒</span>
             <input :type="showPassword ? 'text' : 'password'" id="password" v-model="form.password" placeholder="请输入密码" required />
-            <!-- <button type="button" class="eye" @click="showPassword = !showPassword">{{ showPassword ? '🙈' : '👁️' }}</button> -->
+            <button type="button" class="eye" @click="showPassword = !showPassword">{{ showPassword ? '🙈' : '👁️' }}</button>
           </div>
           <div v-if="form.password" class="pw-hint">
             <div :class="['dot', form.password.length >= 8 ? 'ok' : '']"></div><small> 至少 8 个字符</small>
@@ -76,7 +76,7 @@
           <div class="input-with-icon">
             <span class="icon">🔒</span>
             <input :type="showConfirm ? 'text' : 'password'" id="confirmPassword" v-model="form.confirmPassword" placeholder="请再次输入密码" required />
-            <!-- <button type="button" class="eye" @click="showConfirm = !showConfirm">{{ showConfirm ? '🙈' : '👁️' }}</button> -->
+            <button type="button" class="eye" @click="showConfirm = !showConfirm">{{ showConfirm ? '🙈' : '👁️' }}</button>
           </div>
           <p v-if="form.confirmPassword && form.confirmPassword !== form.password" class="error">两次密码输入不一致</p>
         </div>
@@ -265,6 +265,12 @@ async function handleRegister () {
   box-shadow: 0 8px 20px rgba(232, 121, 207, 0.08);
   border-color: transparent;
 }
+/* Hide browser native eye icon */
+input::-ms-reveal,
+input::-ms-clear {
+  display: none;
+}
+
 .eye {
   position: absolute;
   right: 8px;
@@ -273,6 +279,7 @@ async function handleRegister () {
   background: transparent;
   border: 0;
   cursor: pointer;
+  z-index: 10;
 }
 .pw-hint {
   margin-top: 10px;

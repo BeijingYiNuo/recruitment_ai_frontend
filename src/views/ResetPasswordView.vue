@@ -210,6 +210,12 @@ export default {
   box-shadow: 0 8px 20px rgba(16, 185, 129, 0.08);
   border-color: transparent;
 }
+/* Hide browser native eye icon */
+input::-ms-reveal,
+input::-ms-clear {
+  display: none;
+}
+
 .input-with-icon .eye {
   position: absolute;
   right: 8px;
@@ -219,6 +225,7 @@ export default {
   border: 0;
   cursor: pointer;
   padding: 4px;
+  z-index: 10;
 }
 
 /* messages */

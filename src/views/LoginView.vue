@@ -25,10 +25,10 @@
 
       <form @submit.prevent="handleLogin" class="form">
         <div class="field">
-          <label for="email">邮箱或手机号</label>
+          <label for="email">用户名</label>
           <div class="input-with-icon">
             <span class="icon">@</span>
-            <input id="email" type="text" v-model="username" placeholder="请输入邮箱或手机号" required />
+            <input id="email" type="text" v-model="username" placeholder="请输入用户名" required />
           </div>
         </div>
 
@@ -49,7 +49,6 @@
 
         <div class="register-row">还没有账号？ <a href="/register" class="link">立即注册</a></div>
 
-        <!-- <div class="divider-hr"><span>或使用以下方式登录</span></div> -->
         <SocialButtons />
       </form>
     </AuthCard>
@@ -195,6 +194,13 @@ async function handleLogin () {
   box-shadow: 0 8px 20px rgba(99, 102, 241, 0.08);
   border-color: transparent;
 }
+
+/* Hide browser native eye icon */
+input::-ms-reveal,
+input::-ms-clear {
+  display: none;
+}
+
 .input-with-icon .eye {
   position: absolute;
   right: 8px;
@@ -203,7 +209,9 @@ async function handleLogin () {
   background: transparent;
   border: 0;
   cursor: pointer;
+  z-index: 10;
 }
+
 .row-right {
   display: flex;
   justify-content: flex-end;

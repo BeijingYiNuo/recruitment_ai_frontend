@@ -169,39 +169,76 @@ onBeforeUnmount(() => {
 
 const onStartAsr = async () => {
   try {
-    await interviewApi.startASR(sessionId, {})
-    isAsrActive.value = true
-    interviewInfo.value.status = '识别中...'
-    interviewInfo.value.statusColor = '#409eff'
-    
     const token = localStorage.getItem('token')
-    const wsUrl = `ws://${window.location.hostname}:8001/api/asr/stream/${sessionId}?token=${token}`
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    // 使用当前宿主机的 host，让其经过 vite proxy 统一转发，免除 8001 硬编码导致的连接拒绝
+    const wsUrl = `${wsProtocol}//${window.location.host}/api/asr/stream/${sessionId}?token=${token}`
+    
+    isAsrActive.value = true
+    interviewInfo.value.status = '连接建立中...'
+    interviewInfo.value.statusColor = '#409eff'
+
+    // 根据您的要求：点击后同时请求后端接口并建立 websocket 连接 (不再用 await 阻塞)
+    interviewApi.startASR(sessionId, {}).catch(err => {
+      // 若 HTTP 层触发失败仅打印，因为主要交互靠 WS
+      console.error('HTTP startASR 请求异常:', err)
+    })
+
     socket = new WebSocket(wsUrl)
     
     socket.onopen = () => {
       console.log('ASR WebSocket connected')
+      interviewInfo.value.status = '持续听写中...'
       // 连接成功后启动音频采集并发送
       startAudioCapture()
+      ElMessage.success('ASR 识别通道已打通')
     }
     
     socket.onmessage = (event) => {
-      console.log('ASR Stream Data:', event.data)
-      // 可以在这里处理数据，目前只打印
+      try {
+        const data = JSON.parse(event.data)
+        console.log('====== 收到后端 WebSocket 流式数据 ======')
+        console.log('原始数据对象:', data)
+        
+        // 下面是为您初步搭好的数据分流排线架子，您可以根据后端实际返回的字段名去对号入座：
+        // 假设一般流式返回带一个 "type" 字段来区分是 ASR 还是大模型推流
+        if (data.type === 'asr_partial') {
+            console.log('🗣️ [ASR 实时推演 (候选人说)]:', data.text || data.content)
+        } else if (data.type === 'asr_final') {
+            console.log('✅ [ASR 截断定句 (候选人说)]:', data.text || data.content)
+        } else if (data.type === 'llm_partial') {
+            console.log('🤖 [LLM 逐字生成 (面试官想)]:', data.delta || data.content)
+        } else if (data.type === 'llm_final') {
+            console.log('🎯 [LLM 最终成句 (面试官想)]:', data.text || data.content)
+        } else if (data.type === 'error') {
+            console.error('❌ [服务端异常]:', data.message)
+        } else {
+            console.log('📡 [未知类型通道数据]:', data)
+        }
+      } catch (e) {
+        // 若后端传的是纯 String （非JSON），走这条降级打印
+        console.log('📡 [收到纯文本字符流]:', event.data)
+      }
     }
     
     socket.onclose = () => {
       console.log('ASR WebSocket closed')
       isAsrActive.value = false
+      interviewInfo.value.status = '等待连接'
+      interviewInfo.value.statusColor = '#909399'
     }
     
     socket.onerror = (err) => {
       console.error('ASR WebSocket error:', err)
-      ElMessage.error('WebSocket 连接异常')
+      ElMessage.error('WebSocket 存在连接异常')
+      // 如果 WS 断了，为了防范后端进入僵尸态导致按钮互锁，自动替您调一次 stop 接口止损
+      interviewApi.stopASR(sessionId).catch(() => {})
+      isAsrActive.value = false
     }
     
-    ElMessage.success('ASR 识别已启动')
   } catch (err: any) {
     ElMessage.error('启动 ASR 失败: ' + (err.message || '未知错误'))
+    isAsrActive.value = false
   }
 }
 

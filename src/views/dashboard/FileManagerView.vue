@@ -122,8 +122,8 @@
                   
                   <!-- Hover 出现的按钮组 -->
                   <div class="quick-actions">
-                    <button class="action-btn share-btn" title="分享">
-                      <el-icon><Share /></el-icon>
+                    <button class="action-btn download-btn" title="下载" @click.stop="handleDownload(file)">
+                      <el-icon><Download /></el-icon>
                     </button>
                     <button class="action-btn delete-btn" title="删除" @click.stop="deleteFile(file.id)">
                       <el-icon><Delete /></el-icon>
@@ -208,12 +208,12 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import request from '../../utils/request'
 import { 
   Plus, Clock, Monitor, Share, Star, Delete,
   ArrowRight, Search, Expand, Menu, InfoFilled,
-  Document, Picture, FolderOpened, Close, MoreFilled
+  Document, Picture, FolderOpened, Close, MoreFilled, Download
 } from '@element-plus/icons-vue'
+import { fileApi } from '../../api/file'
 
 // --- 独立组件逻辑 ---
 
@@ -262,7 +262,7 @@ const files = ref([])
 
 const fetchFileList = async () => {
   try {
-    const res = await request.get('/file/list')
+    const res = await fileApi.getFileList()
     const list = res.data || [] 
     
     files.value = list.map(item => {
@@ -342,11 +342,7 @@ const submitUpload = async () => {
 
   isUploading.value = true
   try {
-    await request.post('/file/upload', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data'
-      }
-    })
+    await fileApi.uploadFile(formData)
     ElMessage.success('上传成功')
     
     uploadDialogVisible.value = false
@@ -374,7 +370,7 @@ const deleteFile = async (fileId) => {
       }
     )
     
-    await request.delete(`/file/delete?file_id=${fileId}`)
+    await fileApi.deleteFile(fileId)
     ElMessage.success('删除成功')
     
     fetchFileList()
@@ -383,6 +379,29 @@ const deleteFile = async (fileId) => {
       console.error('删除失败:', error)
       ElMessage.error(error.message || '删除失败，请稍后重试')
     }
+  }
+}
+
+const handleDownload = async (file) => {
+  try {
+    const response = await fileApi.downloadFile(file.id)
+    
+    // 创建 blob 链接并下载
+    const url = window.URL.createObjectURL(new Blob([response]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', file.name)
+    document.body.appendChild(link)
+    link.click()
+    
+    // 清理
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    
+    ElMessage.success('开始下载')
+  } catch (error) {
+    console.error('下载失败:', error)
+    ElMessage.error('下载失败，请稍后重试')
   }
 }
 </script>
@@ -736,7 +755,7 @@ const deleteFile = async (fileId) => {
           transition: all 0.2s;
           font-size: 14px;
           
-          &.share-btn:hover { color: #3370ff; background-color: #e1eaff; }
+          &.download-btn:hover { color: #3370ff; background-color: #e1eaff; }
           &.star-btn:hover { color: #f59e0b; background-color: #fff4e4; }
           &.delete-btn:hover { color: #f56c6c; background-color: #fef0f0; }
           &.more-btn:hover { color: #1f2329; background-color: #dee1e5; }

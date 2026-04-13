@@ -42,8 +42,6 @@
             <div class="col-name">
               <el-avatar :size="32" class="lark-avatar">{{ resume.candidate_name?.charAt(0) || 'U' }}</el-avatar>
               <span class="name-text">{{ resume.candidate_name }}</span>
-              <span class="lark-tag tag-blue" v-if="resume.file_type === 'pdf'">名企概率高</span>
-              <span class="lark-tag tag-purple">高学历潜力</span>
             </div>
             
             <div class="col-type">
@@ -57,9 +55,10 @@
               </div>
             </div>
             
-            <div class="col-time">{{ resume.created_at || '刚刚' }}</div>
+            <div class="col-time">{{ formatFullTime(resume.created_at) || '刚刚' }}</div>
             
             <div class="col-action">
+              <el-button type="primary" link @click.stop="handlePreview(resume)">预览</el-button>
               <el-button type="primary" link @click.stop="handleDownload(resume)">下载</el-button>
               <el-button type="danger" link @click.stop="handleDelete(resume.id)">删除</el-button>
             </div>
@@ -79,10 +78,7 @@
           <div class="drawer-header">
             <div class="drawer-title">{{ currentDetail?.candidate_name || '加载中...' }} - 候选人详情</div>
             <div class="drawer-actions">
-              <el-button size="small" class="lark-btn-ghost">简历预览</el-button>
-              <el-button size="small" class="lark-btn-ghost">评价</el-button>
-              <el-button size="small" type="primary" class="lark-btn-primary">流转</el-button>
-              <el-button size="small" type="danger" plain>淘汰</el-button>
+              <el-button size="small" class="lark-btn-ghost" @click="handlePreview(currentDetail)">简历预览</el-button>
               <el-icon class="close-icon" @click="closeDrawer"><Close /></el-icon>
             </div>
           </div>
@@ -90,39 +86,25 @@
           <div class="drawer-tabs">
             <div class="tab-item" :class="{ active: activeTab === 'basic' }" @click="activeTab = 'basic'">基本信息</div>
             <div class="tab-item" :class="{ active: activeTab === 'original' }" @click="activeTab = 'original'">简历原文</div>
-            <div class="tab-item" :class="{ active: activeTab === 'interview' }" @click="activeTab = 'interview'">面试记录</div>
           </div>
           
           <div class="drawer-body">
             <!-- 基本信息 Tab -->
             <div v-show="activeTab === 'basic'">
               <div class="detail-card">
-                <h3>人才亮点标记</h3>
-                <div v-if="currentDetail" class="highlight-tags">
-                   <span class="lark-tag tag-blue">工作经验丰富</span>
-                   <span class="lark-tag tag-purple">名企背景</span>
-                   <span class="lark-tag tag-green">技能匹配度极高</span>
-                </div>
-              </div>
-              
-              <div class="detail-card">
                 <h3>基础信息字段</h3>
                 <el-descriptions :column="2" border v-if="currentDetail">
                   <el-descriptions-item label="候选人姓名">{{ currentDetail.candidate_name }}</el-descriptions-item>
                   <el-descriptions-item label="文件格式">{{ currentDetail.file_type?.toUpperCase() }}</el-descriptions-item>
-                  <el-descriptions-item label="解析状态">{{ currentDetail.status }}</el-descriptions-item>
-                  <el-descriptions-item label="上传时间">{{ currentDetail.created_at || '未知' }}</el-descriptions-item>
+                  <el-descriptions-item label="解析状态">
+                    <el-tag :type="currentDetail.status === 'uploaded' ? 'primary' : 'success'" size="small">
+                      {{ currentDetail.status === 'uploaded' ? '解析中...' : '解析成功' }}
+                    </el-tag>
+                  </el-descriptions-item>
+                  <el-descriptions-item label="上传时间">{{ formatFullTime(currentDetail.created_at) || '未知' }}</el-descriptions-item>
                 </el-descriptions>
               </div>
 
-              <div class="detail-card">
-                <h3>全文极客解析结果</h3>
-                <div class="resume-content-view" v-if="currentDetail">
-                  <!-- 适配文本串以及后端返回结构对象 -->
-                  <pre v-if="typeof currentDetail.parsed_content === 'string' || typeof currentDetail.content === 'string'" class="code-block" style="background-color: #1e1e1e; color: #d4d4d4;">{{ currentDetail.parsed_content || currentDetail.content }}</pre>
-                  <pre v-else class="code-block" style="background-color: #1e1e1e; color: #d4d4d4;">{{ formatJson(currentDetail) }}</pre>
-                </div>
-              </div>
 
               <div class="detail-card">
                 <h3>AI 智能专项解析</h3>
@@ -134,7 +116,74 @@
                 </div>
                 <!-- 显示内容区域 -->
                 <div class="special-content" v-if="specialDataStr" v-loading="specialDataLoading" style="margin-top: 16px;">
-                  <pre class="code-block">{{ specialDataStr }}</pre>
+                  <!-- 教育经历结构化渲染 -->
+                  <div v-if="activeSpecialType === 'educations' && specialEduList.length > 0" class="special-list edu-list">
+                    <div v-for="edu in specialEduList" :key="edu.id" class="special-item edu-item">
+                      <div class="item-header">
+                        <span class="main-title">{{ edu.school_name }}</span>
+                        <div class="item-tags">
+                          <el-tag v-if="edu.is_985" size="small" type="warning" effect="dark" class="mini-tag">985</el-tag>
+                          <el-tag v-if="edu.is_211" size="small" type="danger" effect="dark" class="mini-tag">211</el-tag>
+                        </div>
+                      </div>
+                      <div class="item-sub">
+                        <span class="info-line">{{ edu.major }}</span>
+                        <span class="divider" v-if="edu.major && edu.degree">|</span>
+                        <span class="info-line">{{ edu.degree || '无学位/大专' }}</span>
+                      </div>
+                      <div class="item-date">
+                        {{ formatSimpleDate(edu.start_date) }} 至 {{ formatSimpleDate(edu.end_date) }}
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- 工作经历结构化渲染 -->
+                  <div v-else-if="activeSpecialType === 'work-experiences' && specialWorkList.length > 0" class="special-list work-list">
+                    <div v-for="work in specialWorkList" :key="work.id" class="special-item work-item">
+                      <div class="item-header">
+                        <span class="main-title">{{ work.company_name }}</span>
+                        <span class="item-date">{{ formatSimpleDate(work.start_date) }} - {{ formatSimpleDate(work.end_date) }}</span>
+                      </div>
+                      <div class="item-sub">
+                        <span class="position-text">{{ work.position }}</span>
+                      </div>
+                      <div class="item-desc" v-if="work.description">
+                        {{ work.description }}
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- 技能打标结构化渲染 -->
+                  <div v-else-if="activeSpecialType === 'skills' && specialSkillList.length > 0" class="skill-cloud">
+                    <div v-for="skill in specialSkillList" :key="skill.id" class="skill-chip">
+                      <span class="skill-name">{{ skill.skill_name }}</span>
+                      <span class="skill-level" v-if="skill.proficiency_level">({{ skill.proficiency_level }})</span>
+                    </div>
+                  </div>
+
+                  <!-- 项目经验结构化渲染 -->
+                  <div v-else-if="activeSpecialType === 'projects' && specialProjectList.length > 0" class="special-list project-list">
+                    <div v-for="proj in specialProjectList" :key="proj.id" class="special-item project-item">
+                      <div class="item-header">
+                        <span class="main-title">{{ proj.project_name }}</span>
+                        <span class="item-date">{{ formatSimpleDate(proj.start_date) }} - {{ formatSimpleDate(proj.end_date) }}</span>
+                      </div>
+                      <div class="item-sub">
+                        <span class="role-text">{{ proj.role || '参与者' }}</span>
+                      </div>
+                      <div class="item-desc" v-if="proj.description">
+                        {{ proj.description }}
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- 空状态处理：针对已知的结构化类型，如果列表为空则展示友好提示 -->
+                  <div v-else-if="['educations', 'work-experiences', 'skills', 'projects'].includes(activeSpecialType)" class="empty-special-card">
+                    <el-empty description="本次 AI 解析未提取到相关有效信息" :image-size="80"></el-empty>
+                  </div>
+
+                  <!-- 其他默认 JSON 渲染 -->
+                  <pre v-else class="code-block">{{ specialDataStr }}</pre>
                 </div>
               </div>
             </div>
@@ -144,24 +193,52 @@
               <div class="detail-card text-center" style="padding: 40px;">
                 <el-icon :size="48" color="#8F959E"><Document /></el-icon>
                 <h3 style="margin-top: 16px; color: #1F2329;">源文件操作</h3>
-                <p style="color: #646A73; font-size: 14px; margin-bottom: 24px;">（当前版本不支持直接在此处内联渲染 PDF/WORD 预览，请下载后查看）</p>
-                <el-button type="primary" class="lark-btn-primary" @click="handleDownload(currentDetail)">
-                  <el-icon style="margin-right: 6px;"><Download/></el-icon> 下载原始文件
-                </el-button>
+                <p style="color: #646A73; font-size: 14px; margin-bottom: 24px;">可在线预览 PDF 格式简历，或下载原始文件到本地查看</p>
+                <div style="display: flex; gap: 12px; justify-content: center;">
+                  <el-button type="primary" class="lark-btn-primary" @click="handlePreview(currentDetail)">
+                    <el-icon style="margin-right: 6px;"><View/></el-icon> 预览简历
+                  </el-button>
+                  <el-button class="lark-btn-ghost" @click="handleDownload(currentDetail)">
+                    <el-icon style="margin-right: 6px;"><Download/></el-icon> 下载原始文件
+                  </el-button>
+                </div>
               </div>
             </div>
 
             <!-- 面试记录 Tab -->
-            <div v-show="activeTab === 'interview'">
-              <div class="detail-card">
-                <h3>面试流程进度流转表</h3>
-                <el-empty description="该候选人暂无已录入的面试流水记录与跟进评价" />
-              </div>
-            </div>
           </div>
         </div>
       </transition>
     </Teleport>
+
+    <!-- 简历预览弹窗 -->
+    <el-dialog
+      v-model="previewDialogVisible"
+      :title="previewTitle"
+      width="80%"
+      top="5vh"
+      destroy-on-close
+      class="preview-dialog"
+      @close="onPreviewClose"
+    >
+      <div class="preview-container" v-loading="previewLoading">
+        <!-- PDF 预览 -->
+        <iframe
+          v-if="previewType === 'pdf' && previewUrl"
+          :src="previewUrl"
+          class="preview-iframe"
+        />
+        <!-- Word 文件降级提示 -->
+        <div v-else-if="['doc', 'docx'].includes(previewType)" class="preview-fallback">
+          <el-icon :size="64" color="#8F959E"><Document /></el-icon>
+          <h3>Word 文档暂不支持在线预览</h3>
+          <p>当前仅支持 PDF 格式的在线预览，Word 文件请下载后使用本地软件查看。</p>
+          <el-button type="primary" class="lark-btn-primary" @click="handleDownload(previewResumeData)">
+            <el-icon style="margin-right: 6px;"><Download/></el-icon> 下载文件查看
+          </el-button>
+        </div>
+      </div>
+    </el-dialog>
 
     <!-- 简历导入弹窗 (保留原逻辑与布局) -->
     <el-dialog v-model="uploadDialogVisible" title="导入新简历" width="440px" @close="resetUploadForm">
@@ -199,9 +276,9 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { ElMessage, ElLoading, ElMessageBox } from 'element-plus'
-import { UploadFilled, Download, Close, Document } from '@element-plus/icons-vue'
+import { UploadFilled, Download, Close, Document, View } from '@element-plus/icons-vue'
 import { getCurrentUser } from '../../services/authService'
 import { useResumeStore } from '../../stores/resumeStore'
 import { resumeApi } from '../../api/resume'
@@ -211,12 +288,45 @@ const currentUser = ref(getCurrentUser() || { id: 1, username: '管理员' })
 const listLoading = ref(false)
 
 // List retrieval
+let statusPolling = null
+
+const stopPolling = () => {
+  if (statusPolling) {
+    clearInterval(statusPolling)
+    statusPolling = null
+  }
+}
+
+const checkAndStartPolling = () => {
+  const needsPolling = resumeStore.resumes.some(r => r.status === 'uploaded')
+  
+  if (needsPolling && !statusPolling) {
+    statusPolling = setInterval(async () => {
+      try {
+        const data = await resumeApi.getResumes()
+        const list = Array.isArray(data) ? data : (data.items || data.data || [])
+        resumeStore.setResumes(list)
+        
+        // 如果全部解析完毕，停止轮询
+        if (!list.some(r => r.status === 'uploaded')) {
+          stopPolling()
+        }
+      } catch (error) {
+        console.error('状态轮询失败:', error)
+      }
+    }, 5000)
+  } else if (!needsPolling && statusPolling) {
+    stopPolling()
+  }
+}
+
 const fetchResumes = async () => {
   listLoading.value = true
   try {
     const data = await resumeApi.getResumes()
     const list = Array.isArray(data) ? data : (data.items || data.data || [])
     resumeStore.setResumes(list)
+    checkAndStartPolling()
   } catch (error) {
     ElMessage.error('获取简历列表失败: ' + (error?.detail || error?.message || '未知错误'))
   } finally {
@@ -226,6 +336,10 @@ const fetchResumes = async () => {
 
 onMounted(() => {
   fetchResumes()
+})
+
+onUnmounted(() => {
+  stopPolling()
 })
 
 // Upload Drawer
@@ -301,7 +415,7 @@ const submitUpload = () => {
       
       ElMessage.success(`简历 ${file.name} 导入成功！`)
       uploadDialogVisible.value = false
-      fetchResumes()
+      fetchResumes() // 这里会触发 checkAndStartPolling
     } catch (error) {
       if (Array.isArray(error?.detail)) {
         const msgs = error.detail.map(e => e.msg).join('; ')
@@ -322,6 +436,11 @@ const currentDetail = ref(null)
 const activeTab = ref('basic')
 const specialDataStr = ref('')
 const specialDataLoading = ref(false)
+const activeSpecialType = ref('') // 'educations', 'work-experiences', etc.
+const specialEduList = ref([])
+const specialWorkList = ref([])
+const specialSkillList = ref([])
+const specialProjectList = ref([])
 
 watch(drawerVisible, (val) => {
   if (val) document.body.style.overflow = 'hidden'
@@ -357,25 +476,37 @@ const closeDrawer = () => {
   }, 300) // matches transition timing
 }
 
-// 格式化解析数据，剔除不相关字段
-const formatJson = (data) => {
-  if (!data) return ''
-  const displayData = { ...data }
-  delete displayData.preview_url
-  delete displayData.file_path
-  return JSON.stringify(displayData, null, 2)
-}
 
 const handleFetchSpecialInDrawer = async (type, titleName) => {
   if (!currentDetail.value?.id) return
   specialDataLoading.value = true
+  activeSpecialType.value = type
+  specialEduList.value = []
+  specialWorkList.value = []
+  specialSkillList.value = []
   specialDataStr.value = '正在提取并由智能分析模型组装中...'
+  
   try {
     let data;
-    if (type === 'educations') data = await resumeApi.getResumeEducations(currentDetail.value.id)
-    else if (type === 'work-experiences') data = await resumeApi.getResumeWorkExperiences(currentDetail.value.id)
-    else if (type === 'skills') data = await resumeApi.getResumeSkills(currentDetail.value.id)
-    else if (type === 'projects') data = await resumeApi.getResumeProjects(currentDetail.value.id)
+    if (type === 'educations') {
+      data = await resumeApi.getResumeEducations(currentDetail.value.id)
+      const list = Array.isArray(data) ? data : []
+      specialEduList.value = list.sort((a, b) => new Date(b.end_date) - new Date(a.end_date))
+    }
+    else if (type === 'work-experiences') {
+      data = await resumeApi.getResumeWorkExperiences(currentDetail.value.id)
+      const list = Array.isArray(data) ? data : []
+      specialWorkList.value = list.sort((a, b) => new Date(b.end_date) - new Date(a.end_date))
+    }
+    else if (type === 'skills') {
+      data = await resumeApi.getResumeSkills(currentDetail.value.id)
+      specialSkillList.value = Array.isArray(data) ? data : []
+    }
+    else if (type === 'projects') {
+      data = await resumeApi.getResumeProjects(currentDetail.value.id)
+      const list = Array.isArray(data) ? data : []
+      specialProjectList.value = list.sort((a, b) => new Date(b.end_date) - new Date(a.end_date))
+    }
 
     specialDataStr.value = JSON.stringify(data, null, 2)
   } catch (error) {
@@ -383,6 +514,27 @@ const handleFetchSpecialInDrawer = async (type, titleName) => {
     specialDataStr.value = '提取失败或返回格式解析出错'
   } finally {
     specialDataLoading.value = false
+  }
+}
+
+const formatSimpleDate = (dateStr) => {
+  if (!dateStr) return '至今'
+  return dateStr.split('T')[0]
+}
+
+const formatFullTime = (dateStr) => {
+  if (!dateStr) return ''
+  try {
+    const date = new Date(dateStr)
+    const y = date.getFullYear()
+    const m = String(date.getMonth() + 1).padStart(2, '0')
+    const d = String(date.getDate()).padStart(2, '0')
+    const h = String(date.getHours()).padStart(2, '0')
+    const min = String(date.getMinutes()).padStart(2, '0')
+    const s = String(date.getSeconds()).padStart(2, '0')
+    return `${y}-${m}-${d} ${h}:${min}:${s}`
+  } catch (e) {
+    return dateStr
   }
 }
 
@@ -430,6 +582,46 @@ const handleDelete = (id) => {
       loading.close()
     }
   }).catch(() => {})
+}
+
+// === 预览相关 ===
+const previewDialogVisible = ref(false)
+const previewLoading = ref(false)
+const previewUrl = ref('')
+const previewType = ref('')
+const previewTitle = ref('简历预览')
+const previewResumeData = ref(null)
+
+const handlePreview = async (resume) => {
+  if (!resume) return
+
+  previewResumeData.value = resume
+  previewTitle.value = `${resume.candidate_name || '简历'} - 预览`
+  previewType.value = (resume.file_type || '').toLowerCase()
+  previewDialogVisible.value = true
+
+  // PDF 文件使用 iframe 预览
+  if (previewType.value === 'pdf') {
+    previewLoading.value = true
+    try {
+      const blob = await resumeApi.downloadResume(resume.id)
+      const pdfBlob = new Blob([blob], { type: 'application/pdf' })
+      previewUrl.value = URL.createObjectURL(pdfBlob)
+    } catch (error) {
+      ElMessage.error('预览加载失败: ' + (error?.detail || error?.message || '网络异常'))
+      previewDialogVisible.value = false
+    } finally {
+      previewLoading.value = false
+    }
+  }
+}
+
+const onPreviewClose = () => {
+  if (previewUrl.value) {
+    URL.revokeObjectURL(previewUrl.value)
+    previewUrl.value = ''
+  }
+  previewResumeData.value = null
 }
 </script>
 
@@ -583,10 +775,7 @@ const handleDelete = (id) => {
   font-weight: 500;
   margin-right: 6px;
 }
-.tag-blue { background: #E1EAFF; color: #3370FF; }
-.tag-purple { background: #F0E5FF; color: #722ED1; }
 .tag-gray { background: #F5F6F7; color: #646A73; }
-.tag-green { background: #E4F8EB; color: #13A248; }
 
 /* 进度/状态标识 */
 .status-indicator {
@@ -731,10 +920,7 @@ const handleDelete = (id) => {
   margin-top: 0;
   margin-bottom: 16px;
 }
-.highlight-tags {
-  display: flex;
-  gap: 8px;
-}
+
 
 .special-actions {
   display: flex;
@@ -754,5 +940,148 @@ const handleDelete = (id) => {
   overflow-y: auto;
   border: 1px solid #DEE0E3;
   line-height: 1.5;
+}
+
+/* 专项提取列表公共样式 */
+.special-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.special-item {
+  background: #FFFFFF;
+  border-radius: 6px;
+  padding: 16px;
+  border: 1px solid #E4E7ED;
+  transition: all 0.2s;
+}
+.special-item:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  border-color: #3370FF;
+}
+.item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.main-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1F2329;
+}
+.item-sub {
+  font-size: 13px;
+  color: #646A73;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.item-date {
+  font-size: 12px;
+  color: #8F959E;
+}
+.mini-tag {
+  height: 18px;
+  line-height: 17px;
+  padding: 0 4px;
+  font-size: 10px;
+  border: none;
+}
+
+/* 工作经历特有样式 */
+.item-desc {
+  margin-top: 10px;
+  font-size: 13px;
+  color: #1F2329;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  background: #F5F6F7;
+  padding: 12px;
+  border-radius: 4px;
+}
+.position-text {
+  color: #3370FF;
+  font-weight: 500;
+}
+.role-text {
+  color: #13A248;
+  font-weight: 500;
+}
+
+/* 技能标签云样式 */
+.skill-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.skill-chip {
+  background-color: #E1EAFF;
+  color: #3370FF;
+  padding: 6px 12px;
+  border-radius: 16px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid #3370FF33;
+}
+.skill-level {
+  font-size: 11px;
+  opacity: 0.8;
+  margin-left: 4px;
+}
+
+/* 空状态卡片样式 */
+.empty-special-card {
+  background: #FFFFFF;
+  border-radius: 8px;
+  padding: 40px 20px;
+  border: 1px dashed #DEE0E3;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* 预览弹窗 */
+:deep(.preview-dialog .el-dialog__body) {
+  padding: 0;
+  height: 80vh;
+}
+
+.preview-container {
+  height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.preview-iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  flex: 1;
+}
+
+.preview-fallback {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 16px;
+  color: #646A73;
+}
+
+.preview-fallback h3 {
+  color: #1F2329;
+  font-size: 18px;
+  margin: 0;
+}
+
+.preview-fallback p {
+  font-size: 14px;
+  margin: 0;
+  max-width: 400px;
+  text-align: center;
+  line-height: 1.6;
 }
 </style>
