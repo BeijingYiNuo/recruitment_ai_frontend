@@ -142,7 +142,7 @@
                     <div v-for="work in specialWorkList" :key="work.id" class="special-item work-item">
                       <div class="item-header">
                         <span class="main-title">{{ work.company_name }}</span>
-                        <span class="item-date">{{ formatSimpleDate(work.start_date) }} - {{ formatSimpleDate(work.end_date) }}</span>
+                        <span class="item-date">{{ formatDateRange(work.start_date, work.end_date) }}</span>
                       </div>
                       <div class="item-sub">
                         <span class="position-text">{{ work.position }}</span>
@@ -166,7 +166,7 @@
                     <div v-for="proj in specialProjectList" :key="proj.id" class="special-item project-item">
                       <div class="item-header">
                         <span class="main-title">{{ proj.project_name }}</span>
-                        <span class="item-date">{{ formatSimpleDate(proj.start_date) }} - {{ formatSimpleDate(proj.end_date) }}</span>
+                        <span class="item-date">{{ formatDateRange(proj.start_date, proj.end_date) }}</span>
                       </div>
                       <div class="item-sub">
                         <span class="role-text">{{ proj.role || '参与者' }}</span>
@@ -520,6 +520,15 @@ const handleFetchSpecialInDrawer = async (type, titleName) => {
 const formatSimpleDate = (dateStr) => {
   if (!dateStr) return '至今'
   return dateStr.split('T')[0]
+}
+
+const formatDateRange = (startDate, endDate) => {
+  const start = formatSimpleDate(startDate)
+  // 开始和结束为同一天，视为"至今"
+  if (startDate && endDate && startDate.split('T')[0] === endDate.split('T')[0]) {
+    return '至今'
+  }
+  return `${start} - ${formatSimpleDate(endDate)}`
 }
 
 const formatFullTime = (dateStr) => {

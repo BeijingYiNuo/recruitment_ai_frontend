@@ -65,12 +65,12 @@
             </div>
           </div>
 
-          <el-form-item :label="form.session_type === 'online' ? '面试备注 (如: 会议链接)' : '面试备注 (如: 面试地点)'" required>
+          <el-form-item :label="form.session_type === 'online' ? '面试备注 ' : '面试备注 '" required>
             <el-input
               v-model="form.notes"
               type="textarea"
               :rows="2"
-              :placeholder="form.session_type === 'online' ? '例如: 腾讯会议链接 https://meet.tencent.com/123-456' : '例如: 深圳市南山区招聘研发中心面试间'">
+              :placeholder="form.session_type === 'online' ? '' : ''">
             </el-input>
           </el-form-item>
         </el-form>

@@ -14,8 +14,9 @@ const request = axios.create({
 request.interceptors.request.use(
   config => {
     const token = localStorage.getItem('token')
+    console.log('[Axios Request]', config.method?.toUpperCase(), config.url, { hasToken: !!token })
     if (token) {
-      config.headers['Authorization'] = `Bearer ${token}`
+      config.headers.Authorization = `Bearer ${token}`
     }
     return config
   },
@@ -29,6 +30,7 @@ request.interceptors.response.use(
     if (error.response) {
       // 401: Token 失效或未授权
       if (error.response.status === 401) {
+         console.warn('[Axios Response] 401 Unauthorized - Clearing Token', error.config.url)
          localStorage.removeItem('token')
          localStorage.removeItem('user')
          // 跳转回登录页

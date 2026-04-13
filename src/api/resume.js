@@ -15,7 +15,7 @@ export const resumeApi = {
 
   // 获取简历
   getResumes: (skip = 0, limit = 100) => {
-    return request.get('/resumes/', { params: { skip, limit } })
+    return request.get('/resumes', { params: { skip, limit } })
   },
 
   // 获取特定用户列表简历 (原接口)

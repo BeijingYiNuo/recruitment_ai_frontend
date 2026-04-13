@@ -117,7 +117,13 @@ const evaluationSummary = ref({
   metrics: []
 })
 
-const requestMicPermission = async () => {
+const requestMicPermission = async (): Promise<boolean> => {
+  // 检查浏览器 API 可用性（非 HTTPS 或老旧浏览器会缺失）
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    ElMessage.error('当前浏览器不支持麦克风功能，请使用 Chrome/Edge 并确保为 HTTPS 环境')
+    return false
+  }
+
   try {
     await ElMessageBox.confirm(
       '为了进行语音识别，面试助手需要开启麦克风权限。是否现在开启？',
@@ -128,14 +134,27 @@ const requestMicPermission = async () => {
         type: 'info'
       }
     )
+  } catch {
+    // 用户点取消 / ESC / 遮罩层关闭，静默返回
+    return false
+  }
+
+  try {
     mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true })
     console.log('Microphone permission granted')
     ElMessage.success('麦克风权限已获取')
-  } catch (err) {
-    if (err !== 'cancel') {
-      ElMessage.error('无法获取麦克风权限，请检查浏览器设置')
-      console.error('Mic error:', err)
+    return true
+  } catch (err: any) {
+    // 根据具体错误类型给出针对性提示
+    const errorMap: Record<string, string> = {
+      NotAllowedError: '麦克风权限被拒绝，请在浏览器地址栏左侧点击锁形图标手动开启',
+      NotFoundError: '未检测到麦克风设备，请检查是否正确连接',
+      NotReadableError: '麦克风被其他程序占用，请关闭其他录音软件后重试',
+      OverconstrainedError: '麦克风不满足音频约束条件',
     }
+    ElMessage.error(errorMap[err.name] || `麦克风获取失败: ${err.message}`)
+    console.error('Mic error:', err)
+    return false
   }
 }
 
@@ -169,6 +188,15 @@ onBeforeUnmount(() => {
 
 const onStartAsr = async () => {
   try {
+    // 如果尚未获取麦克风权限，先重新请求
+    if (!mediaStream) {
+      const granted = await requestMicPermission()
+      if (!granted) {
+        ElMessage.warning('需要麦克风权限才能启动语音识别')
+        return
+      }
+    }
+
     const token = localStorage.getItem('token')
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     // 使用当前宿主机的 host，让其经过 vite proxy 统一转发，免除 8001 硬编码导致的连接拒绝
