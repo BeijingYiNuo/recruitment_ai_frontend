@@ -212,33 +212,15 @@
     </Teleport>
 
     <!-- 简历预览弹窗 -->
-    <el-dialog
+    <FilePreviewDialog
       v-model="previewDialogVisible"
       :title="previewTitle"
-      width="80%"
-      top="5vh"
-      destroy-on-close
-      class="preview-dialog"
+      :url="previewUrl"
+      :type="previewType"
+      :loading="previewLoading"
       @close="onPreviewClose"
-    >
-      <div class="preview-container" v-loading="previewLoading">
-        <!-- PDF 预览 -->
-        <iframe
-          v-if="previewType === 'pdf' && previewUrl"
-          :src="previewUrl"
-          class="preview-iframe"
-        />
-        <!-- Word 文件降级提示 -->
-        <div v-else-if="['doc', 'docx'].includes(previewType)" class="preview-fallback">
-          <el-icon :size="64" color="#8F959E"><Document /></el-icon>
-          <h3>Word 文档暂不支持在线预览</h3>
-          <p>当前仅支持 PDF 格式的在线预览，Word 文件请下载后使用本地软件查看。</p>
-          <el-button type="primary" class="lark-btn-primary" @click="handleDownload(previewResumeData)">
-            <el-icon style="margin-right: 6px;"><Download/></el-icon> 下载文件查看
-          </el-button>
-        </div>
-      </div>
-    </el-dialog>
+      @download="handleDownload(previewResumeData)"
+    />
 
     <!-- 简历导入弹窗 (保留原逻辑与布局) -->
     <el-dialog v-model="uploadDialogVisible" title="导入新简历" width="440px" @close="resetUploadForm">
@@ -282,6 +264,7 @@ import { UploadFilled, Download, Close, Document, View } from '@element-plus/ico
 import { getCurrentUser } from '../../services/authService'
 import { useResumeStore } from '../../stores/resumeStore'
 import { resumeApi } from '../../api/resume'
+import FilePreviewDialog from '../../components/FilePreviewDialog.vue'
 
 const resumeStore = useResumeStore()
 const currentUser = ref(getCurrentUser() || { id: 1, username: '管理员' })
@@ -1051,46 +1034,5 @@ const onPreviewClose = () => {
   align-items: center;
 }
 
-/* 预览弹窗 */
-:deep(.preview-dialog .el-dialog__body) {
-  padding: 0;
-  height: 80vh;
-}
 
-.preview-container {
-  height: 80vh;
-  display: flex;
-  flex-direction: column;
-}
-
-.preview-iframe {
-  width: 100%;
-  height: 100%;
-  border: none;
-  flex: 1;
-}
-
-.preview-fallback {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  gap: 16px;
-  color: #646A73;
-}
-
-.preview-fallback h3 {
-  color: #1F2329;
-  font-size: 18px;
-  margin: 0;
-}
-
-.preview-fallback p {
-  font-size: 14px;
-  margin: 0;
-  max-width: 400px;
-  text-align: center;
-  line-height: 1.6;
-}
 </style>

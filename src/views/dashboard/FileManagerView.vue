@@ -1,80 +1,26 @@
 <template>
   <div class="file-manager-container">
-    <!-- 1. 侧边导航栏 (Sidebar) -->
-    <div class="sidebar" :style="{ width: sidebarWidth + 'px' }">
-      <!-- 拖拽缩放手柄 -->
-      <div class="resize-handle" @mousedown="startResize"></div>
 
-      <!-- 顶部操作 (新建按钮) -->
-      <div class="sidebar-header">
-        <button class="new-btn" @click="uploadDialogVisible = true">
-          <el-icon class="mr-1"><Plus /></el-icon>
-          <span>新建</span>
-        </button>
-      </div>
-
-      <!-- 功能列表 -->
-      <div class="nav-list">
-        <div 
-          v-for="item in navItems" 
-          :key="item.id"
-          class="nav-item"
-          :class="{ active: activeNav === item.id }"
-          @click="activeNav = item.id"
-        >
-          <el-icon class="nav-icon"><component :is="item.icon" /></el-icon>
-          <span class="nav-label">{{ item.label }}</span>
-        </div>
-      </div>
-    </div>
 
     <!-- 右侧容器 -->
     <div class="main-wrapper">
       <!-- 2. 顶部操作栏 (Header) -->
       <div class="header">
+
+
+
+
+        <button class="new-btn" @click="uploadDialogVisible = true">
+          <el-icon class="mr-1"><Plus /></el-icon>
+          <span>新建</span>
+        </button>
+
+
         <!-- 面包屑导航 -->
         <div class="breadcrumb">
         </div>
 
-        <!-- 右侧工具栏 -->
-        <div class="toolbar">
-          <!-- 搜索框 -->
-          <div class="search-box">
-            <el-icon class="search-icon"><Search /></el-icon>
-            <input type="text" placeholder="搜索文件夹及文件" />
-          </div>
 
-          <div class="divider"></div>
-
-          <!-- 视图切换 & 详情面板开关 -->
-          <div class="view-toggles">
-            <button 
-              class="icon-btn" 
-              :class="{ active: viewMode === 'list' }"
-              @click="viewMode = 'list'"
-              title="列表视图"
-            >
-              <el-icon><Expand /></el-icon>
-            </button>
-            <button 
-              class="icon-btn" 
-              :class="{ active: viewMode === 'grid' }"
-              @click="viewMode = 'grid'"
-              title="网格视图"
-            >
-              <el-icon><Menu /></el-icon>
-            </button>
-            <div style="width: 4px;"></div>
-            <button 
-              class="icon-btn" 
-              :class="{ active: showDetail }"
-              @click="showDetail = !showDetail"
-              title="查看详情"
-            >
-              <el-icon><InfoFilled /></el-icon>
-            </button>
-          </div>
-        </div>
       </div>
 
       <!-- 3. 内容区 (含详情面板) -->
@@ -122,6 +68,9 @@
                   
                   <!-- Hover 出现的按钮组 -->
                   <div class="quick-actions">
+                    <button class="action-btn preview-btn" title="预览" @click.stop="handlePreview(file)">
+                      <el-icon><View /></el-icon>
+                    </button>
                     <button class="action-btn download-btn" title="下载" @click.stop="handleDownload(file)">
                       <el-icon><Download /></el-icon>
                     </button>
@@ -147,21 +96,7 @@
           </div>
         </div>
 
-        <!-- 详情面板 (右侧弹出) -->
-        <transition name="slide-fade">
-          <div v-if="showDetail" class="detail-panel">
-            <div class="detail-header">
-              <h3>详情</h3>
-              <button class="close-btn" @click="showDetail = false">
-                <el-icon><Close /></el-icon>
-              </button>
-            </div>
-            <div class="detail-body">
-              <el-icon class="detail-empty-icon"><InfoFilled /></el-icon>
-              <p>选中文件或文件夹以查看详细信息</p>
-            </div>
-          </div>
-        </transition>
+
       </div>
     </div>
 
@@ -202,60 +137,42 @@
         </span>
       </template>
     </el-dialog>
+
+    <!-- 文件预览弹窗 -->
+    <FilePreviewDialog
+      v-model="previewDialogVisible"
+      :title="previewTitle"
+      :url="previewUrl"
+      :type="previewType"
+      :loading="previewLoading"
+      @close="onPreviewClose"
+      @download="handleDownload(previewFileData)"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { 
-  Plus, Clock, Monitor, Share, Star, Delete,
-  ArrowRight, Search, Expand, Menu, InfoFilled,
-  Document, Picture, FolderOpened, Close, MoreFilled, Download
+  Plus, Delete,
+  Document, Picture, FolderOpened, Close, MoreFilled, Download, View
 } from '@element-plus/icons-vue'
 import { fileApi } from '../../api/file'
+import FilePreviewDialog from '../../components/FilePreviewDialog.vue'
 
 // --- 独立组件逻辑 ---
 
-// 1. 侧边栏拖拽缩放
-const sidebarWidth = ref(240)
-let isResizing = false
+// 1. 导航与视图状态管理
+// --- 预览相关 ---
+const previewDialogVisible = ref(false)
+const previewLoading = ref(false)
+const previewUrl = ref('')
+const previewType = ref('')
+const previewTitle = ref('文件预览')
+const previewFileData = ref(null)
 
-const startResize = () => {
-  isResizing = true
-  document.addEventListener('mousemove', onResize)
-  document.addEventListener('mouseup', stopResize)
-  document.body.style.cursor = 'col-resize'
-  document.body.style.userSelect = 'none' 
-}
 
-const onResize = (e) => {
-  if (!isResizing) return
-  const newWidth = e.clientX
-  if (newWidth >= 160 && newWidth <= 400) {
-    sidebarWidth.value = newWidth
-  }
-}
-
-const stopResize = () => {
-  isResizing = false
-  document.removeEventListener('mousemove', onResize)
-  document.removeEventListener('mouseup', stopResize)
-  document.body.style.cursor = ''
-  document.body.style.userSelect = ''
-}
-
-onUnmounted(() => {
-  document.removeEventListener('mousemove', onResize)
-  document.removeEventListener('mouseup', stopResize)
-})
-
-// 2. 导航与视图状态管理
-const activeNav = ref('')
-const navItems = []
-
-const viewMode = ref('list') // 'list' | 'grid'
-const showDetail = ref(true)
 
 // 3. 真实拉取文件列表数据
 const files = ref([])
@@ -404,6 +321,50 @@ const handleDownload = async (file) => {
     ElMessage.error('下载失败，请稍后重试')
   }
 }
+
+// --- 6. 预览文件逻辑 ---
+const handlePreview = async (file) => {
+  if (!file) return
+
+  previewFileData.value = file
+  previewTitle.value = `${file.name || '文件'} - 预览`
+  previewType.value = (file.name?.split('.').pop() || '').toLowerCase()
+  previewDialogVisible.value = true
+  
+  // 设置一个初始 URL 防止残留
+  previewUrl.value = ''
+
+  // 图像和 PDF 支持 Blob 预览
+  const supportBlobPreview = ['pdf', 'png', 'jpg', 'jpeg', 'gif'].includes(previewType.value)
+  
+  if (supportBlobPreview) {
+    previewLoading.value = true
+    try {
+      const response = await fileApi.downloadFile(file.id)
+      
+      let mimeType = 'application/octet-stream'
+      if (previewType.value === 'pdf') mimeType = 'application/pdf'
+      else if (['png', 'jpg', 'jpeg', 'gif'].includes(previewType.value)) mimeType = `image/${previewType.value === 'jpg' ? 'jpeg' : previewType.value}`
+
+      const blob = new Blob([response], { type: mimeType })
+      previewUrl.value = URL.createObjectURL(blob)
+    } catch (error) {
+      console.error('预览加载失败:', error)
+      ElMessage.error('预览加载失败，请重试')
+      previewDialogVisible.value = false
+    } finally {
+      previewLoading.value = false
+    }
+  }
+}
+
+const onPreviewClose = () => {
+  if (previewUrl.value) {
+    URL.revokeObjectURL(previewUrl.value)
+    previewUrl.value = ''
+  }
+  previewFileData.value = null
+}
 </script>
 
 <style scoped lang="scss">
@@ -417,38 +378,11 @@ const handleDownload = async (file) => {
   font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
   overflow: hidden;
 }
-
-/* ----- 侧边栏 ----- */
-.sidebar {
-  display: flex;
-  flex-direction: column;
-  border-right: 1px solid #dee1e5;
-  background-color: #f5f6f7;
-  transition: width 0.3s;
-  position: relative;
-  flex-shrink: 0;
-  
-  .resize-handle {
-    position: absolute;
-    right: 0;
-    top: 0;
-    bottom: 0;
-    width: 4px;
-    cursor: col-resize;
-    z-index: 10;
-    transition: background-color 0.2s;
-    &:hover {
-      background-color: rgba(51, 112, 255, 0.5);
-    }
-  }
-
-  .sidebar-header {
-    padding: 16px 20px;
-    .new-btn {
+.new-btn {
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 100%;
+      width: 20%;
       background-color: #3370ff;
       color: #ffffff;
       border: none;
@@ -468,45 +402,7 @@ const handleDownload = async (file) => {
         background-color: #2b5dd9;
       }
     }
-  }
 
-  .nav-list {
-    flex: 1;
-    overflow-y: auto;
-    padding: 8px 12px;
-    
-    .nav-item {
-      display: flex;
-      align-items: center;
-      padding: 10px 12px;
-      border-radius: 6px;
-      cursor: pointer;
-      color: #646a73;
-      margin-bottom: 4px;
-      transition: all 0.2s;
-
-      .nav-icon {
-        font-size: 18px;
-        margin-right: 12px;
-      }
-      
-      .nav-label {
-        font-size: 14px;
-        font-weight: 500;
-      }
-
-      &:hover {
-        background-color: #ebeced;
-        color: #1f2329;
-      }
-
-      &.active {
-        background-color: #e1eaff;
-        color: #3370ff;
-      }
-    }
-  }
-}
 
 /* ----- 主内容外层包裹 ----- */
 .main-wrapper {
@@ -552,79 +448,7 @@ const handleDownload = async (file) => {
     }
   }
 
-  .toolbar {
-    display: flex;
-    align-items: center;
-    gap: 16px;
 
-    .search-box {
-      position: relative;
-      display: flex;
-      align-items: center;
-      
-      .search-icon {
-        position: absolute;
-        left: 12px;
-        color: #8f959e;
-      }
-      
-      input {
-        width: 240px;
-        background-color: #f5f6f7;
-        border: 1px solid transparent;
-        border-radius: 6px;
-        padding: 6px 12px 6px 36px;
-        font-size: 14px;
-        color: #1f2329;
-        outline: none;
-        transition: all 0.2s;
-        
-        &::placeholder {
-          color: #8f959e;
-        }
-        
-        &:focus {
-          background-color: #ffffff;
-          border-color: #3370ff;
-          box-shadow: 0 0 0 2px rgba(51, 112, 255, 0.2);
-        }
-      }
-    }
-
-    .divider {
-      height: 14px;
-      width: 1px;
-      background-color: #dee1e5;
-    }
-
-    .view-toggles {
-      display: flex;
-      gap: 4px;
-      
-      .icon-btn {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 6px;
-        border: none;
-        background: transparent;
-        border-radius: 6px;
-        color: #646a73;
-        cursor: pointer;
-        transition: all 0.2s;
-        font-size: 16px;
-        
-        &:hover {
-          background-color: #f5f6f7;
-        }
-        
-        &.active {
-          background-color: #e1eaff;
-          color: #3370ff;
-        }
-      }
-    }
-  }
 }
 
 /* ----- 主体内容区 ----- */
@@ -755,6 +579,7 @@ const handleDownload = async (file) => {
           transition: all 0.2s;
           font-size: 14px;
           
+          &.preview-btn:hover { color: #3370ff; background-color: #e1eaff; }
           &.download-btn:hover { color: #3370ff; background-color: #e1eaff; }
           &.star-btn:hover { color: #f59e0b; background-color: #fff4e4; }
           &.delete-btn:hover { color: #f56c6c; background-color: #fef0f0; }
@@ -801,80 +626,9 @@ const handleDownload = async (file) => {
       margin: 0;
     }
   }
-
-  /* 右侧详情面板 */
-  .detail-panel {
-    width: 300px;
-    border-left: 1px solid #dee1e5;
-    background-color: #ffffff;
-    padding: 20px;
-    display: flex;
-    flex-direction: column;
-    flex-shrink: 0;
-    
-    .detail-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 24px;
-      
-      h3 {
-        margin: 0;
-        font-size: 15px;
-        font-weight: 500;
-        color: #1f2329;
-      }
-      
-      .close-btn {
-        background: transparent;
-        border: none;
-        color: #8f959e;
-        cursor: pointer;
-        font-size: 18px;
-        padding: 4px;
-        border-radius: 4px;
-        display: flex;
-        
-        &:hover {
-          color: #1f2329;
-          background-color: #f5f6f7;
-        }
-      }
-    }
-    
-    .detail-body {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-      
-      .detail-empty-icon {
-        font-size: 48px;
-        color: #dee1e5;
-        margin-bottom: 12px;
-      }
-      
-      p {
-        font-size: 13px;
-        color: #646a73;
-        margin: 0;
-      }
-    }
-  }
 }
 
-/* 面板动画 */
-.slide-fade-enter-active,
-.slide-fade-leave-active {
-  transition: all 0.3s cubic-bezier(0.2, 0, 0, 1);
-}
-.slide-fade-enter-from,
-.slide-fade-leave-to {
-  transform: translateX(100%);
-  opacity: 0;
-}
+
 
 ::-webkit-scrollbar {
   width: 6px;
