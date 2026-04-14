@@ -1,12 +1,12 @@
 <template>
-  <div class="step-guide-container">
+  <!-- <div class="step-guide-container">
     <div class="step-header">
       <el-button link class="collapse-btn">
         收起教程 <el-icon class="el-icon--right"><ArrowUp /></el-icon>
       </el-button>
     </div>
     <div class="step-list">
-      <!-- Step 1 -->
+      
       <div class="step-card active">
         <div class="step-content">
           <div class="step-num">第 1 步</div>
@@ -15,14 +15,14 @@
         </div>
         <div class="step-bg-icon">
           <div class="mock-bg-blocks">
-             <!-- mock background decoration -->
+            
              <div class="block-l"></div>
              <div class="block-r"></div>
           </div>
         </div>
       </div>
       
-      <!-- Step 2 -->
+      
       <div class="step-card">
         <div class="step-content">
           <div class="step-num">第 2 步</div>
@@ -31,7 +31,7 @@
         </div>
       </div>
 
-      <!-- Step 3 -->
+      
       <div class="step-card">
         <div class="step-content">
           <div class="step-num">第 3 步</div>
@@ -40,7 +40,7 @@
         </div>
       </div>
 
-      <!-- Step 4 -->
+      
       <div class="step-card">
         <div class="step-content">
           <div class="step-num">第 4 步</div>
@@ -49,7 +49,7 @@
         </div>
       </div>
     </div>
-  </div>
+  </div> -->
 </template>
 
 <script setup lang="ts">

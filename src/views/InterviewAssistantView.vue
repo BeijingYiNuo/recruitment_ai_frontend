@@ -42,7 +42,7 @@ let mediaStream: MediaStream | null = null
 let audioContext: any = null
 let processor: ScriptProcessorNode | null = null
 let gainNode: GainNode | null = null
-
+let audioDataQueue: number[] = [] // 音频样本队列，用于缓冲并对齐 480 采样点 (30ms)
 const convertFloat32ToInt16 = (buffer: Float32Array) => {
   let l = buffer.length
   let buf = new Int16Array(l)
@@ -53,32 +53,52 @@ const convertFloat32ToInt16 = (buffer: Float32Array) => {
   return buf.buffer
 }
 
-const startAudioCapture = () => {
+const startAudioCapture = async () => {
+  console.log('[Audio Debug] v2.0 - Starting capture (Expect 480 samples/frame)')
   if (!mediaStream) {
     ElMessage.error('尚未获取麦克风流，请等待权限获取成功')
     return
   }
   
+  mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+  console.log('Microphone permission granted')
+  
+  // 初始化缓冲区
+  audioDataQueue = []
+  
   const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
   // 采样率 16000 Hz
   audioContext = new AudioCtx({ sampleRate: 16000 })
+  console.log('[Audio Debug] AudioContext created with SampleRate:', audioContext.sampleRate)
   const source = audioContext.createMediaStreamSource(mediaStream)
   
-  // 参数：缓冲大小 4096，输入通道数 1，输出通道数 1
-  processor = audioContext.createScriptProcessor(4096, 1, 1)
+  // 参数：缓冲大小改为 1024，输入通道数 1，输出通道数 1
+  processor = audioContext.createScriptProcessor(1024, 1, 1)
   
   // 避免输出的声音回声，静音处理
   gainNode = audioContext.createGain()
   gainNode.gain.value = 0
   
   processor.onaudioprocess = (e: any) => {
-    // 获取单声道数据
+    // 1. 获取单声道数据 (Float32Array)
     const inputData = e.inputBuffer.getChannelData(0)
-    // 转换为 16 位位深度的 PCM 数据
-    const pcm16Data = convertFloat32ToInt16(inputData)
-    // 发送二进制的PCM数据给 WebSocket
-    if (socket && socket.readyState === WebSocket.OPEN) {
-      socket.send(pcm16Data)
+    
+    // 2. 将新样本推入队列
+    for (let i = 0; i < inputData.length; i++) {
+      audioDataQueue.push(inputData[i])
+    }
+    
+    // 3. 当队列中的样本数超过 480 (30ms) 时，切片并发送
+    while (audioDataQueue.length >= 480) {
+      const slice = audioDataQueue.splice(0, 480)
+      const pcm16Data = convertFloat32ToInt16(new Float32Array(slice))
+      
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(pcm16Data)
+        if (Math.random() < 0.01) {
+          console.log(`[Audio Debug] Sent frame: ${pcm16Data.byteLength} bytes at ${new Date().toLocaleTimeString()}`)
+        }
+      }
     }
   }
   
@@ -213,6 +233,7 @@ const onStartAsr = async () => {
     })
 
     socket = new WebSocket(wsUrl)
+    socket.binaryType = 'arraybuffer' // 强制指定二进制类型为 ArrayBuffer
     
     socket.onopen = () => {
       console.log('ASR WebSocket connected')

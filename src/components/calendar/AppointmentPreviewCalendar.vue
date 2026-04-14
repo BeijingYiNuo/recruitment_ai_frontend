@@ -1,5 +1,5 @@
-﻿<template>
-  <div class="interview-calendar">
+<template>
+  <div class="appointment-calendar">
     <div class="cal-sidebar">
       <div class="mini-cal">
         <div class="mini-cal-header">
@@ -40,7 +40,7 @@
     <div class="cal-main">
       <div class="cal-header">
         <div class="cal-header-left">
-          <button class="cal-btn cal-btn-today" @click="goToday">今天</button>
+          <button class="cal-btn cal-btn-today" @click="goToday">Today</button>
           <button class="cal-btn cal-btn-nav" @click="prevWeek">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M10.354 3.646a.5.5 0 010 .708L6.707 8l3.647 3.646a.5.5 0 01-.708.708l-4-4a.5.5 0 010-.708l4-4a.5.5 0 01.708 0z"/></svg>
           </button>
@@ -96,38 +96,14 @@
                   v-for="evt in getEventsForDay(day.dateStr)"
                   :key="evt.id"
                   class="cal-event"
-                  :class="[
-                    'cal-event--' + (evt.session_type || 'online'),
-                    { 'cal-event--editing': excludeId != null && evt.id === excludeId }
-                  ]"
+                  :class="`cal-event--${evt.status || 'pending'}`"
                   :style="getEventStyle(evt)"
                   :title="getEventTitle(evt)"
                 >
-                  <div class="cal-event-title">{{ evt.candidate_name || '未命名面试' }}</div>
+                  <div class="cal-event-title">{{ evt.candidate_name || 'Untitled' }}</div>
                   <div class="cal-event-time">{{ formatEventTime(evt) }}</div>
+                  <div v-if="evt.location" class="cal-event-location">{{ evt.location }}</div>
                 </div>
-
-                <div
-                  v-if="showUnavailableOverlay && getUnavailableOverlayStyle(day.dateStr)"
-                  class="cal-unavailable-overlay"
-                  :style="getUnavailableOverlayStyle(day.dateStr)"
-                ></div>
-
-                <div
-                  v-if="!readOnly && selection && selection.dateStr === day.dateStr"
-                  class="cal-selection"
-                  :style="getSelectionStyle()"
-                >
-                  <span class="cal-selection-text">{{ formatSelectionLabel() }}</span>
-                </div>
-
-                <div
-                  v-if="!readOnly"
-                  class="cal-interact"
-                  @mousedown.prevent="onMouseDown($event, day)"
-                  @mousemove.prevent="onMouseMove($event, day)"
-                  @mouseup.prevent="onMouseUp"
-                ></div>
               </div>
             </div>
           </div>
@@ -138,38 +114,44 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 
 const props = defineProps({
-  interviews: { type: Array, default: () => [] },
-  initialDate: { type: String, default: '' },
-  excludeId: { type: [Number, String, null], default: null },
-  readOnly: { type: Boolean, default: false },
-  disablePastSelection: { type: Boolean, default: true }
+  appointments: { type: Array, default: () => [] },
+  durationMinutes: { type: Number, default: 60 }
 })
-
-const emit = defineEmits(['select-slot'])
 
 const startHour = 8
 const endHour = 22
 const hourHeight = 80
 const totalGridHeight = (endHour - startHour) * hourHeight
-const dayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
-const miniWeekLabels = ['日', '一', '二', '三', '四', '五', '六']
+const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const miniWeekLabels = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 
-const parsedInitialDate = parseDateTime(props.initialDate) || new Date()
-const currentWeekStart = ref(getWeekStart(parsedInitialDate))
-const miniCalMonth = ref(parsedInitialDate.getMonth())
-const miniCalYear = ref(parsedInitialDate.getFullYear())
+const currentWeekStart = ref(getWeekStart(new Date()))
+const miniCalMonth = ref(new Date().getMonth())
+const miniCalYear = ref(new Date().getFullYear())
+const selectedMiniDate = ref(formatDateStr(new Date()))
 const gridScrollRef = ref(null)
-const selection = ref(null)
-const isDragging = ref(false)
-const dragStartMinute = ref(0)
-const selectedMiniDate = ref(formatDateStr(parsedInitialDate))
 
-const showUnavailableOverlay = computed(() => !props.readOnly && props.disablePastSelection)
+const normalizedAppointments = computed(() => {
+  return props.appointments
+    .filter(item => item?.scheduled_at)
+    .map(item => {
+      const start = parseDateTime(item.scheduled_at)
+      if (!start) return null
+      const end = new Date(start.getTime() + props.durationMinutes * 60 * 1000)
+      return {
+        ...item,
+        dateStr: formatDateStr(start),
+        startMinute: start.getHours() * 60 + start.getMinutes(),
+        endMinute: end.getHours() * 60 + end.getMinutes()
+      }
+    })
+    .filter(Boolean)
+})
 
-const miniCalTitle = computed(() => `${miniCalYear.value}年${miniCalMonth.value + 1}月`)
+const miniCalTitle = computed(() => `${miniCalYear.value}-${String(miniCalMonth.value + 1).padStart(2, '0')}`)
 
 const miniCalCells = computed(() => {
   const year = miniCalYear.value
@@ -186,10 +168,11 @@ const miniCalCells = computed(() => {
   const cells = []
 
   for (let i = startDow - 1; i >= 0; i--) {
-    const date = new Date(year, month - 1, prevMonthDays - i)
+    const d = prevMonthDays - i
+    const date = new Date(year, month - 1, d)
     const dateStr = formatDateStr(date)
     cells.push({
-      day: date.getDate(),
+      day: d,
       dateStr,
       isOtherMonth: true,
       isToday: dateStr === todayStr,
@@ -225,13 +208,6 @@ const miniCalCells = computed(() => {
   return cells
 })
 
-watch(currentWeekStart, (val) => {
-  const middle = new Date(val)
-  middle.setDate(middle.getDate() + 3)
-  miniCalYear.value = middle.getFullYear()
-  miniCalMonth.value = middle.getMonth()
-})
-
 const visibleHours = computed(() => {
   const hours = []
   for (let h = startHour; h <= endHour; h++) hours.push(h)
@@ -242,14 +218,14 @@ const weekDays = computed(() => {
   const days = []
   const todayStr = formatDateStr(new Date())
   for (let i = 0; i < 7; i++) {
-    const date = new Date(currentWeekStart.value)
-    date.setDate(date.getDate() + i)
-    const dateStr = formatDateStr(date)
+    const d = new Date(currentWeekStart.value)
+    d.setDate(d.getDate() + i)
+    const dateStr = formatDateStr(d)
     days.push({
-      date,
+      date: d,
       dateStr,
-      name: dayNames[date.getDay()],
-      number: date.getDate(),
+      name: dayNames[d.getDay()],
+      number: d.getDate(),
       isToday: dateStr === todayStr
     })
   }
@@ -262,35 +238,35 @@ const headerTitle = computed(() => {
   end.setDate(end.getDate() + 6)
   const startYear = start.getFullYear()
   const startMonth = start.getMonth() + 1
-  const endYear = end.getFullYear()
   const endMonth = end.getMonth() + 1
-
-  if (startYear === endYear && startMonth === endMonth) {
-    return `${startYear}年${startMonth}月`
+  if (startMonth === endMonth) {
+    return `${startYear}-${String(startMonth).padStart(2, '0')}`
   }
+  return `${startYear}-${String(startMonth).padStart(2, '0')} ~ ${String(endMonth).padStart(2, '0')}`
+})
 
-  if (startYear === endYear) {
-    return `${startYear}年${startMonth}月 - ${endMonth}月`
-  }
-
-  return `${startYear}年${startMonth}月 - ${endYear}年${endMonth}月`
+watch(currentWeekStart, (val) => {
+  const mid = new Date(val)
+  mid.setDate(mid.getDate() + 3)
+  miniCalYear.value = mid.getFullYear()
+  miniCalMonth.value = mid.getMonth()
 })
 
 function prevMonth() {
   if (miniCalMonth.value === 0) {
     miniCalMonth.value = 11
-    miniCalYear.value -= 1
+    miniCalYear.value--
   } else {
-    miniCalMonth.value -= 1
+    miniCalMonth.value--
   }
 }
 
 function nextMonth() {
   if (miniCalMonth.value === 11) {
     miniCalMonth.value = 0
-    miniCalYear.value += 1
+    miniCalYear.value++
   } else {
-    miniCalMonth.value += 1
+    miniCalMonth.value++
   }
 }
 
@@ -308,216 +284,68 @@ function goToday() {
 }
 
 function prevWeek() {
-  const date = new Date(currentWeekStart.value)
-  date.setDate(date.getDate() - 7)
-  currentWeekStart.value = date
+  const d = new Date(currentWeekStart.value)
+  d.setDate(d.getDate() - 7)
+  currentWeekStart.value = d
 }
 
 function nextWeek() {
-  const date = new Date(currentWeekStart.value)
-  date.setDate(date.getDate() + 7)
-  currentWeekStart.value = date
+  const d = new Date(currentWeekStart.value)
+  d.setDate(d.getDate() + 7)
+  currentWeekStart.value = d
 }
 
 function getEventsForDay(dateStr) {
-  return props.interviews.filter((evt) => evt?.scheduled_start_at?.slice(0, 10) === dateStr)
+  return normalizedAppointments.value.filter(evt => evt.dateStr === dateStr)
 }
 
 function getEventStyle(evt) {
-  const startMin = getMinuteOfDay(evt.scheduled_start_at)
-  const endMin = getMinuteOfDay(evt.scheduled_end_at)
-  const top = ((startMin - startHour * 60) / 60) * hourHeight
-  const height = Math.max(((endMin - startMin) / 60) * hourHeight, 20)
+  const top = ((evt.startMinute - startHour * 60) / 60) * hourHeight
+  const safeEndMinute = Math.min(evt.endMinute, endHour * 60)
+  const height = Math.max(((safeEndMinute - evt.startMinute) / 60) * hourHeight, 20)
   return {
-    top: `${top}px`,
+    top: `${Math.max(top, 0)}px`,
     height: `${height}px`
   }
 }
 
 function formatEventTime(evt) {
-  const start = evt.scheduled_start_at ? evt.scheduled_start_at.slice(11, 16) : ''
-  const end = evt.scheduled_end_at ? evt.scheduled_end_at.slice(11, 16) : ''
-  return `${start} - ${end}`
+  return `${minuteToTimeStr(evt.startMinute)} - ${minuteToTimeStr(Math.min(evt.endMinute, endHour * 60))}`
 }
 
 function getEventTitle(evt) {
-  return [evt.candidate_name, formatEventTime(evt), evt.notes].filter(Boolean).join(' | ')
-}
-
-function onMouseDown(event, day) {
-  if (props.readOnly) return
-
-  const minute = getMinuteFromEvent(event)
-  if (minute < startHour * 60 || minute >= endHour * 60) return
-
-  const snappedMinute = snapTo15(minute)
-  if (props.disablePastSelection && snappedMinute < getMinSelectableMinute(day.dateStr)) return
-  if (isOccupied(day.dateStr, minute)) return
-
-  isDragging.value = true
-  dragStartMinute.value = snappedMinute
-  selection.value = {
-    dateStr: day.dateStr,
-    startMinute: snappedMinute,
-    endMinute: snappedMinute + 15
-  }
-}
-
-function onMouseMove(event, day) {
-  if (props.readOnly || !isDragging.value || !selection.value) return
-  if (selection.value.dateStr !== day.dateStr) return
-
-  const minute = getMinuteFromEvent(event)
-  const minSelectableMinute = props.disablePastSelection ? getMinSelectableMinute(day.dateStr) : startHour * 60
-  const snapped = Math.max(snapTo15(minute), minSelectableMinute)
-  const endSnapped = Math.min(snapped + 15, endHour * 60)
-
-  if (snapped >= dragStartMinute.value) {
-    selection.value.startMinute = dragStartMinute.value
-    selection.value.endMinute = endSnapped
-  } else {
-    selection.value.startMinute = snapped
-    selection.value.endMinute = dragStartMinute.value + 15
-  }
-}
-
-function onMouseUp() {
-  if (props.readOnly) return
-  finalizeSelection()
-}
-
-function finalizeSelection() {
-  if (!isDragging.value || !selection.value) {
-    isDragging.value = false
-    return
-  }
-
-  isDragging.value = false
-  if (selection.value.endMinute - selection.value.startMinute < 15) {
-    selection.value.endMinute = selection.value.startMinute + 15
-  }
-
-  const dateStr = selection.value.dateStr
-  const startTime = minuteToTimeStr(selection.value.startMinute)
-  const endTime = minuteToTimeStr(selection.value.endMinute)
-
-  emit('select-slot', {
-    date: dateStr,
-    startTime,
-    endTime,
-    scheduledStartAt: `${dateStr} ${startTime}:00`,
-    scheduledEndAt: `${dateStr} ${endTime}:00`
-  })
-}
-
-function onDocumentMouseUp() {
-  if (!props.readOnly && isDragging.value) {
-    finalizeSelection()
-  }
-}
-
-function getSelectionStyle() {
-  if (!selection.value) return {}
-  const top = ((selection.value.startMinute - startHour * 60) / 60) * hourHeight
-  const height = ((selection.value.endMinute - selection.value.startMinute) / 60) * hourHeight
-  return {
-    top: `${top}px`,
-    height: `${Math.max(height, 15)}px`
-  }
-}
-
-function formatSelectionLabel() {
-  if (!selection.value) return ''
-  return `${minuteToTimeStr(selection.value.startMinute)} - ${minuteToTimeStr(selection.value.endMinute)}`
-}
-
-function getWeekStart(date) {
-  const result = new Date(date)
-  const day = result.getDay()
-  result.setDate(result.getDate() - day)
-  result.setHours(0, 0, 0, 0)
-  return result
-}
-
-function formatDateStr(date) {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
+  return [evt.candidate_name, evt.scheduled_at, evt.location].filter(Boolean).join(' | ')
 }
 
 function parseDateTime(value) {
   if (!value) return null
-  const result = new Date(String(value).replace(/-/g, '/'))
-  return Number.isNaN(result.getTime()) ? null : result
+  const parsed = new Date(value.replace(/-/g, '/'))
+  return Number.isNaN(parsed.getTime()) ? null : parsed
 }
 
-function getTodayStr() {
-  return formatDateStr(new Date())
+function getWeekStart(date) {
+  const d = new Date(date)
+  const day = d.getDay()
+  d.setDate(d.getDate() - day)
+  d.setHours(0, 0, 0, 0)
+  return d
 }
 
-function getMinSelectableMinute(dateStr) {
-  const todayStr = getTodayStr()
-  if (dateStr < todayStr) return endHour * 60
-  if (dateStr > todayStr) return startHour * 60
-
-  const now = new Date()
-  const nextQuarterMinute = Math.floor((now.getHours() * 60 + now.getMinutes()) / 15) * 15 + 15
-  return Math.max(startHour * 60, nextQuarterMinute)
+function formatDateStr(d) {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
 }
 
-function getUnavailableOverlayStyle(dateStr) {
-  if (!props.disablePastSelection) return null
-
-  const minSelectableMinute = getMinSelectableMinute(dateStr)
-  if (minSelectableMinute <= startHour * 60) return null
-
-  const clampedMinute = Math.min(minSelectableMinute, endHour * 60)
-  const height = ((clampedMinute - startHour * 60) / 60) * hourHeight
-  if (height <= 0) return null
-
-  return {
-    top: '0px',
-    height: `${height}px`
-  }
-}
-
-function formatHour(hour) {
-  return `${String(hour).padStart(2, '0')}:00`
-}
-
-function getMinuteOfDay(timeStr) {
-  if (!timeStr) return 0
-  const timePart = timeStr.includes('T') ? timeStr.split('T')[1] : timeStr.split(' ')[1]
-  if (!timePart) return 0
-  const [h, m] = timePart.split(':').map(Number)
-  return h * 60 + m
-}
-
-function getMinuteFromEvent(event) {
-  const rect = event.currentTarget.getBoundingClientRect()
-  const y = event.clientY - rect.top
-  const totalMinutes = (y / totalGridHeight) * (endHour - startHour) * 60
-  return Math.floor(totalMinutes) + startHour * 60
-}
-
-function snapTo15(minute) {
-  return Math.floor(minute / 15) * 15
+function formatHour(h) {
+  return `${String(h).padStart(2, '0')}:00`
 }
 
 function minuteToTimeStr(minute) {
   const h = Math.floor(minute / 60)
   const m = minute % 60
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
-}
-
-function isOccupied(dateStr, minute) {
-  return getEventsForDay(dateStr).some((evt) => {
-    if (props.excludeId != null && evt.id === props.excludeId) return false
-    const start = getMinuteOfDay(evt.scheduled_start_at)
-    const end = getMinuteOfDay(evt.scheduled_end_at)
-    return minute >= start && minute < end
-  })
 }
 
 function scrollToCurrentTime() {
@@ -531,33 +359,17 @@ function scrollToCurrentTime() {
 }
 
 onMounted(() => {
-  if (!props.readOnly) {
-    document.addEventListener('mouseup', onDocumentMouseUp)
-  }
   scrollToCurrentTime()
 })
-
-onUnmounted(() => {
-  if (!props.readOnly) {
-    document.removeEventListener('mouseup', onDocumentMouseUp)
-  }
-})
-
-function clearSelection() {
-  selection.value = null
-}
-
-defineExpose({ clearSelection, goToday })
 </script>
 
 <style lang="scss" scoped>
-.interview-calendar {
+.appointment-calendar {
   display: flex;
-  height: 100%;
+  height: 760px;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   font-size: 13px;
   color: #1f2329;
-  user-select: none;
 }
 
 .cal-sidebar {
@@ -766,7 +578,6 @@ defineExpose({ clearSelection, goToday })
   align-items: center;
   padding: 4px 0 6px;
   gap: 2px;
-  border-left: 1px solid transparent;
 
   .cal-day-name {
     font-size: 12px;
@@ -862,35 +673,34 @@ defineExpose({ clearSelection, goToday })
   left: 2px;
   right: 2px;
   border-radius: 4px;
-  padding: 4px 6px;
+  padding: 6px 8px;
   overflow: hidden;
-  cursor: default;
-  z-index: 2;
   font-size: 12px;
-  line-height: 1.3;
-  transition: box-shadow 0.15s;
+  line-height: 1.35;
+  z-index: 2;
 
-  &:hover {
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  &--pending {
+    background: #fff7e6;
+    border-left: 3px solid #faad14;
+    color: #ad6800;
   }
 
-  &--online {
-    background: #e1ecfe;
-    border-left: 3px solid #3370ff;
-    color: #1a56db;
+  &--confirmed {
+    background: #e6f4ff;
+    border-left: 3px solid #1677ff;
+    color: #0958d9;
   }
 
-  &--offline {
-    background: #fef0e5;
-    border-left: 3px solid #ff8800;
-    color: #b85c00;
+  &--completed {
+    background: #f6ffed;
+    border-left: 3px solid #52c41a;
+    color: #389e0d;
   }
 
-  &--editing {
-    opacity: 0.5;
-    border: 1.5px dashed #8f959e;
-    border-left-width: 3px;
-    pointer-events: none;
+  &--cancelled {
+    background: #f5f5f5;
+    border-left: 3px solid #8c8c8c;
+    color: #595959;
   }
 }
 
@@ -901,57 +711,20 @@ defineExpose({ clearSelection, goToday })
   text-overflow: ellipsis;
 }
 
-.cal-event-time {
+.cal-event-time,
+.cal-event-location {
   font-size: 11px;
-  opacity: 0.8;
-  margin-top: 1px;
-}
-
-.cal-selection {
-  position: absolute;
-  left: 2px;
-  right: 2px;
-  background: rgba(51, 112, 255, 0.12);
-  border: 1.5px solid #3370ff;
-  border-radius: 4px;
-  z-index: 3;
-  display: flex;
-  align-items: flex-start;
-  padding: 4px 6px;
-  pointer-events: none;
-}
-
-.cal-selection-text {
-  font-size: 11px;
-  font-weight: 600;
-  color: #3370ff;
-}
-
-.cal-unavailable-overlay {
-  position: absolute;
-  left: 0;
-  right: 0;
-  background: repeating-linear-gradient(
-    -45deg,
-    rgba(143, 149, 158, 0.08),
-    rgba(143, 149, 158, 0.08) 8px,
-    rgba(143, 149, 158, 0.14) 8px,
-    rgba(143, 149, 158, 0.14) 16px
-  );
-  pointer-events: none;
-  z-index: 1;
-}
-
-.cal-interact {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  cursor: pointer;
+  margin-top: 2px;
+  opacity: 0.85;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 @media (max-width: 1200px) {
-  .interview-calendar {
+  .appointment-calendar {
     flex-direction: column;
+    height: auto;
   }
 
   .cal-sidebar {

@@ -11,7 +11,7 @@
           <span class="count-text">共 {{ filteredList.length }} 个知识库</span>
         </div>
         
-        <div class="toolbar-right">
+        <!-- <div class="toolbar-right">
           <el-input 
             v-model="searchKeyword" 
             placeholder="搜索知识库名称" 
@@ -19,7 +19,7 @@
             class="search-input"
             :prefix-icon="Search"
           />
-        </div>
+        </div> -->
       </div>
       
       <KnowledgeList 

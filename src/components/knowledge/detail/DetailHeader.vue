@@ -66,10 +66,10 @@
       </div>
 
       <!-- Actions -->
-      <div class="header-actions">
+      <!-- <div class="header-actions">
         <el-button class="icon-btn"><el-icon><MoreFilled /></el-icon></el-button>
         <el-button class="service-btn">服务管理</el-button>
-      </div>
+      </div> -->
     </div>
   </div>
 </template>

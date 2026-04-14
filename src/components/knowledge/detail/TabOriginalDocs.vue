@@ -6,7 +6,7 @@
         <el-icon><Plus /></el-icon> 导入文档
       </el-button>
       
-      <div class="search-combo">
+      <!-- <div class="search-combo">
         <el-select v-model="searchType" class="combo-select">
           <el-option label="名称" value="name" />
           <el-option label="ID" value="id" />
@@ -16,7 +16,7 @@
           placeholder="搜索文档名称" 
           class="combo-input"
         />
-      </div>
+      </div> -->
     </div>
 
     <!-- Data Table -->

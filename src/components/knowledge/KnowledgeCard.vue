@@ -15,9 +15,9 @@
         </div>
       </div>
       <div class="header-tags">
-        <div class="tag-free-days">
+        <!-- <div class="tag-free-days">
           <el-icon><Lightning /></el-icon> 免费剩余 28 天
-        </div>
+        </div> -->
         <el-button type="primary" link @click.stop="handleEdit" class="edit-btn" style="margin-left: 8px; font-size: 16px;">
           <el-icon><EditPen /></el-icon>
         </el-button>
@@ -42,11 +42,11 @@
       </div>
     </div>
 
-    <div class="card-footer">
+    <!-- <div class="card-footer">
       <div class="footer-action">
         <el-icon><Lock /></el-icon> 共享设置：免费版无需计费
       </div>
-    </div>
+    </div> -->
   </div>
 </template>
 
