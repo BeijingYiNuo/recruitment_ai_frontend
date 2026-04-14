@@ -54,7 +54,8 @@
       <!-- 顶部导航栏 -->
       <el-header height="60px" class="navbar">
         <div class="nav-left">
-          <span class="breadcrumb">{{ currentPageTitle }}</span>
+          <!-- <span class="breadcrumb">{{ currentPageTitle }}</span> -->
+          <span class="breadcrumb"></span>
         </div>
         <div class="nav-right">
           <el-input placeholder="搜索..." class="search-input">

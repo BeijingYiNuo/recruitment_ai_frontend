@@ -7,13 +7,13 @@
           <h2>欢迎回来，{{ currentUser?.username || '管理员' }}</h2>
           <p>招聘管理系统 — 快速入口</p>
         </div>
-        <div class="welcome-right">
+        <!-- <div class="welcome-right">
           <el-button @click="triggerResumeUpload">上传简历</el-button>
           <el-button type="primary" @click="interviewStore.openModal('online')">新增线上面试</el-button>
           <el-button @click="interviewStore.openModal('offline')">新增线下面试</el-button>
           <el-button @click="router.push('/profile')">进入个人中心</el-button>
           <input type="file" ref="resumeInput" style="display: none" accept=".pdf,.doc,.docx" @change="handleResumeUpload" />
-        </div>
+        </div> -->
       </div>
     </el-card>
 

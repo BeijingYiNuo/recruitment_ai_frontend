@@ -27,7 +27,7 @@
         <div class="field">
           <label for="email">用户名</label>
           <div class="input-with-icon">
-            <span class="icon">@</span>
+            <!-- <span class="icon">@</span> -->
             <input id="email" type="text" v-model="username" placeholder="请输入用户名" required />
           </div>
         </div>
@@ -35,17 +35,21 @@
         <div class="field">
           <label for="password">密码</label>
           <div class="input-with-icon">
-            <span class="icon">🔒</span>
-            <input :type="showPassword ? 'text' : 'password'" id="password" v-model="password" placeholder="请输入密码" required />
+            <!-- <span class="icon">🔒</span> -->
+            <input :type="showPassword ? 'text' : 'password'" id="password" v-model="password" placeholder="请输入密码 (至少8位)" required minlength="8" />
             <button type="button" class="eye" @click="showPassword = !showPassword">{{ showPassword ? '🙈' : '👁️' }}</button>
           </div>
         </div>
+
+        <div v-if="error" class="alert-error">{{ error }}</div>
 
         <div class="row-right">
           <a href="/forgot-password" class="link">忘记密码？</a>
         </div>
 
-        <button type="submit" class="primary">立即登录</button>
+        <button type="submit" class="primary" :disabled="!canSubmit" :class="{ 'is-disabled': !canSubmit }">
+          {{ loading ? '登录中...' : '立即登录' }}
+        </button>
 
         <div class="register-row">还没有账号？ <a href="/register" class="link">立即注册</a></div>
 
@@ -56,7 +60,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import authService from '../services/authService'
 import AuthLayout from '../components/AuthLayout.vue'
@@ -70,8 +74,12 @@ const showPassword = ref(false)
 const loading = ref(false)
 const error = ref('')
 
-const heroImage = 'https://images.unsplash.com/photo-1585984968562-1443b72fb0dc?crop=entropy&cs=tinysrgb&fit=max&fm=jpg'
+import heroImage from '../assets/login.jpg'
 const loginGradient = 'linear-gradient(135deg,#6366f1 0%,#8b5cf6 50%,#d946ef 100%)'
+
+const canSubmit = computed(() => {
+  return username.value.trim() !== '' && password.value.length >= 8
+})
 
 async function handleLogin () {
   loading.value = true
@@ -231,6 +239,20 @@ input::-ms-clear {
   background: linear-gradient(90deg, #6366f1, #8b5cf6);
   cursor: pointer;
   box-shadow: 0 10px 30px rgba(99, 102, 241, 0.12);
+  transition: opacity 0.2s;
+}
+.primary.is-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.alert-error {
+  margin-top: 14px;
+  padding: 10px 14px;
+  background-color: #fef2f2;
+  border-left: 4px solid #ef4444;
+  color: #b91c1c;
+  font-size: 14px;
+  border-radius: 4px;
 }
 .register-row {
   text-align: center;

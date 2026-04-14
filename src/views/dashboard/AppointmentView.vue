@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="appointment-manage">
     <el-card class="calendar-card" shadow="never" v-loading="loading">
       <template #header>
@@ -14,6 +14,7 @@
         :interviews="interviewList"
         :read-only="true"
         :disable-past-selection="false"
+        :hour-height="45"
       />
     </el-card>
   </div>
@@ -61,7 +62,7 @@ onMounted(() => {
 
     :deep(.el-card__body) {
       padding: 24px;
-      min-height: 820px;
+      min-height: 520px;
     }
   }
 

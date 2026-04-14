@@ -23,7 +23,7 @@
         <div class="field">
           <label for="username">用户名</label>
           <div class="input-with-icon">
-            <span class="icon">👤</span>
+            <!-- <span class="icon">👤</span> -->
             <input id="username" type="text" v-model="form.username" placeholder="请输入用户名" required />
           </div>
         </div>
@@ -31,23 +31,25 @@
         <div class="field">
           <label for="email">邮箱</label>
           <div class="input-with-icon">
-            <span class="icon">@</span>
-            <input id="email" type="email" v-model="form.email" placeholder="请输入邮箱" required />
+            <!-- <span class="icon">@</span> -->
+            <input id="email" type="email" v-model="form.email" placeholder="请输入邮箱 (需以 .com 结尾)" required />
           </div>
+          <p v-if="form.email && !isEmailValid" class="error">请使用有效的 .com 邮箱地址</p>
         </div>
 
         <div class="field">
           <label for="phone">手机号</label>
           <div class="input-with-icon">
-            <span class="icon">📱</span>
-            <input id="phone" type="tel" v-model="form.phone" placeholder="请输入手机号" required />
+            <!-- <span class="icon">📱</span> -->
+            <input id="phone" type="tel" v-model="form.phone" placeholder="请输入 11 位手机号" required maxlength="11" />
           </div>
+          <p v-if="form.phone && !isPhoneValid" class="error">请输入 11 位数字手机号</p>
         </div>
 
         <div class="field">
           <label for="role">选择角色</label>
           <div class="input-with-icon">
-            <span class="icon">👥</span>
+            <!-- <span class="icon">👥</span> -->
             <select id="role" v-model="form.role" required>
               <option value="" disabled>请选择角色</option>
               <option value="candidate">候选人 (Candidate)</option>
@@ -60,7 +62,7 @@
         <div class="field">
           <label for="password">密码</label>
           <div class="input-with-icon">
-            <span class="icon">🔒</span>
+            <!-- <span class="icon">🔒</span> -->
             <input :type="showPassword ? 'text' : 'password'" id="password" v-model="form.password" placeholder="请输入密码" required />
             <button type="button" class="eye" @click="showPassword = !showPassword">{{ showPassword ? '🙈' : '👁️' }}</button>
           </div>
@@ -74,7 +76,7 @@
         <div class="field">
           <label for="confirmPassword">确认密码</label>
           <div class="input-with-icon">
-            <span class="icon">🔒</span>
+            <!-- <span class="icon">🔒</span> -->
             <input :type="showConfirm ? 'text' : 'password'" id="confirmPassword" v-model="form.confirmPassword" placeholder="请再次输入密码" required />
             <button type="button" class="eye" @click="showConfirm = !showConfirm">{{ showConfirm ? '🙈' : '👁️' }}</button>
           </div>
@@ -125,7 +127,25 @@ const passwordStrength = computed(() => ({
   hasLetter: /[a-zA-Z]/.test(form.password)
 }))
 
-const canSubmit = computed(() => passwordStrength.value.hasLength && passwordStrength.value.hasNumber && passwordStrength.value.hasLetter && form.password === form.confirmPassword && form.username && form.email && form.phone && form.role && agree.value)
+const isEmailValid = computed(() => {
+  return form.email && form.email.includes('@') && form.email.toLowerCase().endsWith('.com')
+})
+
+const isPhoneValid = computed(() => {
+  return form.phone && form.phone.length === 11 && /^\d{11}$/.test(form.phone)
+})
+
+const canSubmit = computed(() => 
+  passwordStrength.value.hasLength && 
+  passwordStrength.value.hasNumber && 
+  passwordStrength.value.hasLetter && 
+  isEmailValid.value &&
+  isPhoneValid.value &&
+  form.password === form.confirmPassword && 
+  form.username && 
+  form.role && 
+  agree.value
+)
 
 async function handleRegister () {
   loading.value = true

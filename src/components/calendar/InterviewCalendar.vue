@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="interview-calendar">
     <div class="cal-sidebar">
       <div class="mini-cal">
@@ -145,15 +145,16 @@ const props = defineProps({
   initialDate: { type: String, default: '' },
   excludeId: { type: [Number, String, null], default: null },
   readOnly: { type: Boolean, default: false },
-  disablePastSelection: { type: Boolean, default: true }
+  disablePastSelection: { type: Boolean, default: true },
+  hourHeight: { type: Number, default: 80 }
 })
 
 const emit = defineEmits(['select-slot'])
 
 const startHour = 8
 const endHour = 22
-const hourHeight = 80
-const totalGridHeight = (endHour - startHour) * hourHeight
+const hourHeight = computed(() => props.hourHeight)
+const totalGridHeight = computed(() => (endHour - startHour) * hourHeight.value)
 const dayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
 const miniWeekLabels = ['日', '一', '二', '三', '四', '五', '六']
 
@@ -326,8 +327,8 @@ function getEventsForDay(dateStr) {
 function getEventStyle(evt) {
   const startMin = getMinuteOfDay(evt.scheduled_start_at)
   const endMin = getMinuteOfDay(evt.scheduled_end_at)
-  const top = ((startMin - startHour * 60) / 60) * hourHeight
-  const height = Math.max(((endMin - startMin) / 60) * hourHeight, 20)
+  const top = ((startMin - startHour * 60) / 60) * hourHeight.value
+  const height = Math.max(((endMin - startMin) / 60) * hourHeight.value, 20)
   return {
     top: `${top}px`,
     height: `${height}px`
@@ -418,8 +419,8 @@ function onDocumentMouseUp() {
 
 function getSelectionStyle() {
   if (!selection.value) return {}
-  const top = ((selection.value.startMinute - startHour * 60) / 60) * hourHeight
-  const height = ((selection.value.endMinute - selection.value.startMinute) / 60) * hourHeight
+  const top = ((selection.value.startMinute - startHour * 60) / 60) * hourHeight.value
+  const height = ((selection.value.endMinute - selection.value.startMinute) / 60) * hourHeight.value
   return {
     top: `${top}px`,
     height: `${Math.max(height, 15)}px`
@@ -473,7 +474,7 @@ function getUnavailableOverlayStyle(dateStr) {
   if (minSelectableMinute <= startHour * 60) return null
 
   const clampedMinute = Math.min(minSelectableMinute, endHour * 60)
-  const height = ((clampedMinute - startHour * 60) / 60) * hourHeight
+  const height = ((clampedMinute - startHour * 60) / 60) * hourHeight.value
   if (height <= 0) return null
 
   return {
@@ -497,7 +498,7 @@ function getMinuteOfDay(timeStr) {
 function getMinuteFromEvent(event) {
   const rect = event.currentTarget.getBoundingClientRect()
   const y = event.clientY - rect.top
-  const totalMinutes = (y / totalGridHeight) * (endHour - startHour) * 60
+  const totalMinutes = (y / totalGridHeight.value) * (endHour - startHour) * 60
   return Math.floor(totalMinutes) + startHour * 60
 }
 
@@ -525,7 +526,7 @@ function scrollToCurrentTime() {
     if (!gridScrollRef.value) return
     const now = new Date()
     const nowMinute = now.getHours() * 60 + now.getMinutes()
-    const scrollTop = Math.max(((nowMinute - startHour * 60) / 60) * hourHeight - 100, 0)
+    const scrollTop = Math.max(((nowMinute - startHour * 60) / 60) * hourHeight.value - 100, 0)
     gridScrollRef.value.scrollTop = scrollTop
   })
 }

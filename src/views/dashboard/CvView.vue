@@ -335,8 +335,23 @@ const uploadForm = ref({
   file: null
 })
 
+const validateCandidateName = (rule, value, callback) => {
+  if (!value) {
+    return callback(new Error('必须输入候选人姓名'))
+  }
+  if (/^\d/.test(value)) {
+    return callback(new Error('候选人姓名不能以数字开头'))
+  }
+  if (/^\d+$/.test(value)) {
+    return callback(new Error('候选人姓名不能是纯数字'))
+  }
+  callback()
+}
+
 const uploadRules = {
-  candidateName: [{ required: true, message: '必须输入候选人姓名', trigger: 'blur' }]
+  candidateName: [
+    { required: true, validator: validateCandidateName, trigger: 'blur' }
+  ]
 }
 
 const handleFileChange = (uploadFile) => {
