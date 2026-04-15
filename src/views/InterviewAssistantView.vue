@@ -7,8 +7,21 @@
     />
 
     <div class="asr-controls">
+      <button class="feishu-btn" @click="goBack">返回</button>
       <button class="feishu-btn primary" @click="onStartAsr" :disabled="isAsrActive">创建 ASR</button>
       <button class="feishu-btn danger" @click="onStopAsr" :disabled="!isAsrActive">停止 ASR</button>
+    </div>
+
+    <!-- ASR 实时转写区域 -->
+    <div class="asr-live-block" v-if="isAsrActive || currentAsrText">
+      <div class="asr-live-header">
+        <span class="live-indicator" :class="{ active: isAsrActive }"></span>
+        <span class="live-label">实时语音转写</span>
+      </div>
+      <div class="asr-live-body">
+        <span class="live-content">{{ currentAsrText || '等待语音输入...' }}</span>
+        <span v-if="isAsrActive" class="typing-cursor"></span>
+      </div>
     </div>
 
     <div class="page-content">
@@ -17,16 +30,16 @@
       </section>
 
       <section class="right-column">
-        <FollowUpPanel :suggestions="followUpQuestions" @generateMore="onGenerateMoreSuggestions" />
-        <EvaluationPanel :evaluation="evaluationSummary" />
+        <FollowUpPanel :suggestions="computedFollowUpQuestions" @generateMore="onGenerateMoreSuggestions" />
+        <EvaluationPanel :evaluation="computedEvaluation" />
       </section>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue'
-import { useRoute } from 'vue-router'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import InterviewHeader from '../components/interview/InterviewHeader.vue'
 import TranscriptPanel from '../components/interview/TranscriptPanel.vue'
@@ -35,6 +48,7 @@ import EvaluationPanel from '../components/interview/EvaluationPanel.vue'
 import { interviewApi } from '../api/interview'
 
 const route = useRoute()
+const router = useRouter()
 const sessionId = route.params.id as string
 const isAsrActive = ref(false)
 let socket: WebSocket | null = null
@@ -43,6 +57,45 @@ let audioContext: any = null
 let processor: ScriptProcessorNode | null = null
 let gainNode: GainNode | null = null
 let audioDataQueue: number[] = [] // 音频样本队列，用于缓冲并对齐 480 采样点 (30ms)
+let frameCount = 0 // 音频帧发送计数器
+
+// ========== ASR 实时转写数据 ==========
+const currentAsrText = ref('')
+
+// ========== LLM streaming 流式输出缓冲 ==========
+// 按 index 组织，每个 index 代表一次 LLM 输出
+const streamingAdviceMap = ref<Record<number, string>>({})
+const streamingEvaluationMap = ref<Record<number, string>>({})
+
+// ========== 将 streaming 数据映射为子组件 props ==========
+
+// FollowUpPanel 所需的 suggestions 数组
+const computedFollowUpQuestions = computed(() => {
+  const entries = Object.entries(streamingAdviceMap.value)
+  if (entries.length === 0) return followUpQuestions.value
+  return entries.map(([idx, text]) => ({
+    id: `advice-${idx}`,
+    priority: '高优先级',
+    title: `AI 追问建议 #${idx}`,
+    description: text,
+    tags: ['AI 生成', '实时']
+  }))
+})
+
+// EvaluationPanel 所需的 evaluation 对象
+const computedEvaluation = computed(() => {
+  const entries = Object.entries(streamingEvaluationMap.value)
+  if (entries.length === 0) return evaluationSummary.value
+  // 拼接所有 evaluation 文本作为 summary
+  const allText = entries.map(([, text]) => text).join('\n')
+  return {
+    score: evaluationSummary.value.score,
+    summary: allText || evaluationSummary.value.summary,
+    metrics: evaluationSummary.value.metrics
+  }
+})
+
+// ========== Float32 → Int16 PCM 转换 ==========
 const convertFloat32ToInt16 = (buffer: Float32Array) => {
   let l = buffer.length
   let buf = new Int16Array(l)
@@ -53,55 +106,64 @@ const convertFloat32ToInt16 = (buffer: Float32Array) => {
   return buf.buffer
 }
 
+// ========== 浏览器音频采集 ==========
 const startAudioCapture = async () => {
-  console.log('[Audio Debug] v2.0 - Starting capture (Expect 480 samples/frame)')
+  console.log('[Audio Debug] v3.0 - Starting capture (16kHz, mono, 480 samples/frame)')
   if (!mediaStream) {
     ElMessage.error('尚未获取麦克风流，请等待权限获取成功')
     return
   }
-  
-  mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true })
-  console.log('Microphone permission granted')
-  
+
   // 初始化缓冲区
   audioDataQueue = []
-  
+  frameCount = 0
+
   const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
   // 采样率 16000 Hz
   audioContext = new AudioCtx({ sampleRate: 16000 })
   console.log('[Audio Debug] AudioContext created with SampleRate:', audioContext.sampleRate)
   const source = audioContext.createMediaStreamSource(mediaStream)
-  
-  // 参数：缓冲大小改为 1024，输入通道数 1，输出通道数 1
+
+  // 参数：缓冲大小 1024，输入通道数 1，输出通道数 1
   processor = audioContext.createScriptProcessor(1024, 1, 1)
-  
+
   // 避免输出的声音回声，静音处理
   gainNode = audioContext.createGain()
   gainNode.gain.value = 0
-  
+
   processor.onaudioprocess = (e: any) => {
     // 1. 获取单声道数据 (Float32Array)
     const inputData = e.inputBuffer.getChannelData(0)
-    
+
     // 2. 将新样本推入队列
     for (let i = 0; i < inputData.length; i++) {
       audioDataQueue.push(inputData[i])
     }
-    
-    // 3. 当队列中的样本数超过 480 (30ms) 时，切片并发送
+
+    // 3. 当队列中的样本数超过 480 (30ms@16kHz) 时，切片并发送
     while (audioDataQueue.length >= 480) {
       const slice = audioDataQueue.splice(0, 480)
       const pcm16Data = convertFloat32ToInt16(new Float32Array(slice))
-      
+
       if (socket && socket.readyState === WebSocket.OPEN) {
         socket.send(pcm16Data)
-        if (Math.random() < 0.01) {
-          console.log(`[Audio Debug] Sent frame: ${pcm16Data.byteLength} bytes at ${new Date().toLocaleTimeString()}`)
+        frameCount++
+        // 每发送 50 帧打印一次（约 1.5 秒一次）
+        if (frameCount % 50 === 1) {
+          // 计算 RMS 音量，用于判断麦克风是否真正采集到声音
+          const rms = Math.sqrt(slice.reduce((sum, s) => sum + s * s, 0) / slice.length)
+          console.log(`[Audio] 帧 #${frameCount} | ${pcm16Data.byteLength} bytes | RMS 音量: ${rms.toFixed(4)} | WS状态: ${socket.readyState}`)
+        }
+      } else {
+        // WebSocket 不在 OPEN 状态时打印警告（每 100 帧仅警告一次避免刷屏）
+        frameCount++
+        if (frameCount % 100 === 1) {
+          console.warn(`[Audio] WebSocket 未就绪 (readyState=${socket?.readyState}), 帧 #${frameCount} 被丢弃`)
         }
       }
     }
   }
-  
+
   source.connect(processor)
   processor.connect(gainNode)
   gainNode.connect(audioContext.destination)
@@ -137,6 +199,7 @@ const evaluationSummary = ref({
   metrics: []
 })
 
+// ========== 麦克风权限申请 ==========
 const requestMicPermission = async (): Promise<boolean> => {
   // 检查浏览器 API 可用性（非 HTTPS 或老旧浏览器会缺失）
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -200,12 +263,58 @@ onBeforeUnmount(() => {
   stopAudioCapture()
   if (socket) {
     socket.close()
+    socket = null
   }
   if (mediaStream) {
     mediaStream.getTracks().forEach(track => track.stop())
+    mediaStream = null
   }
 })
 
+// ========== WebSocket 消息处理（核心改造） ==========
+const handleWsMessage = (event: MessageEvent) => {
+  try {
+    const msg = JSON.parse(event.data)
+    console.log('[WS] 收到消息:', msg)
+
+    if (msg.type === 'asr') {
+      // type: "asr" → data 是实时语音转写的完整文本，直接覆盖
+      currentAsrText.value = msg.data
+    } else if (msg.type === 'streaming') {
+      // type: "streaming" → data 是 LLM 流式输出对象
+      const payload = msg.data
+      const { response_type, index, content } = payload
+
+      if (response_type === 'advice') {
+        // 追问建议：按 index 拼接
+        if (!streamingAdviceMap.value[index]) {
+          streamingAdviceMap.value[index] = ''
+        }
+        streamingAdviceMap.value[index] += content
+        // 触发响应式更新
+        streamingAdviceMap.value = { ...streamingAdviceMap.value }
+      } else if (response_type === 'evaluation') {
+        // 面试评价：按 index 拼接
+        if (!streamingEvaluationMap.value[index]) {
+          streamingEvaluationMap.value[index] = ''
+        }
+        streamingEvaluationMap.value[index] += content
+        // 触发响应式更新
+        streamingEvaluationMap.value = { ...streamingEvaluationMap.value }
+      } else if (response_type === 'done') {
+        // 本轮 LLM 输出完成
+        console.log('[LLM] 本轮输出完成')
+      }
+    } else {
+      console.log('[WS] 未知消息类型:', msg)
+    }
+  } catch (e) {
+    // 若后端传的是纯 String（非 JSON），走降级打印
+    console.log('[WS] 收到非 JSON 数据:', event.data)
+  }
+}
+
+// ========== 启动 ASR ==========
 const onStartAsr = async () => {
   try {
     // 如果尚未获取麦克风权限，先重新请求
@@ -219,86 +328,81 @@ const onStartAsr = async () => {
 
     const token = localStorage.getItem('token')
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    // 使用当前宿主机的 host，让其经过 vite proxy 统一转发，免除 8001 硬编码导致的连接拒绝
+    // 使用当前宿主机的 host，让其经过 vite proxy 统一转发
     const wsUrl = `${wsProtocol}//${window.location.host}/api/asr/stream/${sessionId}?token=${token}`
-    
+
+    // 重置流式缓冲数据
+    currentAsrText.value = ''
+    streamingAdviceMap.value = {}
+    streamingEvaluationMap.value = {}
+
     isAsrActive.value = true
-    interviewInfo.value.status = '连接建立中...'
+    interviewInfo.value.status = 'ASR 服务初始化中...'
     interviewInfo.value.statusColor = '#409eff'
 
-    // 根据您的要求：点击后同时请求后端接口并建立 websocket 连接 (不再用 await 阻塞)
-    interviewApi.startASR(sessionId, {}).catch(err => {
-      // 若 HTTP 层触发失败仅打印，因为主要交互靠 WS
-      console.error('HTTP startASR 请求异常:', err)
-    })
+    // 必须先通过 HTTP 调用后端初始化 ASR 服务，否则 WebSocket 会被 1008 拒绝
+    try {
+      await interviewApi.startASR(sessionId, {})
+      console.log('[ASR] HTTP startASR 初始化成功')
+    } catch (err) {
+      console.error('[ASR] HTTP startASR 初始化失败:', err)
+      ElMessage.error('ASR 服务初始化失败，请检查后端服务')
+      isAsrActive.value = false
+      return
+    }
 
+    interviewInfo.value.status = '连接建立中...'
     socket = new WebSocket(wsUrl)
     socket.binaryType = 'arraybuffer' // 强制指定二进制类型为 ArrayBuffer
-    
+
     socket.onopen = () => {
       console.log('ASR WebSocket connected')
       interviewInfo.value.status = '持续听写中...'
+      interviewInfo.value.statusColor = '#67c23a'
       // 连接成功后启动音频采集并发送
       startAudioCapture()
       ElMessage.success('ASR 识别通道已打通')
     }
-    
-    socket.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data)
-        console.log('====== 收到后端 WebSocket 流式数据 ======')
-        console.log('原始数据对象:', data)
-        
-        // 下面是为您初步搭好的数据分流排线架子，您可以根据后端实际返回的字段名去对号入座：
-        // 假设一般流式返回带一个 "type" 字段来区分是 ASR 还是大模型推流
-        if (data.type === 'asr_partial') {
-            console.log('🗣️ [ASR 实时推演 (候选人说)]:', data.text || data.content)
-        } else if (data.type === 'asr_final') {
-            console.log('✅ [ASR 截断定句 (候选人说)]:', data.text || data.content)
-        } else if (data.type === 'llm_partial') {
-            console.log('🤖 [LLM 逐字生成 (面试官想)]:', data.delta || data.content)
-        } else if (data.type === 'llm_final') {
-            console.log('🎯 [LLM 最终成句 (面试官想)]:', data.text || data.content)
-        } else if (data.type === 'error') {
-            console.error('❌ [服务端异常]:', data.message)
-        } else {
-            console.log('📡 [未知类型通道数据]:', data)
-        }
-      } catch (e) {
-        // 若后端传的是纯 String （非JSON），走这条降级打印
-        console.log('📡 [收到纯文本字符流]:', event.data)
-      }
-    }
-    
-    socket.onclose = () => {
-      console.log('ASR WebSocket closed')
+
+    socket.onmessage = handleWsMessage
+
+    socket.onclose = (ev) => {
+      console.log(`ASR WebSocket closed | code: ${ev.code} | reason: "${ev.reason}" | wasClean: ${ev.wasClean}`)
       isAsrActive.value = false
+      stopAudioCapture()
       interviewInfo.value.status = '等待连接'
       interviewInfo.value.statusColor = '#909399'
     }
-    
+
     socket.onerror = (err) => {
       console.error('ASR WebSocket error:', err)
       ElMessage.error('WebSocket 存在连接异常')
-      // 如果 WS 断了，为了防范后端进入僵尸态导致按钮互锁，自动替您调一次 stop 接口止损
-      interviewApi.stopASR(sessionId).catch(() => {})
       isAsrActive.value = false
     }
-    
+
   } catch (err: any) {
     ElMessage.error('启动 ASR 失败: ' + (err.message || '未知错误'))
     isAsrActive.value = false
   }
 }
 
+// ========== 停止 ASR ==========
 const onStopAsr = async () => {
   try {
-    await interviewApi.stopASR(sessionId)
     stopAudioCapture()
     if (socket) {
       socket.close()
       socket = null
     }
+    // 释放麦克风轨道
+    if (mediaStream) {
+      mediaStream.getTracks().forEach(track => track.stop())
+      mediaStream = null
+    }
+    // 通知后端停止 ASR 服务（失败不阻塞前端清理）
+    interviewApi.stopASR(sessionId).catch(err => {
+      console.warn('[ASR] HTTP stopASR 请求异常:', err)
+    })
     isAsrActive.value = false
     interviewInfo.value.status = '识别已停止'
     interviewInfo.value.statusColor = '#909399'
@@ -313,6 +417,10 @@ function onManualFollowUp() {
 }
 
 function onEndInterview() {
+  // 结束面试时也要清理 ASR 资源
+  if (isAsrActive.value) {
+    onStopAsr()
+  }
   interviewInfo.value.status = '通话已结束'
   interviewInfo.value.statusColor = '#909399'
   // TODO: 触发结束动作
@@ -320,6 +428,10 @@ function onEndInterview() {
 
 function onGenerateMoreSuggestions() {
   // TODO: 通过后端要求大模型根据当前上下文产出下一批发问题库
+}
+
+function goBack() {
+  router.back()
 }
 </script>
 
@@ -363,18 +475,23 @@ function onGenerateMoreSuggestions() {
   background-color: #eff0f1;
 }
 
+.feishu-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .feishu-btn.primary {
   background-color: #3370ff;
   border-color: #3370ff;
   color: #fff;
 }
 
-.feishu-btn.primary:hover {
+.feishu-btn.primary:hover:not(:disabled) {
   background-color: #4e83fd;
   border-color: #4e83fd;
 }
 
-.feishu-btn.primary:active {
+.feishu-btn.primary:active:not(:disabled) {
   background-color: #2b5fe8;
   border-color: #2b5fe8;
 }
@@ -385,16 +502,89 @@ function onGenerateMoreSuggestions() {
   color: #fff;
 }
 
-.feishu-btn.danger:hover {
+.feishu-btn.danger:hover:not(:disabled) {
   background-color: #ff6b66;
   border-color: #ff6b66;
 }
 
-.feishu-btn.danger:active {
+.feishu-btn.danger:active:not(:disabled) {
   background-color: #e53935;
   border-color: #e53935;
 }
 
+/* ========== ASR 实时转写区域 ========== */
+.asr-live-block {
+  margin-top: 16px;
+  background: #ffffff;
+  border: 1px solid #d6e1ff;
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(17, 29, 63, 0.07);
+  padding: 14px 18px;
+}
+
+.asr-live-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.live-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #909399;
+  transition: background 0.3s;
+}
+
+.live-indicator.active {
+  background: #f54a45;
+  animation: pulse-dot 1.4s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 74, 69, 0.5); }
+  50% { box-shadow: 0 0 0 6px rgba(245, 74, 69, 0); }
+}
+
+.live-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.asr-live-body {
+  font-size: 15px;
+  line-height: 1.8;
+  color: #1e293b;
+  min-height: 24px;
+  padding: 8px 12px;
+  background: #f8faff;
+  border-radius: 8px;
+  border: 1px solid #e8eff9;
+}
+
+.live-content {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.typing-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background: #3370ff;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  animation: blink-cursor 0.8s step-end infinite;
+}
+
+@keyframes blink-cursor {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* ========== 页面内容布局 ========== */
 .page-content {
   display: grid;
   grid-template-columns: 2fr 1fr;

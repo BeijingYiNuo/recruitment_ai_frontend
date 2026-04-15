@@ -62,7 +62,7 @@ onMounted(() => {
 
     :deep(.el-card__body) {
       padding: 24px;
-      min-height: 520px;
+      min-height: 820px;
     }
   }
 

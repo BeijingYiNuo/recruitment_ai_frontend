@@ -163,8 +163,7 @@ const showTooltip = ref(true)
 <style lang="scss" scoped>
 .tab-knowledge-qa {
   display: flex;
-  height: calc(100vh - 180px);
-  min-height: 600px;
+  height: calc(100vh - 310px);
   background-color: #ffffff;
 }
 

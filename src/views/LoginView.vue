@@ -4,7 +4,7 @@
       <div class="visual-inner">
         <img :src="heroImage" alt="品牌插画" class="hero-img" />
         <h1 class="visual-title">欢迎回来！</h1>
-        <p class="visual-sub">开始你的精彩旅程，连接无限可能</p>
+        <!-- <p class="visual-sub">开始你的精彩旅程，连接无限可能</p>
 
         <div class="visual-stats">
           <div class="stat"><div class="num">100K+</div><div class="label">活跃用户</div></div>
@@ -12,7 +12,7 @@
           <div class="stat"><div class="num">50+</div><div class="label">国家地区</div></div>
           <div class="divider"></div>
           <div class="stat"><div class="num">4.9</div><div class="label">用户评分</div></div>
-        </div>
+        </div> -->
       </div>
     </template>
 
@@ -152,7 +152,7 @@ async function handleLogin () {
   width: 48px;
   height: 48px;
   border-radius: 12px;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  background: linear-gradient(135deg, #0366f1, #8b5cf6);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -193,7 +193,7 @@ async function handleLogin () {
 }
 .input-with-icon input {
   width: 100%;
-  padding: 12px 44px 12px 40px;
+  padding: 12px 44px 12px 12px;
   border: 1px solid #e5e7eb;
   border-radius: 12px;
   outline: none;

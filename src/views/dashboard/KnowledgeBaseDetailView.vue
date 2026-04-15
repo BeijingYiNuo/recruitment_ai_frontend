@@ -63,7 +63,7 @@ onMounted(async () => {
   min-height: 100vh;
   background-color: #f7f8fa; // 极浅的灰色背景
   position: relative;
-  overflow-x: hidden;
+  overflow: hidden;
 }
 
 .tabs-container {

@@ -267,7 +267,7 @@ async function handleRegister () {
 .input-with-icon input,
 .input-with-icon select {
   width: 100%;
-  padding: 12px 44px 12px 40px;
+  padding: 12px 44px 12px 12px;
   border: 1px solid #e5e7eb;
   border-radius: 12px;
   outline: none;

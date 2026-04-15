@@ -58,14 +58,14 @@
           <span class="breadcrumb"></span>
         </div>
         <div class="nav-right">
-          <el-input placeholder="搜索..." class="search-input">
+          <!-- <el-input placeholder="搜索..." class="search-input">
             <template #prefix>
               <el-icon><Search /></el-icon>
             </template>
           </el-input>
           <el-badge :is-dot="true" class="notification-badge">
             <el-icon class="notification-icon"><Bell /></el-icon>
-          </el-badge>
+          </el-badge> -->
 
           <!-- 用户下拉区域 -->
           <el-dropdown trigger="click">

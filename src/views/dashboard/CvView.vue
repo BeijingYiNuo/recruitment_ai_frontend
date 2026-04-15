@@ -85,7 +85,6 @@
           
           <div class="drawer-tabs">
             <div class="tab-item" :class="{ active: activeTab === 'basic' }" @click="activeTab = 'basic'">基本信息</div>
-            <div class="tab-item" :class="{ active: activeTab === 'original' }" @click="activeTab = 'original'">简历原文</div>
           </div>
           
           <div class="drawer-body">
@@ -109,10 +108,10 @@
               <div class="detail-card">
                 <h3>AI 智能专项解析</h3>
                 <div class="special-actions">
-                  <el-button @click="handleFetchSpecialInDrawer('educations', '教育经历')" size="small">教育经历提取</el-button>
-                  <el-button @click="handleFetchSpecialInDrawer('work-experiences', '工作经历')" size="small">工作经历提取</el-button>
-                  <el-button @click="handleFetchSpecialInDrawer('skills', '技能')" size="small">核心技能打标</el-button>
-                  <el-button @click="handleFetchSpecialInDrawer('projects', '项目经历')" size="small">项目经验总结</el-button>
+                  <el-button @click="handleFetchSpecialInDrawer('educations', '教育经历')" size="small">教育经历</el-button>
+                  <el-button @click="handleFetchSpecialInDrawer('work-experiences', '工作经历')" size="small">工作经历</el-button>
+                  <el-button @click="handleFetchSpecialInDrawer('skills', '技能')" size="small">核心技能</el-button>
+                  <el-button @click="handleFetchSpecialInDrawer('projects', '项目经历')" size="small">项目经验</el-button>
                 </div>
                 <!-- 显示内容区域 -->
                 <div class="special-content" v-if="specialDataStr" v-loading="specialDataLoading" style="margin-top: 16px;">
@@ -188,22 +187,7 @@
               </div>
             </div>
 
-            <!-- 简历原文 Tab -->
-            <div v-show="activeTab === 'original'">
-              <div class="detail-card text-center" style="padding: 40px;">
-                <el-icon :size="48" color="#8F959E"><Document /></el-icon>
-                <h3 style="margin-top: 16px; color: #1F2329;">源文件操作</h3>
-                <p style="color: #646A73; font-size: 14px; margin-bottom: 24px;">可在线预览 PDF 格式简历，或下载原始文件到本地查看</p>
-                <div style="display: flex; gap: 12px; justify-content: center;">
-                  <el-button type="primary" class="lark-btn-primary" @click="handlePreview(currentDetail)">
-                    <el-icon style="margin-right: 6px;"><View/></el-icon> 预览简历
-                  </el-button>
-                  <el-button class="lark-btn-ghost" @click="handleDownload(currentDetail)">
-                    <el-icon style="margin-right: 6px;"><Download/></el-icon> 下载原始文件
-                  </el-button>
-                </div>
-              </div>
-            </div>
+
 
             <!-- 面试记录 Tab -->
           </div>
@@ -260,7 +244,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { ElMessage, ElLoading, ElMessageBox } from 'element-plus'
-import { UploadFilled, Download, Close, Document, View } from '@element-plus/icons-vue'
+import { UploadFilled, Download, Close } from '@element-plus/icons-vue'
 import { getCurrentUser } from '../../services/authService'
 import { useResumeStore } from '../../stores/resumeStore'
 import { resumeApi } from '../../api/resume'
@@ -569,10 +553,10 @@ const handleDownload = async (row) => {
 
 const handleDelete = (id) => {
   ElMessageBox.confirm(
-    '此操作将永久毁掉该简历以及相关解析数据内容，确定要继续吗？',
+    '此操作将永久删除该简历以及相关解析数据内容，确定要继续吗？',
     '高危操作警告',
     {
-      confirmButtonText: '确定摧毁',
+      confirmButtonText: '确定删除',
       cancelButtonText: '取消',
       type: 'warning'
     }

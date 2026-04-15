@@ -65,7 +65,8 @@
             </div>
           </div>
 
-          <el-form-item :label="form.session_type === 'online' ? '面试备注 ' : '面试备注 '" required>
+          <!-- <el-form-item :label="form.session_type === 'online' ? '面试备注 ' : '面试备注 '" required> -->
+          <el-form-item :label="form.session_type === 'online' ? '面试备注 ' : '面试备注 '" >
             <el-input
               v-model="form.notes"
               type="textarea"

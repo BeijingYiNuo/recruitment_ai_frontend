@@ -152,9 +152,9 @@ const props = defineProps({
 const emit = defineEmits(['select-slot'])
 
 const startHour = 8
-const endHour = 22
+const endHour = 23
 const hourHeight = computed(() => props.hourHeight)
-const totalGridHeight = computed(() => (endHour - startHour) * hourHeight.value)
+const totalGridHeight = computed(() => (endHour - startHour) * hourHeight.value + 30)
 const dayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
 const miniWeekLabels = ['日', '一', '二', '三', '四', '五', '六']
 
@@ -554,7 +554,7 @@ defineExpose({ clearSelection, goToday })
 <style lang="scss" scoped>
 .interview-calendar {
   display: flex;
-  height: 100%;
+  min-height: 600px;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   font-size: 13px;
   color: #1f2329;
@@ -800,7 +800,7 @@ defineExpose({ clearSelection, goToday })
 
 .cal-grid-scroll {
   flex: 1;
-  overflow-y: auto;
+  overflow-y: visible;
   overflow-x: hidden;
 
   &::-webkit-scrollbar {
@@ -816,6 +816,7 @@ defineExpose({ clearSelection, goToday })
 .cal-grid {
   position: relative;
   display: flex;
+  padding-top: 5px;
 }
 
 .cal-time-gutter {
