@@ -11,7 +11,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://192.168.0.83:8001',  // 后端服务地址
+        target: 'http://192.168.1.37:8001',  // 后端服务地址
         changeOrigin: true,
         ws: true,  // 显式启用 WebSocket 代理
         autoRewrite: true, // 自动重写重定向的 host 头，防止 307 重定向到原始 IP

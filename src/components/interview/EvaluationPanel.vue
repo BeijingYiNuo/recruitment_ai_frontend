@@ -5,31 +5,41 @@
       <p class="subtitle">对本轮回答的维度智能分析</p>
     </div>
 
-    <div class="score-block">
-      <div class="score-label">综合评分</div>
-      <div class="score-value">{{ evaluation.score.toFixed(1) }}</div>
-      <div class="score-meter">
-        <div class="meter-filled" :style="{ width: `${Math.min(evaluation.score * 10, 100)}%` }"></div>
-      </div>
-      <p class="score-summary">{{ evaluation.summary }}</p>
-    </div>
-
-    <div class="metric-list">
-      <div v-for="item in evaluation.metrics" :key="item.title" class="metric-row">
-        <div class="metric-info">
-          <span class="metric-title">{{ item.title }}</span>
-          <span class="metric-text">{{ item.text }}</span>
+    <div class="evaluation-body" ref="evaluationBodyRef">
+      <div class="score-block">
+        <div class="score-meter">
+          <div class="meter-filled" :style="{ width: `${Math.min(evaluation.score * 10, 100)}%` }"></div>
         </div>
-        <i v-if="item.level === '优秀'" class="el-icon-circle-check success"></i>
-        <i v-else-if="item.level === '良好'" class="el-icon-warning-outline warning"></i>
-        <i v-else class="el-icon-circle-close danger"></i>
-        <span class="metric-level" :class="item.level.toLowerCase()">{{ item.level }}</span>
+        
+        <div v-if="evaluation.summaries && evaluation.summaries.length > 0" class="summary-list">
+          <div v-for="item in evaluation.summaries" :key="item.index" class="summary-item">
+            <p class="score-summary">
+              <span class="index-badge">{{ item.index }}</span>{{ item.text }}
+            </p>
+          </div>
+        </div>
+        <p v-else class="score-summary">{{ evaluation.summary || '暂无大模型分析结论' }}</p>
+      </div>
+
+      <div class="metric-list">
+        <div v-for="item in evaluation.metrics" :key="item.title" class="metric-row">
+          <div class="metric-info">
+            <span class="metric-title">{{ item.title }}</span>
+            <span class="metric-text">{{ item.text }}</span>
+          </div>
+          <i v-if="item.level === '优秀'" class="el-icon-circle-check success"></i>
+          <i v-else-if="item.level === '良好'" class="el-icon-warning-outline warning"></i>
+          <i v-else class="el-icon-circle-close danger"></i>
+          <span class="metric-level" :class="item.level.toLowerCase()">{{ item.level }}</span>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { ref, watch, nextTick } from 'vue'
+
 type MetricItem = {
   title: string
   text: string
@@ -39,10 +49,23 @@ type MetricItem = {
 type Evaluation = {
   score: number
   summary: string
+  summaries?: { index: number; text: string }[]
   metrics: MetricItem[]
 }
 
-defineProps<{ evaluation: Evaluation }>()
+const props = defineProps<{ evaluation: Evaluation }>()
+
+const evaluationBodyRef = ref<HTMLElement | null>(null)
+const scrollToBottom = () => {
+  nextTick(() => {
+    if (evaluationBodyRef.value) {
+      evaluationBodyRef.value.scrollTop = evaluationBodyRef.value.scrollHeight
+    }
+  })
+}
+
+// 监听 summary 的变化，自动滚动到底部
+watch(() => props.evaluation.summary, scrollToBottom)
 </script>
 
 <style lang="scss" scoped>
@@ -52,6 +75,11 @@ defineProps<{ evaluation: Evaluation }>()
   border-radius: 12px;
   box-shadow: 0 2px 10px rgba(17, 29, 63, 0.07);
   padding: 16px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  box-sizing: border-box;
 }
 
 .card-header h2 {
@@ -65,6 +93,14 @@ defineProps<{ evaluation: Evaluation }>()
   color: #667085;
   font-size: 13px;
   margin-bottom: 14px;
+}
+
+.evaluation-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 8px;
+  scroll-behavior: smooth;
 }
 
 .score-block {
@@ -103,10 +139,39 @@ defineProps<{ evaluation: Evaluation }>()
   border-radius: 9999px;
 }
 
+.summary-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.summary-item {
+  margin-bottom: 12px;
+}
+
+.index-badge {
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+  background: #e2f0ff;
+  color: #0369a1;
+  border-radius: 50%;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 11px;
+  margin-right: 8px;
+  position: relative;
+  top: -1px; /* 视觉微调实现与文字中线绝对重合 */
+}
+
 .score-summary {
   color: #355e7d;
   font-size: 13px;
   margin: 0;
+  white-space: pre-wrap; /* 支持换行符及连续空白 */
+  line-height: 1.6;
 }
 
 .metric-list {

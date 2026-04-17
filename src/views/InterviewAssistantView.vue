@@ -2,31 +2,24 @@
   <div class="interview-assistant-page">
     <InterviewHeader
       :info="interviewInfo"
+      :isAsrActive="isAsrActive"
+      @goBack="goBack"
+      @startAsr="onStartAsr"
+      @stopAsr="onStopAsr"
       @manualFollowUp="onManualFollowUp"
       @endInterview="onEndInterview"
     />
 
-    <div class="asr-controls">
-      <button class="feishu-btn" @click="goBack">返回</button>
-      <button class="feishu-btn primary" @click="onStartAsr" :disabled="isAsrActive">创建 ASR</button>
-      <button class="feishu-btn danger" @click="onStopAsr" :disabled="!isAsrActive">停止 ASR</button>
-    </div>
-
-    <!-- ASR 实时转写区域 -->
-    <div class="asr-live-block" v-if="isAsrActive || currentAsrText">
-      <div class="asr-live-header">
-        <span class="live-indicator" :class="{ active: isAsrActive }"></span>
-        <span class="live-label">实时语音转写</span>
-      </div>
-      <div class="asr-live-body">
-        <span class="live-content">{{ currentAsrText || '等待语音输入...' }}</span>
-        <span v-if="isAsrActive" class="typing-cursor"></span>
-      </div>
-    </div>
 
     <div class="page-content">
       <section class="left-column">
-        <TranscriptPanel :conversation="transcriptConversation" :currentRound="interviewInfo.currentRound" />
+        <TranscriptPanel
+          :conversation="transcriptConversation"
+          :currentRound="interviewInfo.currentRound"
+          :liveText="currentAsrText"
+          :isListening="isAsrActive"
+          :asrHistory="asrHistory"
+        />
       </section>
 
       <section class="right-column">
@@ -61,6 +54,7 @@ let frameCount = 0 // 音频帧发送计数器
 
 // ========== ASR 实时转写数据 ==========
 const currentAsrText = ref('')
+const asrHistory = ref<string[]>([]) // 已完成句子的历史记录
 
 // ========== LLM streaming 流式输出缓冲 ==========
 // 按 index 组织，每个 index 代表一次 LLM 输出
@@ -76,7 +70,7 @@ const computedFollowUpQuestions = computed(() => {
   return entries.map(([idx, text]) => ({
     id: `advice-${idx}`,
     priority: '高优先级',
-    title: `AI 追问建议 #${idx}`,
+    title: `AI 追问建议`,
     description: text,
     tags: ['AI 生成', '实时']
   }))
@@ -85,12 +79,24 @@ const computedFollowUpQuestions = computed(() => {
 // EvaluationPanel 所需的 evaluation 对象
 const computedEvaluation = computed(() => {
   const entries = Object.entries(streamingEvaluationMap.value)
-  if (entries.length === 0) return evaluationSummary.value
-  // 拼接所有 evaluation 文本作为 summary
-  const allText = entries.map(([, text]) => text).join('\n')
+  if (entries.length === 0) {
+    return {
+      score: evaluationSummary.value.score,
+      summary: evaluationSummary.value.summary,
+      summaries: [],
+      metrics: evaluationSummary.value.metrics
+    }
+  }
+  
+  const summaries = entries.map(([, text], i) => ({
+    index: i + 1,
+    text: text
+  }))
+  
   return {
     score: evaluationSummary.value.score,
-    summary: allText || evaluationSummary.value.summary,
+    summary: summaries.map(s => s.text).join('\n\n'),
+    summaries: summaries,
     metrics: evaluationSummary.value.metrics
   }
 })
@@ -275,17 +281,42 @@ onBeforeUnmount(() => {
 const handleWsMessage = (event: MessageEvent) => {
   try {
     const msg = JSON.parse(event.data)
-    console.log('[WS] 收到消息:', msg)
 
     if (msg.type === 'asr') {
-      // type: "asr" → data 是实时语音转写的完整文本，直接覆盖
-      currentAsrText.value = msg.data
+      // type: "asr" → data 是实时语音转写的完整文本
+      const newText = msg.data as string
+      const oldText = currentAsrText.value
+      // console.log('[ASR] 转写文本:', newText) // 暂时注释掉 ASR 打印
+
+      // 检测句子边界：
+      // 由于ASR在转写过程中会动态修正历史字词、增补标点，并不一定满足严格的 startsWith 。
+      // 采用启发式判断替代严格匹配以防止文本重复追加：
+      // 1. 新文本长度大幅缩短（小于旧文本的一半以上），说明后端 ASR 启动了新分句。
+      // 2. 旧文本包含明显的句末语意（标点结尾）且新文本连首部都不一样了。
+      let isNewSentence = false;
+      if (oldText && newText) {
+        const isMuchShorter = newText.length <= oldText.length * 0.5;
+        const endsWithPunc = /[。？！.?!]$/.test(oldText.trim());
+        const hasDifferentStart = newText.charAt(0) !== oldText.charAt(0);
+        
+        if (isMuchShorter || (endsWithPunc && hasDifferentStart)) {
+          isNewSentence = true;
+        }
+      }
+
+      if (isNewSentence) {
+        asrHistory.value.push(oldText)
+      }
+      currentAsrText.value = newText
     } else if (msg.type === 'streaming') {
       // type: "streaming" → data 是 LLM 流式输出对象
       const payload = msg.data
       const { response_type, index, content } = payload
 
       if (response_type === 'advice') {
+        // 打印详细的追问建议流式数据，排查重复拼接问题
+        console.log(`[LLM Advice] index: ${index}, payload:`, payload)
+        
         // 追问建议：按 index 拼接
         if (!streamingAdviceMap.value[index]) {
           streamingAdviceMap.value[index] = ''
@@ -306,7 +337,7 @@ const handleWsMessage = (event: MessageEvent) => {
         console.log('[LLM] 本轮输出完成')
       }
     } else {
-      console.log('[WS] 未知消息类型:', msg)
+      // 非 asr/streaming 类型静默忽略
     }
   } catch (e) {
     // 若后端传的是纯 String（非 JSON），走降级打印
@@ -333,6 +364,7 @@ const onStartAsr = async () => {
 
     // 重置流式缓冲数据
     currentAsrText.value = ''
+    asrHistory.value = []
     streamingAdviceMap.value = {}
     streamingEvaluationMap.value = {}
 
@@ -437,159 +469,22 @@ function goBack() {
 
 <style lang="scss" scoped>
 .interview-assistant-page {
-  min-height: 100vh;
+  height: 100vh;
+  box-sizing: border-box;
   padding: 20px;
   background: #f4f6fb;
-}
-
-.asr-controls {
-  margin-top: 16px;
   display: flex;
-  gap: 12px;
+  flex-direction: column;
+  overflow: hidden;
 }
 
-.feishu-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 7px 16px;
-  font-size: 14px;
-  font-weight: 400;
-  line-height: 1.5;
-  border-radius: 6px;
-  border: 1px solid transparent;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  outline: none;
-  background-color: #fff;
-  border-color: #dee0e3;
-  color: #1f2329;
-}
-
-.feishu-btn:hover {
-  background-color: #f5f6f7;
-  border-color: #d0d3d6;
-}
-
-.feishu-btn:active {
-  background-color: #eff0f1;
-}
-
-.feishu-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.feishu-btn.primary {
-  background-color: #3370ff;
-  border-color: #3370ff;
-  color: #fff;
-}
-
-.feishu-btn.primary:hover:not(:disabled) {
-  background-color: #4e83fd;
-  border-color: #4e83fd;
-}
-
-.feishu-btn.primary:active:not(:disabled) {
-  background-color: #2b5fe8;
-  border-color: #2b5fe8;
-}
-
-.feishu-btn.danger {
-  background-color: #f54a45;
-  border-color: #f54a45;
-  color: #fff;
-}
-
-.feishu-btn.danger:hover:not(:disabled) {
-  background-color: #ff6b66;
-  border-color: #ff6b66;
-}
-
-.feishu-btn.danger:active:not(:disabled) {
-  background-color: #e53935;
-  border-color: #e53935;
-}
-
-/* ========== ASR 实时转写区域 ========== */
-.asr-live-block {
-  margin-top: 16px;
-  background: #ffffff;
-  border: 1px solid #d6e1ff;
-  border-radius: 12px;
-  box-shadow: 0 2px 10px rgba(17, 29, 63, 0.07);
-  padding: 14px 18px;
-}
-
-.asr-live-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 10px;
-}
-
-.live-indicator {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #909399;
-  transition: background 0.3s;
-}
-
-.live-indicator.active {
-  background: #f54a45;
-  animation: pulse-dot 1.4s ease-in-out infinite;
-}
-
-@keyframes pulse-dot {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 74, 69, 0.5); }
-  50% { box-shadow: 0 0 0 6px rgba(245, 74, 69, 0); }
-}
-
-.live-label {
-  font-size: 14px;
-  font-weight: 600;
-  color: #0f172a;
-}
-
-.asr-live-body {
-  font-size: 15px;
-  line-height: 1.8;
-  color: #1e293b;
-  min-height: 24px;
-  padding: 8px 12px;
-  background: #f8faff;
-  border-radius: 8px;
-  border: 1px solid #e8eff9;
-}
-
-.live-content {
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.typing-cursor {
-  display: inline-block;
-  width: 2px;
-  height: 1em;
-  background: #3370ff;
-  margin-left: 2px;
-  vertical-align: text-bottom;
-  animation: blink-cursor 0.8s step-end infinite;
-}
-
-@keyframes blink-cursor {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
-}
-
-/* ========== 页面内容布局 ========== */
 .page-content {
   display: grid;
   grid-template-columns: 2fr 1fr;
   gap: 18px;
   margin-top: 16px;
+  flex: 1;
+  min-height: 0;
 }
 
 .left-column,
@@ -597,6 +492,8 @@ function goBack() {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  height: 100%;
+  min-height: 0;
 }
 
 @media (max-width: 1200px) {

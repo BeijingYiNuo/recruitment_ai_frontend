@@ -6,21 +6,19 @@
     </div>
 
     <div class="suggestion-list">
-      <div v-for="item in suggestions" :key="item.id" class="suggestion-item">
-        <div class="tag-row">
-          <span class="priority-chip" :class="{'high': item.priority === '高优先级', 'mid': item.priority === '中优先级'}">{{ item.priority }}</span>
-        </div>
-        <h3 class="suggestion-title">{{ item.title }}</h3>
-        <p class="suggestion-desc">{{ item.description }}</p>
-        <div class="meta-tags">
-          <span v-for="t in item.tags" :key="t" class="meta-tag">{{ t }}</span>
+      <div v-for="(item, index) in suggestions" :key="item.id" class="suggestion-item">
+        <div class="suggestion-content">
+          <h3 class="suggestion-title">
+            <span class="index-badge">{{ index + 1 }}</span>{{ item.title }}
+          </h3>
+          <p class="suggestion-desc">{{ item.description }}</p>
         </div>
       </div>
     </div>
 
-    <div class="card-footer">
+    <!-- <div class="card-footer">
       <el-button size="small" type="primary" @click="$emit('generateMore')">+ 生成更多建议</el-button>
-    </div>
+    </div> -->
   </div>
 </template>
 
@@ -43,6 +41,11 @@ defineProps<{ suggestions: Suggestion[] }>()
   border-radius: 12px;
   box-shadow: 0 2px 10px rgba(17, 29, 63, 0.07);
   padding: 16px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  box-sizing: border-box;
 }
 
 .card-header h2 {
@@ -62,7 +65,8 @@ defineProps<{ suggestions: Suggestion[] }>()
   display: flex;
   flex-direction: column;
   gap: 12px;
-  max-height: 25vh;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   margin-bottom: 16px;
 }
@@ -70,33 +74,36 @@ defineProps<{ suggestions: Suggestion[] }>()
 .suggestion-item {
   border: 1px solid #d6e1ff;
   border-radius: 10px;
-  padding: 10px;
+  padding: 12px;
   background: #f8faff;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
 }
 
-.tag-row {
-  margin-bottom: 6px;
+.item-left {
+  flex-shrink: 0;
 }
 
-.priority-chip {
-  font-size: 12px;
-  color: #075985;
-  border-radius: 8px;
-  padding: 2px 8px;
-  border: 1px solid #bae6fd;
-  background: #eff6ff;
+.index-badge {
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+  background: #e0e8ff;
+  color: #1d4ed8;
+  border-radius: 50%;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 11px;
+  margin-right: 8px;
+  position: relative;
+  top: -1px; /* 视觉微调实现与文字中线绝对重合 */
 }
 
-.priority-chip.high {
-  color: #0f766e;
-  background: #ccfbf1;
-  border-color: #2dd4bf;
-}
-
-.priority-chip.mid {
-  color: #92400e;
-  background: #fef3c7;
-  border-color: #f59e0b;
+.suggestion-content {
+  flex: 1;
+  min-width: 0;
 }
 
 .suggestion-title {
@@ -104,6 +111,7 @@ defineProps<{ suggestions: Suggestion[] }>()
   font-weight: 700;
   color: #0f172a;
   margin: 0 0 4px;
+  line-height: 1.6;
 }
 
 .suggestion-desc {
