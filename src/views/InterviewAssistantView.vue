@@ -3,9 +3,12 @@
     <InterviewHeader
       :info="interviewInfo"
       :isAsrActive="isAsrActive"
+      :isRecording="isRecording"
       @goBack="goBack"
       @startAsr="onStartAsr"
       @stopAsr="onStopAsr"
+      @startRecording="onStartRecording"
+      @stopRecording="onStopRecording"
       @manualFollowUp="onManualFollowUp"
       @endInterview="onEndInterview"
     />
@@ -51,6 +54,13 @@ let processor: ScriptProcessorNode | null = null
 let gainNode: GainNode | null = null
 let audioDataQueue: number[] = [] // 音频样本队列，用于缓冲并对齐 480 采样点 (30ms)
 let frameCount = 0 // 音频帧发送计数器
+let timerInterval: any = null
+let secondsElapsed = 0
+
+// ========== 录音逻辑变量 ==========
+const isRecording = ref(false)
+let mediaRecorder: MediaRecorder | null = null
+let recordedChunks: Blob[] = []
 
 // ========== ASR 实时转写数据 ==========
 const currentAsrText = ref('')
@@ -71,7 +81,7 @@ const computedFollowUpQuestions = computed(() => {
     id: `advice-${idx}`,
     priority: '高优先级',
     title: `AI 追问建议`,
-    description: text,
+    description: text.trimStart(),
     tags: ['AI 生成', '实时']
   }))
 })
@@ -90,7 +100,7 @@ const computedEvaluation = computed(() => {
   
   const summaries = entries.map(([, text], i) => ({
     index: i + 1,
-    text: text
+    text: text.trimStart()
   }))
   
   return {
@@ -188,6 +198,79 @@ const stopAudioCapture = () => {
   }
 }
 
+// ========== 计时器逻辑 ==========
+const startTimer = () => {
+  if (timerInterval) clearInterval(timerInterval)
+  secondsElapsed = 0
+  interviewInfo.value.timer = '00:00'
+  
+  timerInterval = setInterval(() => {
+    secondsElapsed++
+    const mins = Math.floor(secondsElapsed / 60).toString().padStart(2, '0')
+    const secs = (secondsElapsed % 60).toString().padStart(2, '0')
+    interviewInfo.value.timer = `${mins}:${secs}`
+  }, 1000)
+}
+
+const stopTimer = () => {
+  if (timerInterval) {
+    clearInterval(timerInterval)
+    timerInterval = null
+  }
+}
+
+// ========== 录音控制逻辑 ==========
+const onStartRecording = () => {
+  if (!mediaStream) {
+    ElMessage.error('无法录音：未获取到音频流')
+    return
+  }
+
+  recordedChunks = []
+  try {
+    // 优先使用 mp4/webm 等现代编码
+    const options = { mimeType: 'audio/webm;codecs=opus' }
+    if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+      console.warn('webm/opus 不支持，尝试默认类型')
+      mediaRecorder = new MediaRecorder(mediaStream)
+    } else {
+      mediaRecorder = new MediaRecorder(mediaStream, options)
+    }
+
+    mediaRecorder.ondataavailable = (event) => {
+      if (event.data.size > 0) {
+        recordedChunks.push(event.data)
+      }
+    }
+
+    mediaRecorder.onstop = () => {
+      const blob = new Blob(recordedChunks, { type: mediaRecorder?.mimeType || 'audio/webm' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      const timestamp = new Date().toLocaleString().replace(/[\/\\:\*\?\"<>\|]/g, '-')
+      a.href = url
+      a.download = `面试录音_${interviewInfo.value.candidateName}_${timestamp}.webm`
+      a.click()
+      URL.revokeObjectURL(url)
+      ElMessage.success('录音文件已生成并开始下载')
+    }
+
+    mediaRecorder.start()
+    isRecording.value = true
+    ElMessage.success('本地录音已开始')
+  } catch (err) {
+    console.error('Failed to start recording:', err)
+    ElMessage.error('启动录音失败')
+  }
+}
+
+const onStopRecording = () => {
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.stop()
+  }
+  isRecording.value = false
+}
+
 const interviewInfo = ref({
   status: '服务初始化中...',
   statusColor: '#e6a23c', // 默认黄色等待态
@@ -267,6 +350,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   stopAudioCapture()
+  stopTimer()
   if (socket) {
     socket.close()
     socket = null
@@ -393,6 +477,7 @@ const onStartAsr = async () => {
       interviewInfo.value.statusColor = '#67c23a'
       // 连接成功后启动音频采集并发送
       startAudioCapture()
+      startTimer()
       ElMessage.success('ASR 识别通道已打通')
     }
 
@@ -426,6 +511,13 @@ const onStopAsr = async () => {
       socket.close()
       socket = null
     }
+    stopTimer()
+    
+    // 如果正在录音，联动停止
+    if (isRecording.value) {
+      onStopRecording()
+    }
+
     // 释放麦克风轨道
     if (mediaStream) {
       mediaStream.getTracks().forEach(track => track.stop())

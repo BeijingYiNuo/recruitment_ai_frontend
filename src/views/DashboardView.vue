@@ -71,7 +71,7 @@
           <el-dropdown trigger="click">
             <div class="user-profile">
               <el-avatar size="small" style="background-color: #3370ff; font-size: 12px; margin-right: 8px;">
-                {{ currentUser?.username?.charAt(0) || '管' }}
+                <!-- {{ currentUser?.username?.charAt(0) || '管' }} -->
               </el-avatar>
               <span class="username">{{ currentUser?.username || '管理员' }}</span>
               <el-icon class="dropdown-icon"><ArrowDown /></el-icon>
@@ -95,10 +95,11 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { getCurrentUser } from '../services/authService'
 import authService from '../services/authService'
+import { authApi } from '../api/auth'
 import {
   House, Document, User, ChatLineRound, Calendar, DataLine, Setting, Search, Bell, ArrowDown, DocumentCopy, Folder
 } from '@element-plus/icons-vue'
@@ -106,6 +107,20 @@ import {
 const router = useRouter()
 const route = useRoute()
 const currentUser = ref(getCurrentUser() || { id: 1, username: '管理员' })
+
+onMounted(async () => {
+  if (currentUser.value?.id) {
+    try {
+      const res = await authApi.getUserProfile(currentUser.value.id)
+      let data = Array.isArray(res) && res.length > 0 ? res[0] : (!Array.isArray(res) ? res : null)
+      if (data && data.username) {
+        currentUser.value.username = data.username
+      }
+    } catch (e) {
+      console.error('Failed to fetch user profile:', e)
+    }
+  }
+})
 
 // 记录知识库最后所处的完整路径（如详情页）
 const lastKnowledgePath = ref('/dashboard/knowledge-base')

@@ -7,15 +7,18 @@
 
     <div class="evaluation-body" ref="evaluationBodyRef">
       <div class="score-block">
-        <div class="score-meter">
+        <!-- <div class="score-meter">
           <div class="meter-filled" :style="{ width: `${Math.min(evaluation.score * 10, 100)}%` }"></div>
-        </div>
+        </div> -->
         
         <div v-if="evaluation.summaries && evaluation.summaries.length > 0" class="summary-list">
           <div v-for="item in evaluation.summaries" :key="item.index" class="summary-item">
-            <p class="score-summary">
-              <span class="index-badge">{{ item.index }}</span>{{ item.text }}
-            </p>
+            <div class="summary-content">
+              <h3 class="summary-title">
+                <span class="index-badge">{{ item.index }}</span>AI 评价意见
+              </h3>
+              <p class="score-summary">{{ item.text }}</p>
+            </div>
           </div>
         </div>
         <p v-else class="score-summary">{{ evaluation.summary || '暂无大模型分析结论' }}</p>
@@ -71,7 +74,7 @@ watch(() => props.evaluation.summary, scrollToBottom)
 <style lang="scss" scoped>
 .evaluation-card {
   background: #ffffff;
-  border: 1px solid #d9e8f8;
+  border: 1px solid #dbe5ff; // 同步 FollowUpPanel 边框色
   border-radius: 12px;
   box-shadow: 0 2px 10px rgba(17, 29, 63, 0.07);
   padding: 16px;
@@ -92,46 +95,33 @@ watch(() => props.evaluation.summary, scrollToBottom)
 .subtitle {
   color: #667085;
   font-size: 13px;
-  margin-bottom: 14px;
+  margin-bottom: 12px; // 14px -> 12px
 }
 
 .evaluation-body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding-right: 8px;
+  // padding-right: 8px;
   scroll-behavior: smooth;
 }
 
 .score-block {
-  border: 1px solid #e2f0ff;
-  border-radius: 10px;
-  background: #f8fbff;
-  padding: 14px;
+  // border: 1px solid #e2f0ff;
+  // border-radius: 10px;
+  // background: #f8fbff;
+  // padding: 14px;
   margin-bottom: 14px;
 }
 
-.score-label {
-  color: #0f172a;
-  font-weight: 600;
-  margin-bottom: 6px;
-}
-
-.score-value {
-  font-size: 36px;
-  font-weight: 700;
-  color: #0f172a;
-  margin-bottom: 8px;
-}
-
-.score-meter {
-  width: 100%;
-  height: 8px;
-  background: #dbeafe;
-  border-radius: 9999px;
-  overflow: hidden;
-  margin-bottom: 8px;
-}
+// .score-meter {
+//   width: 100%;
+//   height: 8px;
+//   background: #dbeafe;
+//   border-radius: 9999px;
+//   overflow: hidden;
+//   margin-bottom: 16px; // 增加间距
+// }
 
 .meter-filled {
   height: 100%;
@@ -143,19 +133,25 @@ watch(() => props.evaluation.summary, scrollToBottom)
   display: flex;
   flex-direction: column;
   gap: 12px;
-  margin-top: 12px;
+  // margin-top: 12px; // 移除多余边距以对齐 FollowUpPanel
 }
 
 .summary-item {
-  margin-bottom: 12px;
+  border: 1px solid #d6e1ff; // 同步 FollowUpPanel
+  border-radius: 10px;
+  padding: 12px;
+  background: #f8faff; // 同步 FollowUpPanel
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
 }
 
 .index-badge {
   display: inline-flex;
   width: 20px;
   height: 20px;
-  background: #e2f0ff;
-  color: #0369a1;
+  background: #e0e8ff; // 同步 FollowUpPanel
+  color: #1d4ed8; // 同步 FollowUpPanel
   border-radius: 50%;
   align-items: center;
   justify-content: center;
@@ -163,14 +159,27 @@ watch(() => props.evaluation.summary, scrollToBottom)
   font-size: 11px;
   margin-right: 8px;
   position: relative;
-  top: -1px; /* 视觉微调实现与文字中线绝对重合 */
+  top: -1px;
+}
+
+.summary-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.summary-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 4px;
+  line-height: 1.6;
 }
 
 .score-summary {
-  color: #355e7d;
+  color: #475467; // 同步 FollowUpPanel (#355e7d -> #475467)
   font-size: 13px;
   margin: 0;
-  white-space: pre-wrap; /* 支持换行符及连续空白 */
+  white-space: pre-wrap;
   line-height: 1.6;
 }
 

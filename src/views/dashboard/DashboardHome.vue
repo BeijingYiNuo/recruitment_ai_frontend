@@ -35,9 +35,10 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { authApi } from '../../api/auth'
 import { getCurrentUser } from '../../services/authService'
 import { useResumeStore } from '../../stores/resumeStore'
 import { useInterviewStore } from '../../stores/interviewStore'
@@ -46,6 +47,20 @@ import ResumeDetailModal from '../../components/ResumeDetailModal.vue'
 
 const router = useRouter()
 const currentUser = ref(getCurrentUser() || { id: 1, username: '管理员' })
+
+onMounted(async () => {
+  if (currentUser.value?.id) {
+    try {
+      const res = await authApi.getUserProfile(currentUser.value.id)
+      let data = Array.isArray(res) && res.length > 0 ? res[0] : (!Array.isArray(res) ? res : null)
+      if (data && data.username) {
+        currentUser.value.username = data.username
+      }
+    } catch (e) {
+      console.error('Failed to fetch user profile:', e)
+    }
+  }
+})
 const resumeInput = ref(null)
 const resumeStore = useResumeStore()
 const interviewStore = useInterviewStore()

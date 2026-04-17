@@ -153,10 +153,14 @@
                   </div>
 
                   <!-- 技能打标结构化渲染 -->
-                  <div v-else-if="activeSpecialType === 'skills' && specialSkillList.length > 0" class="skill-cloud">
-                    <div v-for="skill in specialSkillList" :key="skill.id" class="skill-chip">
-                      <span class="skill-name">{{ skill.skill_name }}</span>
-                      <span class="skill-level" v-if="skill.proficiency_level">({{ skill.proficiency_level }})</span>
+                  <div v-else-if="activeSpecialType === 'skills' && specialSkillList.length > 0" class="skill-cloud-container">
+                    <div v-for="(skills, level) in groupedSkills" :key="level" class="skill-group">
+                      <div class="skill-group-title">{{ level }}</div>
+                      <div class="skill-cloud">
+                        <div v-for="skill in skills" :key="skill.id" class="skill-chip">
+                          <span class="skill-name">{{ skill.skill_name }}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
@@ -242,7 +246,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
 import { ElMessage, ElLoading, ElMessageBox } from 'element-plus'
 import { UploadFilled, Download, Close } from '@element-plus/icons-vue'
 import { getCurrentUser } from '../../services/authService'
@@ -423,6 +427,16 @@ const specialEduList = ref([])
 const specialWorkList = ref([])
 const specialSkillList = ref([])
 const specialProjectList = ref([])
+
+const groupedSkills = computed(() => {
+  const groups = {}
+  for (const skill of specialSkillList.value) {
+    const level = skill.proficiency_level || '其他'
+    if (!groups[level]) groups[level] = []
+    groups[level].push(skill)
+  }
+  return groups
+})
 
 watch(drawerVisible, (val) => {
   if (val) document.body.style.overflow = 'hidden'
@@ -892,11 +906,21 @@ const onPreviewClose = () => {
   font-weight: 500;
 }
 
-/* 技能标签云样式 */
+.skill-group {
+  margin-bottom: 20px;
+}
+.skill-group-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1F2329;
+  margin-bottom: 12px;
+  border-left: 3px solid #3370FF;
+  padding-left: 8px;
+}
 .skill-cloud {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 12px;
 }
 .skill-chip {
   background-color: #E1EAFF;

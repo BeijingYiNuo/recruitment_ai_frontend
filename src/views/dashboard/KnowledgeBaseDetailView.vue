@@ -102,7 +102,7 @@ onMounted(async () => {
 }
 
 .tab-content-area {
-  padding: 24px;
+  padding: 24px 0;
   
   &.no-padding {
     padding: 0; // 搜索和问答拥有通栏布局

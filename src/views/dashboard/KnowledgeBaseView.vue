@@ -5,6 +5,7 @@
         <div class="header-top">
           <div class="title-area">
             <h1>知识库</h1>
+            <span class="badge" v-if="filteredList.length > 0">{{ filteredList.length }}</span>
           </div>
           <div class="action-btn-group">
             <CreateButton @create="showCreateDialog" />
@@ -14,10 +15,6 @@
       
       <div class="list-area" style="padding: 24px; flex: 1;">
         <StepGuide />
-        
-        <div style="margin: 16px 0;">
-          <span class="count-text" style="color: #646a73; font-size: 14px; font-weight: 500;">共 {{ filteredList.length }} 个知识库</span>
-        </div>
         
         <KnowledgeList 
           :list="filteredList" 

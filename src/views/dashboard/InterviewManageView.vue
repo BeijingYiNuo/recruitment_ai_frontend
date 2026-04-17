@@ -44,7 +44,6 @@
               <el-avatar :size="32" class="lark-avatar">{{ item.candidate_name?.charAt(0) || 'U' }}</el-avatar>
               <div class="candidate-detail">
                 <span class="name-text">{{ item.candidate_name }}</span>
-                <span class="resume-id" v-if="item.resume_id">ID: {{ item.resume_id }}</span>
               </div>
             </div>
             
@@ -69,10 +68,10 @@
             </div>
             
             <div class="col-action">
-              <el-button type="primary" link size="small" v-if="!item.session_id" @click.stop="handleCreateSession(item)">开始面试</el-button>
-              <el-button type="success" link size="small" v-if="item.session_id" @click.stop="handleStartASR(item)">启动 ASR</el-button>
-              <el-button type="primary" link size="small" @click.stop="interviewStore.editInterview(item)">编辑</el-button>
-              <el-button type="danger" link size="small" @click.stop="handleDelete(item.id)">取消</el-button>
+              <el-button type="primary" link size="small" v-if="!item.session_id && item.status !== 'completed' && item.status !== 'cancelled'" @click.stop="handleCreateSession(item)">开始面试</el-button>
+              <el-button type="success" link size="small" v-if="item.session_id && item.status !== 'completed' && item.status !== 'cancelled'" @click.stop="handleStartASR(item)">启动 ASR</el-button>
+              <el-button type="primary" link size="small" v-if="item.status !== 'completed' && item.status !== 'cancelled'" @click.stop="interviewStore.editInterview(item)">编辑</el-button>
+              <el-button type="danger" link size="small" v-if="item.status !== 'completed' && item.status !== 'cancelled'" @click.stop="handleDelete(item.id)">取消</el-button>
             </div>
           </div>
         </div>

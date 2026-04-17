@@ -14,6 +14,27 @@
     <div class="actions">
       <el-button size="medium" @click="$emit('goBack')">返回</el-button>
       <el-button size="medium" type="primary" @click="$emit('startAsr')" :disabled="isAsrActive">创建 ASR</el-button>
+      
+      <el-button 
+        v-if="!isRecording"
+        size="medium" 
+        type="warning" 
+        @click="$emit('startRecording')" 
+        :disabled="!isAsrActive"
+        class="record-btn"
+      >
+        <i class="el-icon-video-camera"></i> 开始录音
+      </el-button>
+      <el-button 
+        v-else
+        size="medium" 
+        type="danger" 
+        @click="$emit('stopRecording')"
+        class="record-btn is-recording"
+      >
+        <span class="record-dot"></span> 停止录音并下载
+      </el-button>
+
       <el-button size="medium" type="danger" @click="$emit('stopAsr')" :disabled="!isAsrActive">停止 ASR</el-button>
 
       <!-- <el-button size="medium" type="default" class="manual-btn" @click="$emit('manualFollowUp')">手动追问</el-button>
@@ -34,6 +55,7 @@ type InterviewStatus = {
 defineProps<{
   info: InterviewStatus
   isAsrActive?: boolean
+  isRecording?: boolean
 }>()
 </script>
 
@@ -97,5 +119,31 @@ defineProps<{
   background: #ff4d4f;
   border-color: #ff4d4f;
   color: #ffffff;
+}
+
+.record-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 100px;
+}
+
+.is-recording {
+  animation: pulse-border 2s infinite;
+}
+
+.record-dot {
+  width: 8px;
+  height: 8px;
+  background-color: #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 0 5px rgba(255, 255, 255, 0.8);
+}
+
+@keyframes pulse-border {
+  0% { box-shadow: 0 0 0 0 rgba(245, 63, 63, 0.4); }
+  70% { box-shadow: 0 0 0 10px rgba(245, 63, 63, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(245, 63, 63, 0); }
 }
 </style>

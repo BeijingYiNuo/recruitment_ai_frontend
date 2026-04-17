@@ -31,7 +31,7 @@
             <th width="12%">导入方式</th>
             <th width="15%">上传时间</th>
             <th width="15%">更新时间</th>
-            <th width="8%" class="text-right">操作</th>
+            <th style="min-width: 120px; width: 120px;" class="text-right">操作</th>
           </tr>
         </thead>
         <tbody>
@@ -43,7 +43,7 @@
                 </el-icon>
                 <div class="file-info">
                   <div class="name">{{ item.name }}</div>
-                  <div class="id">文档 ID <el-icon><CopyDocument /></el-icon></div>
+                  <!-- <div class="id">文档 ID <el-icon><CopyDocument /></el-icon></div> -->
                 </div>
               </div>
             </td>
@@ -423,6 +423,8 @@ const submitImport = async () => {
   display: flex;
   justify-content: flex-end;
   gap: 16px;
+  flex-wrap: nowrap;
+  white-space: nowrap;
   
   .action-link {
     color: #165dff;
