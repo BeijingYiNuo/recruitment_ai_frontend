@@ -1,33 +1,31 @@
 <template>
-  <div class="knowledge-base-page">
-    <HeaderBar />
-    
-    <StepGuide />
-    
-    <div class="main-content">
-      <div class="toolbar">
-        <div class="toolbar-left">
-          <CreateButton @create="showCreateDialog" />
-          <span class="count-text">共 {{ filteredList.length }} 个知识库</span>
+  <div class="knowledge-base-page feishu-page">
+    <div class="card-container">
+      <div class="header-area">
+        <div class="header-top">
+          <div class="title-area">
+            <h1>知识库</h1>
+          </div>
+          <div class="action-btn-group">
+            <CreateButton @create="showCreateDialog" />
+          </div>
         </div>
-        
-        <!-- <div class="toolbar-right">
-          <el-input 
-            v-model="searchKeyword" 
-            placeholder="搜索知识库名称" 
-            clearable 
-            class="search-input"
-            :prefix-icon="Search"
-          />
-        </div> -->
       </div>
       
-      <KnowledgeList 
-        :list="filteredList" 
-        :loading="loading" 
-        @deleted="loadKnowledgeBaseList"
-        @updated="loadKnowledgeBaseList"
-      />
+      <div class="list-area" style="padding: 24px; flex: 1;">
+        <StepGuide />
+        
+        <div style="margin: 16px 0;">
+          <span class="count-text" style="color: #646a73; font-size: 14px; font-weight: 500;">共 {{ filteredList.length }} 个知识库</span>
+        </div>
+        
+        <KnowledgeList 
+          :list="filteredList" 
+          :loading="loading" 
+          @deleted="loadKnowledgeBaseList"
+          @updated="loadKnowledgeBaseList"
+        />
+      </div>
     </div>
 
     <!-- Create Knowledge Base Dialog -->
@@ -38,11 +36,8 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Search } from '@element-plus/icons-vue'
 import { knowledgeApi } from '../../api/knowledge.js'
 
-// Import newly split components
-import HeaderBar from '../../components/knowledge/HeaderBar.vue'
 import StepGuide from '../../components/knowledge/StepGuide.vue'
 import CreateButton from '../../components/knowledge/CreateButton.vue'
 import KnowledgeList from '../../components/knowledge/KnowledgeList.vue'
@@ -118,49 +113,4 @@ const handleCreateSuccess = () => {
 }
 </script>
 
-<style lang="scss" scoped>
-.knowledge-base-page {
-  min-height: 100vh;
-  background-color: #ffffff;
-  padding: 24px;
-}
 
-.main-content {
-  margin-top: 24px;
-}
-
-.toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
-  
-  .toolbar-left {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    
-    .count-text {
-      font-size: 14px;
-      color: #1d2129;
-    }
-  }
-  
-  .toolbar-right {
-    .search-input {
-      width: 260px;
-      
-      :deep(.el-input__wrapper) {
-        background-color: #f2f3f5;
-        border-radius: 6px;
-        box-shadow: none;
-        
-        &.is-focus {
-          box-shadow: 0 0 0 1px #165dff inset;
-          background-color: #ffffff;
-        }
-      }
-    }
-  }
-}
-</style>

@@ -410,9 +410,9 @@ const handleStartASR = (item) => {
   height: 44px;
   color: #646A73;
   font-size: 14px;
-  font-weight: 600;
-  border-bottom: 1px solid #DEE1E5;
-  background-color: #F5F6F7;
+  font-weight: 500;
+  border-bottom: 1px solid #DEE0E3;
+  background-color: #FFFFFF;
 }
 
 .list-body {

@@ -1,22 +1,31 @@
 <template>
-  <div class="appointment-manage">
-    <el-card class="calendar-card" shadow="never" v-loading="loading">
-      <template #header>
-        <div class="list-header">
-          <span>约见安排</span>
-          <span class="header-tip">仅预览已预约的面试时间段</span>
+  <div class="appointment-manage feishu-page">
+    <div class="card-container">
+      <!-- Header Area -->
+      <div class="header-area">
+        <div class="header-top">
+          <div class="title-area">
+            <h1>约见安排</h1>
+          </div>
+          <div class="action-btn-group">
+            <span class="header-tip">仅预览已预约的面试时间段</span>
+          </div>
         </div>
-      </template>
+      </div>
 
-      <el-empty v-if="!loading && interviewList.length === 0" description="暂无已预约面试安排" />
-      <InterviewCalendar
-        v-else
-        :interviews="interviewList"
-        :read-only="true"
-        :disable-past-selection="false"
-        :hour-height="45"
-      />
-    </el-card>
+      <!-- Main Calendar Area -->
+      <div class="list-area" v-loading="loading">
+        <el-empty v-if="!loading && interviewList.length === 0" description="暂无已预约面试安排" style="padding: 60px 0" />
+        <div v-else style="padding: 24px; min-height: 820px; box-sizing: border-box;">
+          <InterviewCalendar
+            :interviews="interviewList"
+            :read-only="true"
+            :disable-past-selection="false"
+            :hour-height="45"
+          />
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -48,38 +57,4 @@ onMounted(() => {
 })
 </script>
 
-<style scoped lang="scss">
-.appointment-manage {
-  .calendar-card {
-    border-radius: 12px;
-    border: 1px solid #dee0e3;
-    box-shadow: 0 4px 12px rgba(31, 35, 41, 0.04);
 
-    :deep(.el-card__header) {
-      padding: 16px 24px;
-      border-bottom: 1px solid #dee0e3;
-    }
-
-    :deep(.el-card__body) {
-      padding: 24px;
-      min-height: 820px;
-    }
-  }
-
-  .list-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 12px;
-    font-size: 16px;
-    font-weight: 600;
-    color: #1f2329;
-  }
-
-  .header-tip {
-    font-size: 13px;
-    font-weight: 400;
-    color: #8f959e;
-  }
-}
-</style>

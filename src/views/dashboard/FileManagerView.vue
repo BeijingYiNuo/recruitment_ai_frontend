@@ -1,102 +1,85 @@
 <template>
-  <div class="file-manager-container">
-
-
-    <!-- 右侧容器 -->
-    <div class="main-wrapper">
-      <!-- 2. 顶部操作栏 (Header) -->
-      <div class="header">
-
-
-
-
-        <button class="new-btn" @click="uploadDialogVisible = true">
-          <el-icon class="mr-1"><Plus /></el-icon>
-          <span>新建</span>
-        </button>
-
-
-        <!-- 面包屑导航 -->
-        <div class="breadcrumb">
+  <div class="file-manager feishu-page">
+    <div class="card-container">
+      
+      <!-- 标准顶部操作栏 -->
+      <div class="header-area">
+        <div class="header-top">
+          <div class="title-area">
+            <h1>文件管理</h1>
+            <span class="badge" v-if="files.length > 0">{{ files.length }}</span>
+          </div>
+          <div class="action-btn-group">
+            <el-button type="primary" class="lark-btn-primary" @click="uploadDialogVisible = true">上传文件</el-button>
+          </div>
         </div>
-
-
       </div>
 
-      <!-- 3. 内容区 (含详情面板) -->
-      <div class="content-area">
-        <!-- 文件列表区 -->
-        <div class="file-list-container">
-          <div v-if="files.length > 0" class="file-list-wrapper">
-            <!-- 表头 -->
-            <div class="list-header">
-              <div class="col-name">文件名</div>
-              <div class="col-owner">所有者</div>
-              <div class="col-time">更新时间</div>
-              <div class="col-size">大小</div>
-            </div>
+      <!-- 标准列表区 -->
+      <div class="list-area">
+        <div v-if="files.length === 0" class="empty-state">
+          <div class="empty-icon-wrapper">
+            <el-icon class="empty-icon"><FolderOpened /></el-icon>
+          </div>
+          <p class="empty-title">文件夹为空</p>
+          <p class="empty-subtitle">点击左上角“上传文件”按钮添加</p>
+        </div>
 
-            <!-- 文件行列表 -->
-            <div class="file-list">
-              <div 
-                v-for="file in files" 
-                :key="file.id"
-                class="file-row"
-              >
-                <!-- 文件名 & 图标 -->
-                <div class="col-name">
-                  <div class="file-icon-wrapper" :style="{ color: file.iconColor }">
-                    <el-icon><component :is="file.icon" /></el-icon>
-                  </div>
-                  <span class="file-name-text">{{ file.name }}</span>
+        <template v-else>
+          <!-- 表头 -->
+          <div class="list-header-row">
+            <div class="col-name">文件名</div>
+            <div class="col-owner">所有者</div>
+            <div class="col-time">更新时间</div>
+            <div class="col-size">大小</div>
+          </div>
+
+          <!-- 列表内容 -->
+          <div class="list-body" style="overflow-y: auto;">
+            <div 
+              v-for="file in files" 
+              :key="file.id"
+              class="list-row file-row"
+            >
+              <!-- 文件名 & 图标 -->
+              <div class="col-name">
+                <div class="file-icon-wrapper" :style="{ color: file.iconColor }">
+                  <el-icon><component :is="file.icon" /></el-icon>
                 </div>
+                <span class="file-name-text">{{ file.name }}</span>
+              </div>
+              
+              <!-- 所有者 -->
+              <div class="col-owner">
+                <div class="owner-info">
+                  <div class="owner-avatar">{{ file.owner.charAt(0) }}</div>
+                  <span class="owner-name">{{ file.owner }}</span>
+                </div>
+              </div>
+
+              <!-- 更新时间 -->
+              <div class="col-time">{{ file.updateTime }}</div>
+
+              <!-- 大小 & 快捷操作栏 (Hover展现) -->
+              <div class="col-size has-actions">
+                <span class="size-text">{{ file.size }}</span>
                 
-                <!-- 所有者 -->
-                <div class="col-owner">
-                  <div class="owner-info">
-                    <div class="owner-avatar">{{ file.owner.charAt(0) }}</div>
-                    <span class="owner-name">{{ file.owner }}</span>
-                  </div>
-                </div>
-
-                <!-- 更新时间 -->
-                <div class="col-time">{{ file.updateTime }}</div>
-
-                <!-- 大小 & 快捷操作栏 (Hover展现) -->
-                <div class="col-size has-actions">
-                  <span class="size-text">{{ file.size }}</span>
-                  
-                  <!-- Hover 出现的按钮组 -->
-                  <div class="quick-actions">
-                    <button class="action-btn preview-btn" title="预览" @click.stop="handlePreview(file)">
-                      <el-icon><View /></el-icon>
-                    </button>
-                    <button class="action-btn download-btn" title="下载" @click.stop="handleDownload(file)">
-                      <el-icon><Download /></el-icon>
-                    </button>
-                    <button class="action-btn delete-btn" title="删除" @click.stop="deleteFile(file.id)">
-                      <el-icon><Delete /></el-icon>
-                    </button>
-                    <button class="action-btn more-btn" title="更多操作">
-                      <el-icon><MoreFilled /></el-icon>
-                    </button>
-                  </div>
+                <!-- Hover 出现的按钮组 -->
+                <div class="quick-actions">
+                  <button class="action-btn preview-btn" title="预览" @click.stop="handlePreview(file)">
+                    <el-icon><View /></el-icon>
+                  </button>
+                  <button class="action-btn download-btn" title="下载" @click.stop="handleDownload(file)">
+                    <el-icon><Download /></el-icon>
+                  </button>
+                  <button class="action-btn delete-btn" title="删除" @click.stop="deleteFile(file.id)">
+                    <el-icon><Delete /></el-icon>
+                  </button>
                 </div>
               </div>
             </div>
           </div>
-          
-          <!-- 空状态插画 -->
-          <div v-else class="empty-state">
-            <div class="empty-icon-wrapper">
-              <el-icon class="empty-icon"><FolderOpened /></el-icon>
-            </div>
-            <p class="empty-title">文件夹为空</p>
-            <p class="empty-subtitle">点击左上角“新建”按钮上传文件</p>
-          </div>
-        </div>
-
-
+        </template>
       </div>
     </div>
 
@@ -368,267 +351,152 @@ const onPreviewClose = () => {
 </script>
 
 <style scoped lang="scss">
-/* ----- 全局容器 ----- */
-.file-manager-container {
-  display: flex;
-  height: 100%;
-  width: 100%;
-  background-color: #ffffff;
-  color: #1f2329;
-  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
-  overflow: hidden;
-}
-.new-btn {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 20%;
+/* 列定义（仅负责布局） */
+.col-name { flex: 2; min-width: 200px; display: flex; align-items: center; padding-right: 16px; }
+.col-owner { flex: 1; min-width: 100px; display: flex; align-items: center; }
+.col-time { flex: 1.5; min-width: 140px; display: flex; align-items: center; }
+.col-size { flex: 1; min-width: 120px; position: relative; display: flex; align-items: center; justify-content: space-between; }
+
+/* 数据行列内容样式定制 */
+.list-row.file-row {
+  cursor: pointer;
+  position: relative;
+  
+  &:hover {
+    .size-text {
+      opacity: 0;
+    }
+    .quick-actions {
+      opacity: 1;
+      pointer-events: auto;
+    }
+  }
+
+  .file-icon-wrapper {
+    font-size: 22px;
+    margin-right: 12px;
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+  }
+  
+  .file-name-text {
+    font-size: 14px;
+    font-weight: 500;
+    color: #1f2329;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .owner-info {
+    display: flex;
+    align-items: center;
+    
+    .owner-avatar {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
       background-color: #3370ff;
       color: #ffffff;
-      border: none;
-      border-radius: 6px;
-      padding: 8px 16px;
-      font-size: 14px;
-      font-weight: 500;
-      cursor: pointer;
-      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-      transition: background-color 0.2s;
-      
-      .mr-1 {
-        margin-right: 4px;
-      }
-      
-      &:hover {
-        background-color: #2b5dd9;
-      }
-    }
-
-
-/* ----- 主内容外层包裹 ----- */
-.main-wrapper {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-width: 0;
-  background-color: #ffffff;
-}
-
-/* ----- 顶部 Header ----- */
-.header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 24px;
-  height: 56px;
-  border-bottom: 1px solid #dee1e5;
-  flex-shrink: 0;
-
-  .breadcrumb {
-    display: flex;
-    align-items: center;
-    font-size: 14px;
-    color: #646a73;
-    
-    .breadcrumb-item {
-      &.link {
-        cursor: pointer;
-        &:hover {
-          color: #3370ff;
-        }
-      }
-      &.current {
-        color: #1f2329;
-        font-weight: 500;
-      }
-    }
-    .breadcrumb-separator {
-      margin: 0 6px;
-      color: #8f959e;
-      font-size: 12px;
-    }
-  }
-
-
-}
-
-/* ----- 主体内容区 ----- */
-.content-area {
-  display: flex;
-  flex: 1;
-  overflow: hidden;
-
-  /* 文件列表区 */
-  .file-list-container {
-    flex: 1;
-    min-width: 0;
-    overflow-y: auto;
-    padding: 16px 24px;
-    
-    .list-header {
-      display: flex;
-      align-items: center;
-      padding: 12px 16px;
-      font-size: 13px;
-      color: #8f959e;
-      border-bottom: 1px solid #dee1e5;
-    }
-
-    .col-name { width: 50%; display: flex; align-items: center; padding-right: 16px; }
-    .col-owner { width: 15%; }
-    .col-time { width: 20%; }
-    .col-size { width: 15%; position: relative; display: flex; align-items: center; justify-content: space-between; }
-
-    .file-row {
-      display: flex;
-      align-items: center;
-      padding: 0 16px;
-      height: 52px;
-      border-radius: 6px;
-      cursor: pointer;
-      border-bottom: 1px solid transparent;
-      transition: background-color 0.2s;
-      
-      &:hover {
-        background-color: #f5f6f7;
-        
-        .size-text {
-          opacity: 0;
-        }
-        .quick-actions {
-          opacity: 1;
-          pointer-events: auto;
-        }
-      }
-
-      .file-icon-wrapper {
-        font-size: 22px;
-        margin-right: 12px;
-        display: flex;
-        align-items: center;
-        flex-shrink: 0;
-      }
-      
-      .file-name-text {
-        font-size: 14px;
-        color: #1f2329;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-      
-      .owner-info {
-        display: flex;
-        align-items: center;
-        
-        .owner-avatar {
-          width: 22px;
-          height: 22px;
-          border-radius: 50%;
-          background-color: #3370ff;
-          color: #ffffff;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 11px;
-          margin-right: 8px;
-          flex-shrink: 0;
-        }
-        .owner-name {
-          font-size: 14px;
-          color: #646a73;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-      }
-
-      .col-time, .size-text {
-        font-size: 14px;
-        color: #646a73;
-        white-space: nowrap;
-      }
-      .size-text {
-        transition: opacity 0.2s;
-      }
-
-      .quick-actions {
-        position: absolute;
-        right: 0;
-        top: 50%;
-        transform: translateY(-50%);
-        display: flex;
-        gap: 4px;
-        opacity: 0;
-        pointer-events: none;
-        transition: opacity 0.2s;
-        background-color: #f5f6f7;
-        padding: 4px 8px;
-        border-radius: 6px;
-        
-        .action-btn {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          width: 28px;
-          height: 28px;
-          border: none;
-          background: transparent;
-          border-radius: 4px;
-          color: #646a73;
-          cursor: pointer;
-          transition: all 0.2s;
-          font-size: 14px;
-          
-          &.preview-btn:hover { color: #3370ff; background-color: #e1eaff; }
-          &.download-btn:hover { color: #3370ff; background-color: #e1eaff; }
-          &.star-btn:hover { color: #f59e0b; background-color: #fff4e4; }
-          &.delete-btn:hover { color: #f56c6c; background-color: #fef0f0; }
-          &.more-btn:hover { color: #1f2329; background-color: #dee1e5; }
-        }
-      }
-    }
-  }
-
-  /* 空状态 */
-  .empty-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    
-    .empty-icon-wrapper {
-      width: 160px;
-      height: 160px;
-      background-color: #f5f6f7;
-      border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
-      margin-bottom: 16px;
-      
-      .empty-icon {
-        font-size: 64px;
-        color: #dee1e5;
-      }
+      font-size: 11px;
+      margin-right: 8px;
+      flex-shrink: 0;
     }
-    
-    .empty-title {
-      font-size: 16px;
-      font-weight: 500;
-      color: #1f2329;
-      margin: 0 0 6px 0;
-    }
-    
-    .empty-subtitle {
+    .owner-name {
       font-size: 14px;
-      color: #8f959e;
-      margin: 0;
+      color: #1f2329;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  }
+
+  .col-time, .size-text {
+    font-size: 14px;
+    color: #646a73;
+    white-space: nowrap;
+  }
+  .size-text {
+    transition: opacity 0.2s;
+  }
+
+  /* 操作组样式 */
+  .quick-actions {
+    position: absolute;
+    right: 24px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    gap: 4px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+    background-color: #F0F4FF; /* 和 hover 的背景色保持一致 */
+    padding: 0;
+    border-radius: 6px;
+    
+    .action-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border: none;
+      background: transparent;
+      border-radius: 4px;
+      color: #3370ff;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 16px;
+      
+      &:hover { background-color: #e1eaff; }
+      &.delete-btn { color: #f56c6c; }
+      &.delete-btn:hover { background-color: #fef0f0; }
     }
   }
 }
 
-
+/* 空状态 */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  
+  .empty-icon-wrapper {
+    width: 160px;
+    height: 160px;
+    background-color: #F8F9FA;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 16px;
+    
+    .empty-icon {
+      font-size: 64px;
+      color: #dee1e5;
+    }
+  }
+  
+  .empty-title {
+    font-size: 16px;
+    font-weight: 500;
+    color: #1f2329;
+    margin: 0 0 6px 0;
+  }
+  
+  .empty-subtitle {
+    font-size: 14px;
+    color: #8f959e;
+    margin: 0;
+  }
+}
 
 ::-webkit-scrollbar {
   width: 6px;

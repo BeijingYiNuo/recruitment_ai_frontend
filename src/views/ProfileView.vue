@@ -20,31 +20,31 @@
         </template>
         
         <!-- Element Plus 的描述列表组件，非常适合呈现只读的属性面板 -->
-        <el-descriptions :column="2" border-size="large">
-          <el-descriptions-item label="用户数字 ID" label-align="right" align="center">
+        <el-descriptions :column="2" border size="default">
+          <el-descriptions-item label="用户数字 ID">
             <el-tag type="info">{{ userProfile.id }}</el-tag>
           </el-descriptions-item>
           
-          <el-descriptions-item label="用户名" label-align="right" align="center">
+          <el-descriptions-item label="用户名">
             <strong>{{ userProfile.username }}</strong>
           </el-descriptions-item>
 
-          <el-descriptions-item label="注册邮箱" label-align="right" align="center">
+          <el-descriptions-item label="注册邮箱">
             {{ userProfile.email }}
           </el-descriptions-item>
           
-          <el-descriptions-item label="绑定手机号" label-align="right" align="center">
+          <el-descriptions-item label="绑定手机号">
             {{ userProfile.phone || '尚未绑定手机号' }}
           </el-descriptions-item>
 
-          <el-descriptions-item label="系统角色" label-align="right" align="center">
-            <el-tag v-if="userProfile.role === 'admin'" type="danger">系统管理员 (admin)</el-tag>
-            <el-tag v-else-if="userProfile.role === 'recruiter'" type="primary">招聘官 (recruiter)</el-tag>
-            <el-tag v-else-if="userProfile.role === 'candidate'" type="success">候选人 (candidate)</el-tag>
+          <el-descriptions-item label="系统角色">
+            <el-tag v-if="userProfile.role === 'admin'" type="danger">系统管理员</el-tag>
+            <el-tag v-else-if="userProfile.role === 'recruiter'" type="primary">招聘官</el-tag>
+            <el-tag v-else-if="userProfile.role === 'candidate'" type="success">候选人</el-tag>
             <span v-else>{{ userProfile.role }}</span>
           </el-descriptions-item>
 
-          <el-descriptions-item label="账户状态" label-align="right" align="center">
+          <el-descriptions-item label="账户状态">
             {{ userProfile.status === 'activate' ? '正常激活' : userProfile.status === 'inactivate' ? '未激活' : '已注销' }}
           </el-descriptions-item>
         </el-descriptions>
@@ -52,10 +52,10 @@
         <div style="margin-top: 30px;">
           <h3 style="margin-bottom: 15px; font-size: 15px; color: #555; border-left: 4px solid #4caf50; padding-left: 10px;">安全与时间审计</h3>
           <el-descriptions :column="1" border size="default" direction="horizontal">
-            <el-descriptions-item label="账户创建时间 (created_at)">
+            <el-descriptions-item label="账户创建时间">
               {{ userProfile.created_at }}
             </el-descriptions-item>
-            <el-descriptions-item label="最后登录记录 (last_login_at)">
+            <el-descriptions-item label="最后登录记录">
               {{ userProfile.last_login_at }}
             </el-descriptions-item>
           </el-descriptions>

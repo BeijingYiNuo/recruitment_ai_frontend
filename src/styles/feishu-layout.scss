@@ -1,0 +1,195 @@
+/* 核心设计令牌 (Lark Design Tokens) 与公共布局 */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+
+/* 基础页面结构 */
+.feishu-page {
+  background-color: #F5F6F7;
+  padding: 16px 24px;
+  min-height: calc(100vh - 60px);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color: #1F2329;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 统一管理卡片容器 */
+.card-container {
+  background-color: #FFFFFF;
+  border-radius: 8px;
+  border: 1px solid #DEE0E3;
+  min-height: 80vh;
+  box-shadow: 0 2px 8px rgba(31, 35, 41, 0.04);
+  display: flex;
+  flex-direction: column;
+}
+
+/* 顶部配置与筛选控制流 */
+.header-area {
+  padding: 20px 24px;
+  border-bottom: 1px solid #DEE0E3;
+}
+
+.header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.title-area {
+  display: flex;
+  align-items: center;
+}
+
+.title-area h1 {
+  font-size: 20px;
+  font-weight: 600;
+  color: #1F2329;
+  margin: 0;
+  letter-spacing: -0.2px;
+}
+
+.action-btn-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.header-tip {
+  font-size: 13px;
+  font-weight: 400;
+  color: #8f959e;
+}
+
+/* 标题旁的徽标 */
+.badge {
+  background-color: #E1EAFF;
+  color: #3370FF;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  margin-left: 12px;
+}
+
+/* 列表容器 */
+.list-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.list-header-row {
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  height: 44px;
+  color: #646A73;
+  font-size: 14px;
+  font-weight: 500;
+  border-bottom: 1px solid #DEE0E3;
+  background-color: #FFFFFF;
+}
+
+.list-body {
+  flex: 1;
+}
+
+
+/* 飞书风格按钮规范 */
+.lark-btn-primary {
+  background-color: #3370FF !important;
+  border-color: #3370FF !important;
+  color: #FFFFFF !important;
+  border-radius: 6px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.lark-btn-primary:hover {
+  background-color: #2458D9 !important;
+  border-color: #2458D9 !important;
+  box-shadow: 0 4px 10px rgba(51, 112, 255, 0.2);
+}
+
+.lark-btn-ghost {
+  border: 1px solid #DEE0E3 !important;
+  color: #1F2329 !important;
+  background: transparent !important;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.lark-btn-ghost:hover {
+  background: #F5F6F7 !important;
+  color: #3370FF !important;
+  border-color: #3370FF !important;
+}
+
+/* 飞书风格状态标签 */
+.lark-tag {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  margin-right: 6px;
+}
+
+.tag-primary { background: #E1EAFF; color: #3370FF; }
+.tag-warning { background: #FFF4E5; color: #FF8800; }
+.tag-success { background: #E4F7EB; color: #13A248; }
+.tag-danger  { background: #FFE4E2; color: #F53F3F; }
+.tag-info    { background: #F0F1F5; color: #646A73; }
+.tag-gray    { background: #F5F6F7; color: #646A73; }
+
+/* 常见列表行交互 */
+.list-row {
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  height: 72px;
+  border-bottom: 1px solid #F5F6F7;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.list-row:hover {
+  background-color: #F0F4FF;
+}
+
+/* 弹窗及描述规范 */
+.lark-dialog .el-dialog__header {
+  padding: 20px 24px;
+  margin-right: 0;
+  border-bottom: 1px solid #DEE1E5;
+}
+
+.lark-dialog .el-dialog__title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1F2329;
+}
+
+.lark-dialog .el-dialog__body {
+  padding: 24px;
+}
+
+.lark-dialog .el-dialog__footer {
+  padding: 12px 24px 20px;
+  border-top: 1px solid #DEE1E5;
+}
+
+.lark-descriptions .el-descriptions__label {
+  background-color: #F5F6F7 !important;
+  color: #646A73;
+  font-weight: 500;
+  width: 120px;
+}
+
+.lark-descriptions .el-descriptions__content {
+  color: #1F2329;
+}

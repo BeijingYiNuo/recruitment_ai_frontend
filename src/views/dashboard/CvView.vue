@@ -617,93 +617,7 @@ const onPreviewClose = () => {
 </script>
 
 <style scoped>
-/* 核心设计令牌 (Lark Design Tokens) */
-.feishu-page {
-  background-color: #F5F6F7;
-  padding: 16px 24px;
-  min-height: calc(100vh - 60px);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-}
 
-.card-container {
-  background-color: #FFFFFF;
-  border-radius: 8px;
-  border: 1px solid #DEE0E3;
-  min-height: 80vh;
-  box-shadow: 0 2px 8px rgba(31, 35, 41, 0.04);
-  display: flex;
-  flex-direction: column;
-}
-
-/* 顶部配置与筛选控制流 */
-.header-area {
-  padding: 20px 24px;
-  border-bottom: 1px solid #DEE0E3;
-}
-
-.header-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-
-.title-area {
-  display: flex;
-  align-items: center;
-}
-
-.title-area h1 {
-  font-size: 20px;
-  font-weight: 600;
-  color: #1F2329;
-  margin: 0;
-}
-
-.badge {
-  background-color: #E1EAFF;
-  color: #3370FF;
-  padding: 2px 8px;
-  border-radius: 12px;
-  font-size: 13px;
-  font-weight: 600;
-  margin-left: 12px;
-}
-
-.lark-btn-primary {
-  background-color: #3370FF;
-  border-color: #3370FF;
-  border-radius: 6px;
-  font-weight: 500;
-  box-shadow: 0 2px 4px rgba(51, 112, 255, 0.2);
-}
-.lark-btn-primary:hover {
-  background-color: #2458D9;
-}
-
-.lark-btn-ghost {
-  border: 1px solid #DEE0E3;
-  color: #1F2329;
-  background: transparent;
-  border-radius: 6px;
-  padding: 8px 16px;
-  font-weight: 500;
-  transition: all 0.2s;
-}
-.lark-btn-ghost:hover {
-  background: #F5F6F7;
-}
-
-.lark-btn-ghost:hover {
-  background: #F5F6F7;
-}
-
-/* 列表渲染与微交互 */
-.list-area {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
 
 .list-header-row {
   display: flex;
@@ -721,19 +635,7 @@ const onPreviewClose = () => {
   flex: 1;
 }
 
-.list-row {
-  display: flex;
-  align-items: center;
-  padding: 0 24px;
-  height: 64px;
-  border-bottom: 1px solid #F5F6F7;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
 
-.list-row:hover {
-  background-color: #F5F6F7;
-}
 
 .col-name { flex: 2.5; min-width: 240px; display: flex; align-items: center; }
 .col-type { flex: 0.8; min-width: 100px; display: flex; align-items: center; }
@@ -755,18 +657,7 @@ const onPreviewClose = () => {
   margin-right: 12px;
 }
 
-/* 标签域 */
-.lark-tag {
-  display: inline-flex;
-  align-items: center;
-  height: 22px;
-  padding: 0 6px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 500;
-  margin-right: 6px;
-}
-.tag-gray { background: #F5F6F7; color: #646A73; }
+
 
 /* 进度/状态标识 */
 .status-indicator {
