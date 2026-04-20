@@ -7,9 +7,11 @@ export default defineConfig(({ mode }) => {
   // 根据 mode 加载 .env.[mode] 文件中的变量
   const env = loadEnv(mode, process.cwd());
 
-  // 这里的逻辑：如果环境变量里没写，就给个默认值
+  // 这里的逻辑：优先级为 命令行变量 > .env 文件变量 > 默认值
   const targetPort = parseInt(env.VITE_PORT) || 5173;
-  const targetApi = env.VITE_API_URL || 'http://192.168.0.83:8001';
+  const targetApi = process.env.VITE_API_URL || env.VITE_API_URL || 'http://192.168.0.83:8001';
+  
+  console.log(`\n>>> [Vite Config] 当前后端接口地址: ${targetApi}\n`);
 
   return {
     plugins: [
