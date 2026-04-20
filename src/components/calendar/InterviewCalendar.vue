@@ -98,12 +98,16 @@
                   class="cal-event"
                   :class="[
                     'cal-event--' + (evt.session_type || 'online'),
+                    'is-' + (evt.status || 'scheduled'),
                     { 'cal-event--editing': excludeId != null && evt.id === excludeId }
                   ]"
                   :style="getEventStyle(evt)"
                   :title="getEventTitle(evt)"
                 >
-                  <div class="cal-event-title">{{ evt.candidate_name || '未命名面试' }}</div>
+                  <div class="cal-event-title-row">
+                    <div class="cal-event-title">{{ evt.candidate_name || '未命名面试' }}</div>
+                    <div v-if="evt.status === 'completed'" class="cal-event-status-tag">已完成</div>
+                  </div>
                   <div class="cal-event-time">{{ formatEventTime(evt) }}</div>
                 </div>
 
@@ -894,6 +898,45 @@ defineExpose({ clearSelection, goToday })
     border-left-width: 3px;
     pointer-events: none;
   }
+
+  &.is-completed {
+    background: #e8fff0 !important;
+    border-left-color: #00b42a !important;
+    color: #007d24 !important;
+
+    .cal-event-title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 4px;
+    }
+
+    .cal-event-status-tag {
+      font-size: 10px;
+      background: #00b42a;
+      color: #fff;
+      padding: 0 4px;
+      border-radius: 2px;
+      flex-shrink: 0;
+      font-weight: 500;
+      line-height: 1.4;
+    }
+
+    .cal-event-title {
+      text-decoration: none;
+      opacity: 1;
+    }
+
+    .cal-event-time {
+      opacity: 0.8;
+    }
+  }
+}
+
+.cal-event-title-row {
+  display: flex;
+  align-items: center;
+  min-width: 0;
 }
 
 .cal-event-title {
@@ -901,6 +944,7 @@ defineExpose({ clearSelection, goToday })
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  flex: 1;
 }
 
 .cal-event-time {

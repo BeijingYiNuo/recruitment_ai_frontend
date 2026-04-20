@@ -42,6 +42,7 @@ import TranscriptPanel from '../components/interview/TranscriptPanel.vue'
 import FollowUpPanel from '../components/interview/FollowUpPanel.vue'
 import EvaluationPanel from '../components/interview/EvaluationPanel.vue'
 import { interviewApi } from '../api/interview'
+import { fileApi } from '../api/file'
 
 const route = useRoute()
 const router = useRouter()
@@ -59,6 +60,7 @@ let secondsElapsed = 0
 
 // ========== 录音逻辑变量 ==========
 const isRecording = ref(false)
+const isUploadingRecording = ref(false)
 let mediaRecorder: MediaRecorder | null = null
 let recordedChunks: Blob[] = []
 
@@ -243,16 +245,36 @@ const onStartRecording = () => {
       }
     }
 
-    mediaRecorder.onstop = () => {
+    mediaRecorder.onstop = async () => {
       const blob = new Blob(recordedChunks, { type: mediaRecorder?.mimeType || 'audio/webm' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       const timestamp = new Date().toLocaleString().replace(/[\/\\:\*\?\"<>\|]/g, '-')
+      const fileName = `面试录音_${interviewInfo.value.candidateName}_${timestamp}.webm`
+      
+      // 1. 发起本地下载
       a.href = url
-      a.download = `面试录音_${interviewInfo.value.candidateName}_${timestamp}.webm`
+      a.download = fileName
       a.click()
       URL.revokeObjectURL(url)
-      ElMessage.success('录音文件已生成并开始下载')
+      ElMessage.success('录音文件已生成并开始本地下载')
+
+      // 2. 自动上传至 TOS 文件系统
+      isUploadingRecording.value = true
+      const formData = new FormData()
+      formData.append('file', blob, fileName)
+      formData.append('file_type', 'voice') // 明确标注为音频文件
+
+      try {
+        console.log('[Upload] Starting automatic upload for:', fileName)
+        await fileApi.uploadFile(formData)
+        ElMessage.success('录音已同步保存至云端文件系统')
+      } catch (err: any) {
+        console.error('[Upload] Automatic upload failed:', err)
+        ElMessage.error(`录音云端同步失败: ${err.message || '网络异常'}`)
+      } finally {
+        isUploadingRecording.value = false
+      }
     }
 
     mediaRecorder.start()
