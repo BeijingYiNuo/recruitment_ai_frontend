@@ -72,21 +72,29 @@ const loadKnowledgeBaseList = async () => {
     }
 
     // 映射数据到组件需要的格式
-    kbList.value = collections.map(item => ({
-      ...item,
-      id: item.id,
-      name: item.name,
-      description: item.description,
-      status: item.enabled ? '已启用' : '已禁用',
-      docs: 0, // 默认值，后端可补充
-      segments: 0, // 默认值，后端可补充
-      appType: item.project || 'default',
-      createTime: item.created_at || '2026-04-08 09:26:00', // Mock data fallback
-      updateTime: item.updated_at,
-      storage: '0 MB', 
-      creator: item.user_id || 'root/5722手机用户',
-      enabled: item.enabled,
-    }))
+    kbList.value = collections.map(item => {
+      // 格式化日期：将 '2026-04-10T18:07:09' 转换为 '2026-04-10 18:07:09'
+      const formatDate = (dateStr: string) => {
+        if (!dateStr) return '';
+        return dateStr.replace('T', ' ').split('.')[0];
+      };
+
+      return {
+        ...item,
+        id: item.id,
+        name: item.name,
+        description: item.description,
+        status: item.enabled ? '已启用' : '已禁用',
+        docs: 0, 
+        segments: 0, 
+        appType: item.project || 'default',
+        createTime: formatDate(item.created_at) || '2026-04-08 09:26:00',
+        updateTime: formatDate(item.updated_at),
+        storage: '0 MB', 
+        creator: item.user_id || 'root/5722手机用户',
+        enabled: item.enabled,
+      };
+    })
   } catch (error) {
     console.error('加载知识库列表失败:', error)
     ElMessage.error('加载知识库列表失败')

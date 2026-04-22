@@ -1,7 +1,7 @@
 <template>
   <div class="transcript-card">
     <div class="card-header">
-      <h2>ASR实时语音转文本</h2>
+      <h2>实时语音转文本</h2>
       <div class="header-right">
         <span v-if="isListening" class="listening-indicator">
           <span class="live-dot active"></span>

@@ -64,7 +64,12 @@
           <div class="input-with-icon">
             <!-- <span class="icon">🔒</span> -->
             <input :type="showPassword ? 'text' : 'password'" id="password" v-model="form.password" placeholder="请输入密码" required />
-            <button type="button" class="eye" @click="showPassword = !showPassword">{{ showPassword ? '🙈' : '👁️' }}</button>
+            <button type="button" class="eye-btn" @click="showPassword = !showPassword" :title="showPassword ? '隐藏密码' : '显示密码'">
+              <el-icon>
+                <View v-if="showPassword" />
+                <Hide v-else />
+              </el-icon>
+            </button>
           </div>
           <div v-if="form.password" class="pw-hint">
             <div :class="['dot', form.password.length >= 8 ? 'ok' : '']"></div><small> 至少 8 个字符</small>
@@ -78,7 +83,12 @@
           <div class="input-with-icon">
             <!-- <span class="icon">🔒</span> -->
             <input :type="showConfirm ? 'text' : 'password'" id="confirmPassword" v-model="form.confirmPassword" placeholder="请再次输入密码" required />
-            <button type="button" class="eye" @click="showConfirm = !showConfirm">{{ showConfirm ? '🙈' : '👁️' }}</button>
+            <button type="button" class="eye-btn" @click="showConfirm = !showConfirm" :title="showConfirm ? '隐藏密码' : '显示密码'">
+              <el-icon>
+                <View v-if="showConfirm" />
+                <Hide v-else />
+              </el-icon>
+            </button>
           </div>
           <p v-if="form.confirmPassword && form.confirmPassword !== form.password" class="error">两次密码输入不一致</p>
         </div>
@@ -105,6 +115,7 @@
 <script setup>
 import { reactive, ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { View, Hide } from '@element-plus/icons-vue'
 import authService from '../services/authService'
 import AuthLayout from '../components/AuthLayout.vue'
 import AuthCard from '../components/AuthCard.vue'
@@ -291,15 +302,28 @@ input::-ms-clear {
   display: none;
 }
 
-.eye {
+.eye-btn {
   position: absolute;
-  right: 8px;
+  right: 12px;
   top: 50%;
   transform: translateY(-50%);
   background: transparent;
   border: 0;
   cursor: pointer;
   z-index: 10;
+  color: #9ca3af;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.2s;
+  font-size: 18px;
+}
+
+.eye-btn:hover {
+  color: #a855f7;
+  background-color: rgba(168, 85, 247, 0.05);
 }
 .pw-hint {
   margin-top: 10px;

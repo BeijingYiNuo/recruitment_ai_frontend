@@ -37,7 +37,12 @@
           <div class="input-with-icon">
             <!-- <span class="icon">🔒</span> -->
             <input :type="showPassword ? 'text' : 'password'" id="password" v-model="password" placeholder="请输入密码 (至少8位)" required minlength="8" />
-            <button type="button" class="eye" @click="showPassword = !showPassword">{{ showPassword ? '🙈' : '👁️' }}</button>
+            <button type="button" class="eye-btn" @click="showPassword = !showPassword" :title="showPassword ? '隐藏密码' : '显示密码'">
+              <el-icon>
+                <View v-if="showPassword" />
+                <Hide v-else />
+              </el-icon>
+            </button>
           </div>
         </div>
 
@@ -62,6 +67,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { View, Hide } from '@element-plus/icons-vue'
 import authService from '../services/authService'
 import AuthLayout from '../components/AuthLayout.vue'
 import AuthCard from '../components/AuthCard.vue'
@@ -209,15 +215,28 @@ input::-ms-clear {
   display: none;
 }
 
-.input-with-icon .eye {
+.input-with-icon .eye-btn {
   position: absolute;
-  right: 8px;
+  right: 12px;
   top: 50%;
   transform: translateY(-50%);
   background: transparent;
   border: 0;
   cursor: pointer;
   z-index: 10;
+  color: #9ca3af;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.2s;
+  font-size: 18px;
+}
+
+.input-with-icon .eye-btn:hover {
+  color: #6366f1;
+  background-color: rgba(99, 102, 241, 0.05);
 }
 
 .row-right {

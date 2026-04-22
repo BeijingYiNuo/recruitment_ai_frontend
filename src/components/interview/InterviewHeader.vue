@@ -13,7 +13,7 @@
 
     <div class="actions">
       <el-button size="medium" @click="$emit('goBack')">返回</el-button>
-      <el-button size="medium" type="primary" @click="$emit('startAsr')" :disabled="isAsrActive">创建 ASR</el-button>
+      <el-button size="medium" type="primary" @click="$emit('startAsr')" :disabled="isAsrActive">开始面试</el-button>
       
       <el-button 
         v-if="!isRecording"
@@ -35,7 +35,7 @@
         <span class="record-dot"></span> 停止录音并下载
       </el-button>
 
-      <el-button size="medium" type="danger" @click="$emit('stopAsr')" :disabled="!isAsrActive">停止 ASR</el-button>
+      <el-button size="medium" type="danger" @click="$emit('stopAsr')" :disabled="!isAsrActive">停止面试</el-button>
 
       <!-- <el-button size="medium" type="default" class="manual-btn" @click="$emit('manualFollowUp')">手动追问</el-button>
       <el-button size="medium" type="danger" class="end-btn" @click="$emit('endInterview')">结束面试</el-button> -->

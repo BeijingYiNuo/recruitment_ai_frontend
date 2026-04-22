@@ -16,6 +16,13 @@
 
     <div class="page-content">
       <section class="left-column">
+        <ResumePreviewPanel 
+          :url="resumePreviewUrl" 
+          :loading="isResumeLoading"
+        />
+      </section>
+
+      <section class="center-column">
         <TranscriptPanel
           :conversation="transcriptConversation"
           :currentRound="interviewInfo.currentRound"
@@ -39,10 +46,12 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import InterviewHeader from '../components/interview/InterviewHeader.vue'
 import TranscriptPanel from '../components/interview/TranscriptPanel.vue'
+import ResumePreviewPanel from '../components/interview/ResumePreviewPanel.vue'
 import FollowUpPanel from '../components/interview/FollowUpPanel.vue'
 import EvaluationPanel from '../components/interview/EvaluationPanel.vue'
 import { interviewApi } from '../api/interview'
 import { fileApi } from '../api/file'
+import { resumeApi } from '../api/resume'
 
 const route = useRoute()
 const router = useRouter()
@@ -67,6 +76,11 @@ let recordedChunks: Blob[] = []
 // ========== ASR 实时转写数据 ==========
 const currentAsrText = ref('')
 const asrHistory = ref<string[]>([]) // 已完成句子的历史记录
+
+// ========== 简历预览数据 ==========
+const resumePreviewUrl = ref<string | null>(null)
+const isResumeLoading = ref(false)
+const resumeId = ref<number | null>(null)
 
 // ========== LLM streaming 流式输出缓冲 ==========
 // 按 index 组织，每个 index 代表一次 LLM 输出
@@ -359,9 +373,32 @@ const fetchInterviewDetails = async () => {
       interviewInfo.value.candidateName = res.candidate_name
       interviewInfo.value.status = '准备就绪'
       interviewInfo.value.statusColor = '#67c23a'
+      
+      // 记录 resume_id 并获取预览
+      if (res.resume_id) {
+        resumeId.value = res.resume_id
+        fetchResumePreview(res.resume_id)
+      }
     }
   } catch (err) {
     console.error('Failed to fetch interview details:', err)
+  }
+}
+
+const fetchResumePreview = async (id: number) => {
+  isResumeLoading.value = true
+  try {
+    const blob = await resumeApi.downloadResume(id)
+    const pdfBlob = new Blob([blob], { type: 'application/pdf' })
+    if (resumePreviewUrl.value) {
+      URL.revokeObjectURL(resumePreviewUrl.value)
+    }
+    resumePreviewUrl.value = URL.createObjectURL(pdfBlob)
+  } catch (err) {
+    console.error('Failed to fetch resume preview:', err)
+    ElMessage.error('简历预览加载失败')
+  } finally {
+    isResumeLoading.value = false
   }
 }
 
@@ -380,6 +417,11 @@ onBeforeUnmount(() => {
   if (mediaStream) {
     mediaStream.getTracks().forEach(track => track.stop())
     mediaStream = null
+  }
+  // 清理预览 URL
+  if (resumePreviewUrl.value) {
+    URL.revokeObjectURL(resumePreviewUrl.value)
+    resumePreviewUrl.value = null
   }
 })
 
@@ -594,7 +636,7 @@ function goBack() {
 
 .page-content {
   display: grid;
-  grid-template-columns: 2fr 1fr;
+  grid-template-columns: 1.2fr 1.3fr 1fr;
   gap: 18px;
   margin-top: 16px;
   flex: 1;
@@ -602,6 +644,7 @@ function goBack() {
 }
 
 .left-column,
+.center-column,
 .right-column {
   display: flex;
   flex-direction: column;
