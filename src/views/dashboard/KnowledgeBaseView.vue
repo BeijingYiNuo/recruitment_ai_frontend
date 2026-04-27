@@ -71,6 +71,13 @@ const loadKnowledgeBaseList = async () => {
       }
     }
 
+    // 按更新时间降序排列，最新的在最上面
+    collections.sort((a: any, b: any) => {
+      const timeA = new Date(a.updated_at || 0).getTime()
+      const timeB = new Date(b.updated_at || 0).getTime()
+      return timeB - timeA
+    })
+
     // 映射数据到组件需要的格式
     kbList.value = collections.map(item => {
       // 格式化日期：将 '2026-04-10T18:07:09' 转换为 '2026-04-10 18:07:09'

@@ -50,8 +50,8 @@
             
             <div class="col-status">
               <div class="status-indicator">
-                <span class="dot" :class="resume.status === 'uploaded' ? 'dot-loading' : 'dot-success'"></span>
-                <span>{{ resume.status === 'uploaded' ? '解析中...' : '解析成功' }}</span>
+                <span class="dot" :class="isAnalyzing(resume.status) ? 'dot-loading' : 'dot-success'"></span>
+                <span>{{ getStatusLabel(resume.status) }}</span>
               </div>
             </div>
             
@@ -96,8 +96,8 @@
                   <el-descriptions-item label="候选人姓名">{{ currentDetail.candidate_name }}</el-descriptions-item>
                   <el-descriptions-item label="文件格式">{{ currentDetail.file_type?.toUpperCase() }}</el-descriptions-item>
                   <el-descriptions-item label="解析状态">
-                    <el-tag :type="currentDetail.status === 'uploaded' ? 'primary' : 'success'" size="small">
-                      {{ currentDetail.status === 'uploaded' ? '解析中...' : '解析成功' }}
+                    <el-tag :type="isAnalyzing(currentDetail.status) ? 'primary' : 'success'" size="small">
+                      {{ getStatusLabel(currentDetail.status) }}
                     </el-tag>
                   </el-descriptions-item>
                   <el-descriptions-item label="上传时间">{{ formatFullTime(currentDetail.created_at) || '未知' }}</el-descriptions-item>
@@ -269,7 +269,7 @@ const stopPolling = () => {
 }
 
 const checkAndStartPolling = () => {
-  const needsPolling = resumeStore.resumes.some(r => r.status === 'uploaded')
+  const needsPolling = resumeStore.resumes.some(r => isAnalyzing(r.status))
   
   if (needsPolling && !statusPolling) {
     statusPolling = setInterval(async () => {
@@ -279,7 +279,7 @@ const checkAndStartPolling = () => {
         resumeStore.setResumes(list)
         
         // 如果全部解析完毕，停止轮询
-        if (!list.some(r => r.status === 'uploaded')) {
+        if (!list.some(r => isAnalyzing(r.status))) {
           stopPolling()
         }
       } catch (error) {
@@ -295,7 +295,15 @@ const fetchResumes = async () => {
   listLoading.value = true
   try {
     const data = await resumeApi.getResumes()
-    const list = Array.isArray(data) ? data : (data.items || data.data || [])
+    let list = Array.isArray(data) ? data : (data.items || data.data || [])
+    
+    // 按创建时间降序排列，最新的在最上面
+    list.sort((a, b) => {
+      const timeA = new Date(a.created_at || 0).getTime()
+      const timeB = new Date(b.created_at || 0).getTime()
+      return timeB - timeA
+    })
+
     resumeStore.setResumes(list)
     checkAndStartPolling()
   } catch (error) {
@@ -303,6 +311,22 @@ const fetchResumes = async () => {
   } finally {
     listLoading.value = false
   }
+}
+
+// 状态处理工具函数
+const isAnalyzing = (status) => {
+  if (!status) return false
+  const s = status.toLowerCase()
+  return s === 'uploaded' || s === 'analyzing' || s === 'parsing'
+}
+
+const getStatusLabel = (status) => {
+  if (!status) return '未知状态'
+  const s = status.toLowerCase()
+  if (s === 'analyzed' || s === 'success' || s === 'completed') return '解析成功'
+  if (s === 'uploaded' || s === 'analyzing' || s === 'parsing') return '解析中...'
+  if (s === 'failed' || s === 'error') return '解析失败'
+  return status
 }
 
 onMounted(() => {

@@ -19,6 +19,7 @@ export const useInterviewStore = defineStore('interview', () => {
       scheduled_start_at: '',
       scheduled_end_at: '',
       notes: '',
+      knowledge_id: null,
       session_id: null
     }
   }
@@ -37,11 +38,13 @@ export const useInterviewStore = defineStore('interview', () => {
     interviewForm.value = {
       id: item.id,
       candidate_name: item.candidate_name,
-      resume_id: item.resume_id,
+      // 将后端返回的 0 转换为 null 以便 el-select 显示占位符
+      resume_id: item.resume_id || null,
       session_type: item.session_type,
       scheduled_start_at: item.scheduled_start_at ? item.scheduled_start_at.substring(0, 19).replace('T', ' ') : '',
       scheduled_end_at: item.scheduled_end_at ? item.scheduled_end_at.substring(0, 19).replace('T', ' ') : '',
-      notes: item.notes || ''
+      notes: item.notes || '',
+      knowledge_id: item.knowledge_id || null
     }
     showModal.value = true
   }

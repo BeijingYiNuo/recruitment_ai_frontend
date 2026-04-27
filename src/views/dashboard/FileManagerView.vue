@@ -29,6 +29,7 @@
           <!-- 表头 -->
           <div class="list-header-row">
             <div class="col-name">文件名</div>
+            <div class="col-type">类型</div>
             <div class="col-owner">所有者</div>
             <div class="col-time">更新时间</div>
             <div class="col-size">大小</div>
@@ -47,6 +48,11 @@
                   <el-icon><component :is="file.icon" /></el-icon>
                 </div>
                 <span class="file-name-text">{{ file.name }}</span>
+              </div>
+
+              <!-- 类型 -->
+              <div class="col-type">
+                <span class="file-type-tag" :class="'type-' + file.fileType">{{ file.fileTypeLabel }}</span>
               </div>
               
               <!-- 所有者 -->
@@ -163,8 +169,22 @@ const files = ref([])
 const fetchFileList = async () => {
   try {
     const res = await fileApi.getFileList()
-    const list = res.data || [] 
+    let list = res.data || [] 
     
+    // 按更新时间降序排列，最新的在最上面
+    list.sort((a, b) => {
+      const timeA = new Date(a.updated_at || 0).getTime()
+      const timeB = new Date(b.updated_at || 0).getTime()
+      return timeB - timeA
+    })
+
+    // 文件类型中文映射
+    const fileTypeMap = {
+      resume: '简历',
+      voice: '语音',
+      dialogue: '对话',
+    }
+
     files.value = list.map(item => {
       const ext = item.file_name?.split('.').pop()?.toLowerCase() || ''
       let fileIcon = Document
@@ -190,9 +210,13 @@ const fetchFileList = async () => {
       // 格式化日期并且简单把 T 替换掉看着舒服些
       const timeStr = item.updated_at ? item.updated_at.replace('T', ' ') : '未知'
 
+      const ft = item.file_type || ''
+
       return {
         id: item.id,
         name: item.file_name,
+        fileType: ft,
+        fileTypeLabel: fileTypeMap[ft] || ft || '未知',
         owner: '用户 ' + (item.user_id || '-'),
         updateTime: timeStr,
         size: sizeStr,
@@ -317,8 +341,8 @@ const handlePreview = async (file) => {
   // 设置一个初始 URL 防止残留
   previewUrl.value = ''
 
-  // 图像和 PDF 支持 Blob 预览
-  const supportBlobPreview = ['pdf', 'png', 'jpg', 'jpeg', 'gif'].includes(previewType.value)
+  // 图像、PDF 和 Markdown 支持 Blob 预览
+  const supportBlobPreview = ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'md'].includes(previewType.value)
   
   if (supportBlobPreview) {
     previewLoading.value = true
@@ -328,6 +352,7 @@ const handlePreview = async (file) => {
       let mimeType = 'application/octet-stream'
       if (previewType.value === 'pdf') mimeType = 'application/pdf'
       else if (['png', 'jpg', 'jpeg', 'gif'].includes(previewType.value)) mimeType = `image/${previewType.value === 'jpg' ? 'jpeg' : previewType.value}`
+      else if (previewType.value === 'md') mimeType = 'text/markdown'
 
       const blob = new Blob([response], { type: mimeType })
       previewUrl.value = URL.createObjectURL(blob)
@@ -353,9 +378,35 @@ const onPreviewClose = () => {
 <style scoped lang="scss">
 /* 列定义（仅负责布局） */
 .col-name { flex: 2; min-width: 200px; display: flex; align-items: center; padding-right: 16px; }
+.col-type { flex: 0.6; min-width: 80px; display: flex; align-items: center; }
 .col-owner { flex: 1; min-width: 100px; display: flex; align-items: center; }
 .col-time { flex: 1.5; min-width: 140px; display: flex; align-items: center; }
 .col-size { flex: 1; min-width: 120px; position: relative; display: flex; align-items: center; justify-content: space-between; }
+
+/* 文件类型标签 */
+.file-type-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 12px;
+  border-radius: 4px;
+  line-height: 20px;
+  white-space: nowrap;
+  background-color: #f0f1f5;
+  color: #646a73;
+
+  &.type-resume {
+    background-color: #e8f3ff;
+    color: #3370ff;
+  }
+  &.type-voice {
+    background-color: #e8faf0;
+    color: #10b981;
+  }
+  &.type-dialogue {
+    background-color: #fff5e6;
+    color: #f59e0b;
+  }
+}
 
 /* 数据行列内容样式定制 */
 .list-row.file-row {

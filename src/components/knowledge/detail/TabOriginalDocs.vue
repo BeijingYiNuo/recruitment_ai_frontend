@@ -59,7 +59,7 @@
             <td>{{ item.updateTime }}</td>
             <td class="text-right">
               <div class="row-actions">
-                <span class="action-link">切片详情</span>
+                <span class="action-link" @click="$emit('viewSlices', item)">切片详情</span>
                 <span class="action-link" style="color: #f53f3f;" @click="handleDelete(item)">删除</span>
               </div>
             </td>
@@ -124,6 +124,8 @@ const props = defineProps({
   }
 })
 
+const emit = defineEmits(['viewSlices'])
+
 const route = useRoute()
 const searchType = ref('name')
 const searchKeyword = ref('')
@@ -157,7 +159,10 @@ const fetchDocuments = async () => {
     const responseData = res.data || res || {}
     const rawList = responseData.doc_list || []
     
-    tableData.value = rawList.map(item => {
+    // 按更新时间降序排列，最新的在最上面
+    rawList.sort((a: any, b: any) => (b.update_time || 0) - (a.update_time || 0))
+    
+    tableData.value = rawList.map((item: any) => {
       let fileType = 'unknown'
       const typeStr = (item.doc_type || '').toLowerCase()
       if (typeStr.includes('pdf')) fileType = 'pdf'

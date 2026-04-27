@@ -27,8 +27,9 @@
           :conversation="transcriptConversation"
           :currentRound="interviewInfo.currentRound"
           :liveText="currentAsrText"
+          :liveSpeakerId="currentSpeakerId"
           :isListening="isAsrActive"
-          :asrHistory="asrHistory"
+          :asrSegments="asrSegments"
         />
       </section>
 
@@ -52,6 +53,7 @@ import EvaluationPanel from '../components/interview/EvaluationPanel.vue'
 import { interviewApi } from '../api/interview'
 import { fileApi } from '../api/file'
 import { resumeApi } from '../api/resume'
+import { startMockAsr, type MockAsrHandle } from '../utils/mockAsrWs'
 
 const route = useRoute()
 const router = useRouter()
@@ -73,9 +75,18 @@ const isUploadingRecording = ref(false)
 let mediaRecorder: MediaRecorder | null = null
 let recordedChunks: Blob[] = []
 
-// ========== ASR 实时转写数据 ==========
+// ========== ASR 实时转写数据（新版：支持说话人识别） ==========
+type AsrSegment = {
+  text: string
+  speakerId: string | null
+}
 const currentAsrText = ref('')
-const asrHistory = ref<string[]>([]) // 已完成句子的历史记录
+const currentSpeakerId = ref<string | null>(null)
+const asrSegments = ref<AsrSegment[]>([]) // 已确认段落
+
+// Mock 模式控制
+let mockHandle: MockAsrHandle | null = null
+const USE_MOCK = false// 设为 true 启用 Mock 模式，后端可用时改为 false
 
 // ========== 简历预览数据 ==========
 const resumePreviewUrl = ref<string | null>(null)
@@ -425,71 +436,90 @@ onBeforeUnmount(() => {
   }
 })
 
-// ========== WebSocket 消息处理（核心改造） ==========
-const handleWsMessage = (event: MessageEvent) => {
+// ========== WebSocket 消息处理（核心改造：支持 speaker_id + definite） ==========
+const handleWsMessage = (event: MessageEvent | { data: string }) => {
   try {
-    const msg = JSON.parse(event.data)
+    const raw = typeof event.data === 'string' ? event.data : new TextDecoder().decode(event.data as ArrayBuffer)
+    const msg = JSON.parse(raw)
 
     if (msg.type === 'asr') {
-      // type: "asr" → data 是实时语音转写的完整文本
-      const newText = msg.data as string
-      const oldText = currentAsrText.value
-      // console.log('[ASR] 转写文本:', newText) // 暂时注释掉 ASR 打印
+      const asrData = msg.data
+      let text: string
+      let speakerId: string | null = null
+      let definite = false
 
-      // 检测句子边界：
-      // 由于ASR在转写过程中会动态修正历史字词、增补标点，并不一定满足严格的 startsWith 。
-      // 采用启发式判断替代严格匹配以防止文本重复追加：
-      // 1. 新文本长度大幅缩短（小于旧文本的一半以上），说明后端 ASR 启动了新分句。
-      // 2. 旧文本包含明显的句末语意（标点结尾）且新文本连首部都不一样了。
-      let isNewSentence = false;
-      if (oldText && newText) {
-        const isMuchShorter = newText.length <= oldText.length * 0.5;
-        const endsWithPunc = /[。？！.?!]$/.test(oldText.trim());
-        const hasDifferentStart = newText.charAt(0) !== oldText.charAt(0);
-        
-        if (isMuchShorter || (endsWithPunc && hasDifferentStart)) {
-          isNewSentence = true;
+      if (typeof asrData === 'string') {
+        // 兼容旧格式：data 为纯字符串
+        text = asrData
+      } else {
+        // 新格式：data 为对象
+        text = asrData.text || ''
+        speakerId = asrData.speaker_id ?? null
+        // 兼容多种 definite 格式：布尔 true、字符串 "True"/"true"、数字 1
+        definite = msg.definite === true || msg.definite === 'True' || msg.definite === 'true' || msg.definite === 1
+      }
+
+      console.log(`[ASR] definite=${msg.definite}(${typeof msg.definite}) → ${definite}, speaker=${speakerId}, text="${text.slice(0, 30)}..."`)
+
+      // ---- 说话人切换时：先把之前的实时文本归档 ----
+      if (currentAsrText.value && currentSpeakerId.value !== null && currentSpeakerId.value !== speakerId) {
+        const lastSeg = asrSegments.value[asrSegments.value.length - 1]
+        if (lastSeg && lastSeg.speakerId === currentSpeakerId.value) {
+          lastSeg.text += currentAsrText.value
+        } else {
+          asrSegments.value.push({ text: currentAsrText.value, speakerId: currentSpeakerId.value })
         }
+        currentAsrText.value = ''
+        currentSpeakerId.value = null
+        // 强制触发 Vue 响应式
+        asrSegments.value = [...asrSegments.value]
       }
 
-      if (isNewSentence) {
-        asrHistory.value.push(oldText)
+      if (definite) {
+        // 已确认为一句完整的话 → 归档到段落历史
+        const lastSeg = asrSegments.value[asrSegments.value.length - 1]
+        if (lastSeg && lastSeg.speakerId === speakerId) {
+          lastSeg.text += text
+        } else {
+          asrSegments.value.push({ text, speakerId })
+        }
+        currentAsrText.value = ''
+        currentSpeakerId.value = null
+        // 强制触发 Vue 响应式
+        asrSegments.value = [...asrSegments.value]
+      } else {
+        // 还在识别中 → 更新实时显示（允许覆盖，因为 ASR 中间结果本身就是不断修正的）
+        currentAsrText.value = text
+        currentSpeakerId.value = speakerId
       }
-      currentAsrText.value = newText
     } else if (msg.type === 'streaming') {
       // type: "streaming" → data 是 LLM 流式输出对象
       const payload = msg.data
+      console.log('--- [LLM Streaming Message] ---', payload)
       const { response_type, index, content } = payload
 
       if (response_type === 'advice') {
-        // 打印详细的追问建议流式数据，排查重复拼接问题
-        console.log(`[LLM Advice] index: ${index}, payload:`, payload)
-        
-        // 追问建议：按 index 拼接
+        console.log(`[Advice Chunk] index: ${index}, length: ${content?.length}, content: ${content?.slice(0, 20)}...`)
         if (!streamingAdviceMap.value[index]) {
           streamingAdviceMap.value[index] = ''
         }
         streamingAdviceMap.value[index] += content
-        // 触发响应式更新
         streamingAdviceMap.value = { ...streamingAdviceMap.value }
       } else if (response_type === 'evaluation') {
-        // 面试评价：按 index 拼接
+        console.log(`[Evaluation Chunk] index: ${index}, length: ${content?.length}, content: ${content?.slice(0, 20)}...`)
         if (!streamingEvaluationMap.value[index]) {
           streamingEvaluationMap.value[index] = ''
         }
         streamingEvaluationMap.value[index] += content
-        // 触发响应式更新
         streamingEvaluationMap.value = { ...streamingEvaluationMap.value }
       } else if (response_type === 'done') {
-        // 本轮 LLM 输出完成
-        console.log('[LLM] 本轮输出完成')
+        console.log(`[LLM Done] 本轮输出完成, index: ${index}`)
       }
-    } else {
-      // 非 asr/streaming 类型静默忽略
     }
   } catch (e) {
-    // 若后端传的是纯 String（非 JSON），走降级打印
-    console.log('[WS] 收到非 JSON 数据:', event.data)
+    const dataPreview = typeof event.data === 'string' ? event.data.slice(0, 100) : 'Binary Data'
+    console.error('[WS Message Error] 解析失败:', e)
+    console.error('[WS Error Detail] 原始数据预览:', dataPreview)
   }
 }
 
@@ -512,7 +542,8 @@ const onStartAsr = async () => {
 
     // 重置流式缓冲数据
     currentAsrText.value = ''
-    asrHistory.value = []
+    currentSpeakerId.value = null
+    asrSegments.value = []
     streamingAdviceMap.value = {}
     streamingEvaluationMap.value = {}
 
@@ -520,6 +551,18 @@ const onStartAsr = async () => {
     interviewInfo.value.status = 'ASR 服务初始化中...'
     interviewInfo.value.statusColor = '#409eff'
 
+    // ===== Mock 模式：跳过真实 WebSocket，使用模拟数据 =====
+    if (USE_MOCK) {
+      console.log('[ASR] 进入 Mock 模式，模拟 WebSocket 数据推送')
+      interviewInfo.value.status = '模拟识别中（Mock）'
+      interviewInfo.value.statusColor = '#67c23a'
+      startTimer()
+      mockHandle = startMockAsr(handleWsMessage)
+      ElMessage.success('Mock ASR 已启动')
+      return
+    }
+
+    // ===== 真实模式 =====
     // 必须先通过 HTTP 调用后端初始化 ASR 服务，否则 WebSocket 会被 1008 拒绝
     try {
       await interviewApi.startASR(sessionId, {})
@@ -570,6 +613,12 @@ const onStartAsr = async () => {
 // ========== 停止 ASR ==========
 const onStopAsr = async () => {
   try {
+    // 停止 Mock 模式
+    if (mockHandle) {
+      mockHandle.stop()
+      mockHandle = null
+    }
+
     stopAudioCapture()
     if (socket) {
       socket.close()
@@ -588,9 +637,11 @@ const onStopAsr = async () => {
       mediaStream = null
     }
     // 通知后端停止 ASR 服务（失败不阻塞前端清理）
-    interviewApi.stopASR(sessionId).catch(err => {
-      console.warn('[ASR] HTTP stopASR 请求异常:', err)
-    })
+    if (!USE_MOCK) {
+      interviewApi.stopASR(sessionId).catch(err => {
+        console.warn('[ASR] HTTP stopASR 请求异常:', err)
+      })
+    }
     isAsrActive.value = false
     interviewInfo.value.status = '识别已停止'
     interviewInfo.value.statusColor = '#909399'

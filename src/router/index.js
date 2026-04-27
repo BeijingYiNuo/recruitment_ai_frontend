@@ -72,6 +72,11 @@ const routes = [
         path: 'file-manager',
         name: 'fileManager',
         component: () => import('../views/dashboard/FileManagerView.vue')
+      },
+      {
+        path: 'report-generate',
+        name: 'reportGenerate',
+        component: () => import('../views/dashboard/ReportGenerateView.vue')
       }
     ]
   },

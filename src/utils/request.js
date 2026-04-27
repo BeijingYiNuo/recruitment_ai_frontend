@@ -1,20 +1,20 @@
 import axios from 'axios'
 import router from '../router'
+import { ElMessage } from 'element-plus'
 
-// 1. 创建统一的 Axios 实例
+// 创建统一的 Axios 实例
 const request = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || '/api', // 统一基础路径，从环境变量读取，默认为 /api
-  timeout: 10000,                       // 统一超时时间
+  baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
+  timeout: 10000,
   headers: {
     'Content-Type': 'application/json'
   }
 })
 
-// 2. 请求拦截器：自动携带 Token
+// 请求拦截器
 request.interceptors.request.use(
   config => {
     const token = localStorage.getItem('token')
-    console.log('[Axios Request]', config.method?.toUpperCase(), config.url, { hasToken: !!token })
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
@@ -23,23 +23,39 @@ request.interceptors.request.use(
   error => Promise.reject(error)
 )
 
-// 3. 响应拦截器：统一处理错误 (如 401 登录失效)
+// 响应拦截器
 request.interceptors.response.use(
-  response => response.data, // 简化返回值提取
+  response => response.data,
   error => {
     if (error.response) {
-      // 401: Token 失效或未授权
-      if (error.response.status === 401) {
-         console.warn('[Axios Response] 401 Unauthorized - Clearing Token', error.config.url)
-         localStorage.removeItem('token')
-         localStorage.removeItem('user')
-         // 跳转回登录页
-         if (router.currentRoute.value.name !== 'login') {
-           router.push('/login')
-         }
+      const { status, data } = error.response
+      
+      // 401: Token 失效、过期或未授权
+      if (status === 401) {
+        console.warn('[Axios Response] 401 Unauthorized - Redirecting to login')
+        
+        // 1. 清理本地数据
+        localStorage.removeItem('token')
+        localStorage.removeItem('user')
+        
+        // 2. 避免在登录页重复提示和跳转
+        if (router.currentRoute.value.path !== '/login') {
+          ElMessage.error(data?.detail || data?.message || '登录已过期，请重新登录')
+          router.push('/login')
+        }
+      } 
+      // 403: 权限不足
+      else if (status === 403) {
+        ElMessage.error('权限不足，无法访问该资源')
       }
+      // 其他错误
+      else if (status >= 500) {
+        ElMessage.error('服务器内部错误，请稍后再试')
+      }
+    } else {
+      ElMessage.error('网络连接超时或异常，请检查网络')
     }
-    // 继续抛出具体的错误对象或通用错误，供业务层 catch
+
     return Promise.reject(error.response?.data || error)
   }
 )

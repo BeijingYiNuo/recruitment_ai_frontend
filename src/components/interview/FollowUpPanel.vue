@@ -5,7 +5,7 @@
       <p class="subtitle">基于候选人回答生成的深度提问建议</p>
     </div>
 
-    <div class="suggestion-list">
+    <div class="suggestion-list" ref="suggestionListRef">
       <div v-for="(item, index) in suggestions" :key="item.id" class="suggestion-item">
         <div class="suggestion-content">
           <h3 class="suggestion-title">
@@ -23,6 +23,9 @@
 </template>
 
 <script setup lang="ts">
+import { ref, watch } from 'vue'
+import { useScrollToBottom } from '../../composables/useScrollToBottom'
+
 type Suggestion = {
   id: string
   priority: string
@@ -31,7 +34,13 @@ type Suggestion = {
   tags: string[]
 }
 
-defineProps<{ suggestions: Suggestion[] }>()
+const props = defineProps<{ suggestions: Suggestion[] }>()
+
+const suggestionListRef = ref<HTMLElement | null>(null)
+const { scrollToBottom } = useScrollToBottom(suggestionListRef)
+
+// 深度监听建议列表的变化，自动滚动到底部
+watch(() => props.suggestions, scrollToBottom, { deep: true })
 </script>
 
 <style lang="scss" scoped>

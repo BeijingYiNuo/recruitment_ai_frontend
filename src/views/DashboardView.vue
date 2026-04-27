@@ -39,6 +39,10 @@
           <el-icon><Folder /></el-icon>
           <span>文件管理</span>
         </el-menu-item>
+        <el-menu-item index="/dashboard/report-generate">
+          <el-icon><Notebook /></el-icon>
+          <span>面试报告生成</span>
+        </el-menu-item>
         <!-- <el-menu-item index="" disabled>
           <el-icon><DataLine /></el-icon>
           <span>数据统计</span>
@@ -101,7 +105,7 @@ import { getCurrentUser } from '../services/authService'
 import authService from '../services/authService'
 import { authApi } from '../api/auth'
 import {
-  House, Document, User, ChatLineRound, Calendar, DataLine, Setting, Search, Bell, ArrowDown, DocumentCopy, Folder
+  House, Document, User, ChatLineRound, Calendar, DataLine, Setting, Search, Bell, ArrowDown, DocumentCopy, Folder, Notebook
 } from '@element-plus/icons-vue'
 
 const router = useRouter()
@@ -151,7 +155,8 @@ const pageTitleMap = {
   '/dashboard/appointment': '约见安排',
   '/dashboard/users': '用户管理',
   '/dashboard/knowledge-base': '知识库管理',
-  '/dashboard/file-manager': '文件管理'
+  '/dashboard/file-manager': '文件管理',
+  '/dashboard/report-generate': '面试报告生成'
 }
 const currentPageTitle = computed(() => {
   if (route.path.startsWith('/dashboard/knowledge-base')) {

@@ -38,23 +38,30 @@
               提示: 当前还没有上传过简历，如需强力匹配请先去简历管理页上传。
             </div>
           </el-form-item>
+          
+          <el-form-item label="关联知识库 (问答辅助)">
+            <el-select v-model="form.knowledge_id" placeholder="-- 不关联或暂无知识库 --" style="width: 100%" clearable>
+              <el-option v-for="k in knowledgeBases" :key="k.id" :label="k.name" :value="k.id"></el-option>
+            </el-select>
+            <div v-if="knowledgeBases.length === 0" class="form-hint">
+              提示: 当前还没有创建知识库，如需 AI 实时检索辅助请先去知识库模块创建。
+            </div>
+          </el-form-item>
 
-          <el-form-item label="预定开始时间" required :disabled="isEditMode">
-            <el-date-picker
-              v-model="form.scheduled_start_at"
-              type="datetime"
-              placeholder="在日历中点选或手动输入"
-              value-format="YYYY-MM-DD HH:mm:ss"
-              style="width: 100%" />
+          <el-form-item label="预定开始时间" required>
+            <el-input
+              :model-value="form.scheduled_start_at"
+              placeholder="请在左侧日历中点选时间"
+              disabled
+            />
           </el-form-item>
           
-          <el-form-item label="预定结束时间" required :disabled="isEditMode">
-            <el-date-picker
-              v-model="form.scheduled_end_at"
-              type="datetime"
-              placeholder="在日历中点选或手动输入"
-              value-format="YYYY-MM-DD HH:mm:ss"
-              style="width: 100%" />
+          <el-form-item label="预计时长" required>
+            <el-input
+              :model-value="durationText"
+              placeholder="请在左侧日历中点选时间"
+              disabled
+            />
           </el-form-item>
 
           <!-- 选中的时间预览 -->
@@ -96,6 +103,7 @@ const props = defineProps({
   isEditMode: { type: Boolean, default: false },
   form: { type: Object, required: true },
   resumes: { type: Array, default: () => [] },
+  knowledgeBases: { type: Array, default: () => [] },
   /** 所有已有面试列表，用于在日历上展示占用情况 */
   allInterviews: { type: Array, default: () => [] }
 })
@@ -104,6 +112,25 @@ const calendarRef = ref(null)
 
 /** 编辑模式下排除当前面试的 ID，新增模式为 null */
 const editingId = computed(() => props.isEditMode ? props.form.id : null)
+
+/** 计算显示的时长文本 */
+const durationText = computed(() => {
+  if (!props.form.scheduled_start_at || !props.form.scheduled_end_at) return ''
+  // 兼容不同浏览器的日期解析
+  const start = new Date(props.form.scheduled_start_at.replace(/-/g, '/'))
+  const end = new Date(props.form.scheduled_end_at.replace(/-/g, '/'))
+  const diffMs = end.getTime() - start.getTime()
+  const diffMin = Math.round(diffMs / 60000)
+  
+  if (diffMin <= 0) return ''
+  
+  const h = Math.floor(diffMin / 60)
+  const m = diffMin % 60
+  if (h > 0) {
+    return `${h} 小时 ${m > 0 ? m + ' 分钟' : ''}`
+  }
+  return `${m} 分钟`
+})
 
 const handleResumeChange = (val) => {
   if (val && !props.form.candidate_name) {

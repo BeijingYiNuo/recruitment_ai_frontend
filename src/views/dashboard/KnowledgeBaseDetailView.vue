@@ -19,13 +19,12 @@
 
       <!-- Active Tab Content Area -->
       <div class="tab-content-area" :class="{ 'no-padding': activeTab === 'search' || activeTab === 'qa' }">
-        <TabOriginalDocs v-if="activeTab === 'original_docs'" :knowledge-id="kbInfo.id" />
-        <TabSliceDetails v-if="activeTab === 'slice_details'" />
+        <TabOriginalDocs v-if="activeTab === 'original_docs'" :knowledge-id="kbInfo.id" @viewSlices="handleViewSlices" />
+        <TabSliceDetails v-if="activeTab === 'slice_details'" :collection-name="String(route.params.id)" :filter-doc-id="selectedDocId" />
         <TabKnowledgeSearch v-if="activeTab === 'search'" />
         <TabKnowledgeQA v-if="activeTab === 'qa'" />
       </div>
 
-      <FloatingTools />
     </template>
   </div>
 </template>
@@ -40,11 +39,24 @@ import TabOriginalDocs from '../../components/knowledge/detail/TabOriginalDocs.v
 import TabSliceDetails from '../../components/knowledge/detail/TabSliceDetails.vue'
 import TabKnowledgeSearch from '../../components/knowledge/detail/TabKnowledgeSearch.vue'
 import TabKnowledgeQA from '../../components/knowledge/detail/TabKnowledgeQA.vue'
-import FloatingTools from '../../components/knowledge/detail/FloatingTools.vue'
 
 const activeTab = ref('original_docs')
 const kbInfo = ref<any>(null)
 const route = useRoute()
+const selectedDocId = ref('')
+
+const handleViewSlices = (item: any) => {
+  selectedDocId.value = item.id
+  activeTab.value = 'slice_details'
+}
+
+import { watch } from 'vue'
+watch(activeTab, (newVal) => {
+  // 如果切出切片详情页，则重置文档过滤器，保证下次手动点击 Tab 时展示所有切片
+  if (newVal !== 'slice_details') {
+    selectedDocId.value = ''
+  }
+})
 
 onMounted(async () => {
   try {

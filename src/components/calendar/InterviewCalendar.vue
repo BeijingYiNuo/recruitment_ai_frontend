@@ -99,16 +99,18 @@
                   :class="[
                     'cal-event--' + (evt.session_type || 'online'),
                     'is-' + (evt.status || 'scheduled'),
-                    { 'cal-event--editing': excludeId != null && evt.id === excludeId }
+                    { 'cal-event--editing': excludeId != null && evt.id === excludeId,
+                      'cal-event--compact': evt._height && evt._height < 40,
+                      'cal-event--tiny': evt._height && evt._height < 18 }
                   ]"
                   :style="getEventStyle(evt)"
                   :title="getEventTitle(evt)"
                 >
                   <div class="cal-event-title-row">
                     <div class="cal-event-title">{{ evt.candidate_name || '未命名面试' }}</div>
-                    <div v-if="evt.status === 'completed'" class="cal-event-status-tag">已完成</div>
+                    <div v-if="evt.status === 'completed' && (!evt._height || evt._height >= 18)" class="cal-event-status-tag">已完成</div>
                   </div>
-                  <div class="cal-event-time">{{ formatEventTime(evt) }}</div>
+                  <div v-if="!evt._height || evt._height >= 40" class="cal-event-time">{{ formatEventTime(evt) }}</div>
                 </div>
 
                 <div
@@ -325,17 +327,76 @@ function nextWeek() {
 }
 
 function getEventsForDay(dateStr) {
-  return props.interviews.filter((evt) => evt?.scheduled_start_at?.slice(0, 10) === dateStr)
+  const events = props.interviews.filter((evt) => evt?.scheduled_start_at?.slice(0, 10) === dateStr)
+  return assignEventLayout(events)
+}
+
+/**
+ * 为一天内的事件分配列布局，解决重叠事件文字堆叠问题
+ * 使用贪心算法：按开始时间排序，依次分配到第一个可用列
+ */
+function assignEventLayout(events) {
+  if (events.length <= 1) {
+    return events.map(evt => ({ ...evt, _col: 0, _totalCols: 1 }))
+  }
+
+  // 按开始时间排序
+  const sorted = events
+    .map(evt => ({
+      ...evt,
+      _startMin: getMinuteOfDay(evt.scheduled_start_at),
+      _endMin: getMinuteOfDay(evt.scheduled_end_at)
+    }))
+    .sort((a, b) => a._startMin - b._startMin || a._endMin - b._endMin)
+
+  // 贪心分配列：columns[i] 存放该列当前最晚结束时间
+  const columns = []
+  for (const evt of sorted) {
+    let placed = false
+    for (let c = 0; c < columns.length; c++) {
+      if (evt._startMin >= columns[c]) {
+        columns[c] = evt._endMin
+        evt._col = c
+        placed = true
+        break
+      }
+    }
+    if (!placed) {
+      evt._col = columns.length
+      columns.push(evt._endMin)
+    }
+  }
+
+  // 计算每个事件实际需要的并排列数（仅统计与其时间重叠的最大列数）
+  const totalCols = columns.length
+  for (const evt of sorted) {
+    evt._totalCols = totalCols
+  }
+
+  return sorted
 }
 
 function getEventStyle(evt) {
   const startMin = getMinuteOfDay(evt.scheduled_start_at)
   const endMin = getMinuteOfDay(evt.scheduled_end_at)
-  const top = ((startMin - startHour * 60) / 60) * hourHeight.value
-  const height = Math.max(((endMin - startMin) / 60) * hourHeight.value, 20)
+  const topPx = ((startMin - startHour * 60) / 60) * hourHeight.value
+  const rawHeight = Math.max(((endMin - startMin) / 60) * hourHeight.value, 8)
+  const gap = 2
+  const height = rawHeight - gap
+
+  evt._height = height
+
+  const col = evt._col || 0
+  const totalCols = evt._totalCols || 1
+  const colWidth = (100 - 2) / totalCols
+  const left = col * colWidth + 1
+  const width = colWidth - 1
+
   return {
-    top: `${top}px`,
-    height: `${height}px`
+    top: `${topPx}px`,
+    height: `${height}px`,
+    left: `${left}%`,
+    width: `${width}%`
   }
 }
 
@@ -865,30 +926,63 @@ defineExpose({ clearSelection, goToday })
 
 .cal-event {
   position: absolute;
-  left: 2px;
-  right: 2px;
   border-radius: 4px;
-  padding: 4px 6px;
+  padding: 3px 6px;
   overflow: hidden;
   cursor: default;
   z-index: 2;
   font-size: 12px;
   line-height: 1.3;
   transition: box-shadow 0.15s;
+  box-sizing: border-box;
+
+  // flex 布局 + 严格裁切，防止文字溢出到相邻事件
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+
+  // 添加阴影使相邻事件卡片有明确视觉边界
+  box-shadow: 0 0.5px 2px rgba(0, 0, 0, 0.1);
+
+  &--compact {
+    padding: 1px 4px;
+
+    .cal-event-title-row {
+      flex-shrink: 0;
+    }
+
+    .cal-event-title {
+      font-size: 11px;
+      line-height: 1.2;
+    }
+  }
+
+  &--tiny {
+    padding: 0 4px;
+    justify-content: center;
+
+    .cal-event-title {
+      font-size: 9px;
+      line-height: 1.1;
+      font-weight: 500;
+    }
+  }
 
   &:hover {
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   }
 
   &--online {
     background: #e1ecfe;
     border-left: 3px solid #3370ff;
+    border-bottom: 1px solid rgba(51, 112, 255, 0.25);
     color: #1a56db;
   }
 
   &--offline {
     background: #fef0e5;
     border-left: 3px solid #ff8800;
+    border-bottom: 1px solid rgba(255, 136, 0, 0.25);
     color: #b85c00;
   }
 
@@ -951,6 +1045,10 @@ defineExpose({ clearSelection, goToday })
   font-size: 11px;
   opacity: 0.8;
   margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
 }
 
 .cal-selection {

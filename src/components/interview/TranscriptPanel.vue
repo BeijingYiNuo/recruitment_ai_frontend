@@ -7,63 +7,86 @@
           <span class="live-dot active"></span>
           <span>识别中</span>
         </span>
-        <span class="round-tag">第 {{ currentRound }} 轮提问</span>
+        <!-- <span class="round-tag">第 {{ currentRound }} 轮提问</span> -->
       </div>
     </div>
 
     <div class="asr-text-box" ref="transcriptBodyRef">
-      <p class="asr-text-content">{{ fullAsrText }}<span v-if="isListening" class="typing-cursor"></span></p>
-      <p v-if="!fullAsrText && !isListening" class="asr-placeholder">暂无语音转写内容</p>
-      <p v-if="!fullAsrText && isListening" class="asr-placeholder">等待语音输入...</p>
+      <!-- 已确认的历史段落 -->
+      <div
+        v-for="(segment, idx) in asrSegments"
+        :key="idx"
+        class="segment-block"
+        :class="getSpeakerClass(segment.speakerId)"
+      >
+        <div class="speaker-label">{{ getSpeakerName(segment.speakerId) }}</div>
+        <p class="segment-text">{{ segment.text }}</p>
+      </div>
+
+      <!-- 当前实时输入中的文本 -->
+      <div
+        v-if="liveText"
+        class="segment-block live"
+        :class="getSpeakerClass(liveSpeakerId)"
+      >
+        <div class="speaker-label">{{ getSpeakerName(liveSpeakerId) }}</div>
+        <p class="segment-text">{{ liveText }}<span v-if="isListening" class="typing-cursor"></span></p>
+      </div>
+
+      <!-- 空状态 -->
+      <p v-if="!hasContent && !isListening" class="asr-placeholder">暂无语音转写内容</p>
+      <p v-if="!hasContent && isListening" class="asr-placeholder">等待语音输入...</p>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed, watch } from 'vue'
+import { useScrollToBottom } from '../../composables/useScrollToBottom'
 
-type TranscriptItem = {
-  id: string
-  label: string
-  question: string
-  questionAt: string
-  answer: string
-  answerAt: string
+export type AsrSegment = {
+  text: string
+  speakerId: string | null
 }
 
 const props = defineProps<{
-  conversation: TranscriptItem[]
+  conversation: any[]
   currentRound: number
   liveText?: string
+  liveSpeakerId?: string | null
   isListening?: boolean
-  asrHistory?: string[]
+  asrSegments?: AsrSegment[]
 }>()
 
-// 将所有历史句子 + 当前实时文本拼接为一段连续文本
-const fullAsrText = computed(() => {
-  const parts: string[] = []
-  if (props.asrHistory && props.asrHistory.length > 0) {
-    parts.push(...props.asrHistory)
-  }
-  if (props.liveText) {
-    parts.push(props.liveText)
-  }
-  return parts.join('')
+const hasContent = computed(() => {
+  return (props.asrSegments && props.asrSegments.length > 0) || !!props.liveText
 })
+
+// 说话人颜色映射
+const speakerColors: Record<string, string> = {
+  '0': 'speaker-interviewer',
+  '1': 'speaker-candidate',
+}
+
+const getSpeakerClass = (speakerId: string | null | undefined) => {
+  if (speakerId === null || speakerId === undefined) return 'speaker-unknown'
+  return speakerColors[speakerId] || 'speaker-other'
+}
+
+const getSpeakerName = (speakerId: string | null | undefined) => {
+  if (speakerId === null || speakerId === undefined) return '未知'
+  const num = parseInt(speakerId)
+  if (num === 0) return '说话人 1'
+  if (num === 1) return '说话人 2'
+  return `说话人 ${num + 1}`
+}
 
 // 自动滚动到底部
 const transcriptBodyRef = ref<HTMLElement | null>(null)
-const scrollToBottom = () => {
-  nextTick(() => {
-    if (transcriptBodyRef.value) {
-      transcriptBodyRef.value.scrollTop = transcriptBodyRef.value.scrollHeight
-    }
-  })
-}
+const { scrollToBottom } = useScrollToBottom(transcriptBodyRef)
 
 watch(() => props.liveText, scrollToBottom)
-watch(() => props.conversation.length, scrollToBottom)
-watch(() => props.asrHistory?.length, scrollToBottom)
+watch(() => props.asrSegments?.length, scrollToBottom)
 </script>
 
 <style lang="scss" scoped>
@@ -125,15 +148,75 @@ watch(() => props.asrHistory?.length, scrollToBottom)
   min-height: 120px;
   overflow-y: auto;
   scroll-behavior: smooth;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
-.asr-text-content {
+/* ========== 说话人分段 ========== */
+.segment-block {
+  border-radius: 10px;
+  padding: 10px 14px;
+  transition: opacity 0.2s;
+}
+
+.segment-block.live {
+  opacity: 0.85;
+}
+
+.speaker-label {
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.segment-text {
   margin: 0;
-  font-size: 15px;
-  line-height: 1.8;
+  font-size: 14px;
+  line-height: 1.7;
   color: #1e293b;
   word-break: break-word;
   white-space: pre-wrap;
+}
+
+/* 说话人 1（面试官/说话人 0） */
+.speaker-interviewer {
+  background: #eff6ff;
+  border-left: 3px solid #3b82f6;
+
+  .speaker-label {
+    color: #2563eb;
+  }
+}
+
+/* 说话人 2（候选人/说话人 1） */
+.speaker-candidate {
+  background: #f0fdf4;
+  border-left: 3px solid #22c55e;
+
+  .speaker-label {
+    color: #16a34a;
+  }
+}
+
+/* 其他说话人 */
+.speaker-other {
+  background: #fefce8;
+  border-left: 3px solid #eab308;
+
+  .speaker-label {
+    color: #ca8a04;
+  }
+}
+
+/* 未知说话人 */
+.speaker-unknown {
+  background: #f1f5f9;
+  border-left: 3px solid #94a3b8;
+
+  .speaker-label {
+    color: #64748b;
+  }
 }
 
 .asr-placeholder {
@@ -179,4 +262,3 @@ watch(() => props.asrHistory?.length, scrollToBottom)
   50% { opacity: 0; }
 }
 </style>
-

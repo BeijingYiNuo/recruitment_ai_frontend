@@ -41,7 +41,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
+import { ref, watch } from 'vue'
+import { useScrollToBottom } from '../../composables/useScrollToBottom'
 
 type MetricItem = {
   title: string
@@ -59,13 +60,7 @@ type Evaluation = {
 const props = defineProps<{ evaluation: Evaluation }>()
 
 const evaluationBodyRef = ref<HTMLElement | null>(null)
-const scrollToBottom = () => {
-  nextTick(() => {
-    if (evaluationBodyRef.value) {
-      evaluationBodyRef.value.scrollTop = evaluationBodyRef.value.scrollHeight
-    }
-  })
-}
+const { scrollToBottom } = useScrollToBottom(evaluationBodyRef)
 
 // 监听 summary 的变化，自动滚动到底部
 watch(() => props.evaluation.summary, scrollToBottom)

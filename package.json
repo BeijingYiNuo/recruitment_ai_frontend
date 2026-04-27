@@ -16,6 +16,7 @@
     "@vue-office/docx": "^1.6.3",
     "axios": "^1.13.6",
     "element-plus": "^2.13.6",
+    "markdown-it": "^14.1.1",
     "pinia": "^3.0.4",
     "vue": "^3.5.30",
     "vue-demi": "^0.14.10",

@@ -1,118 +1,177 @@
 <template>
-  <div class="tab-slice-details">
+  <div class="tab-slice-details" v-loading="loading">
     <!-- Action Bar -->
     <div class="action-bar">
-      <div class="action-left">
-        <el-button class="ghost-btn">
-          <el-icon><Plus /></el-icon> 新增切片
-        </el-button>
-        <span class="total-text">共 3 切片</span>
-      </div>
-      
-      <div class="action-right">
-        <el-select v-model="filterDoc" placeholder="全部文档" class="filter-select">
-          <el-option label="全部文档" value="all" />
-          <el-option label="pdf简历.pdf" value="pdf" />
-          <el-option label="doc简历.doc" value="doc" />
-        </el-select>
-        <el-input 
-          v-model="searchKeyword" 
-          placeholder="搜索切片 ID" 
-          class="search-input"
-          :prefix-icon="Search"
-        />
-        <div class="view-toggles">
-          <div class="toggle-btn" :class="{ active: viewMode === 'list' }" @click="viewMode = 'list'">
-            <el-icon><Expand /></el-icon>
-          </div>
-          <div class="toggle-btn" :class="{ active: viewMode === 'grid' }" @click="viewMode = 'grid'">
-            <el-icon><Grid /></el-icon>
-          </div>
-        </div>
-      </div>
+      <span class="total-text">共 {{ totalCount }} 切片</span>
     </div>
 
+    <!-- Empty State -->
+    <el-empty v-if="!loading && slices.length === 0" description="暂无切片数据" />
+
     <!-- Slice Grid -->
-    <div class="slice-grid" :class="viewMode">
-      <div class="slice-card" v-for="slice in slices" :key="slice.id">
+    <div class="slice-grid" v-if="slices.length > 0">
+      <div class="slice-card" v-for="(slice, idx) in slices" :key="slice.point_id">
         <!-- Card Header -->
         <div class="card-header">
-          <span class="index-tag">#{{ slice.index }}</span>
-          <span class="slice-id">ID {{ slice.id }}</span>
+          <span class="index-tag">#{{ idx + 1 }}</span>
+          <span class="slice-id" :title="slice.point_id">ID {{ slice.point_id }}</span>
         </div>
         
         <!-- Card Content -->
         <div class="card-content">
-          <div class="text-line" v-for="(line, idx) in slice.content" :key="idx">{{ line }}</div>
+          <div class="text-line">{{ slice.content || '(无内容)' }}</div>
+          <div class="chunk-title" v-if="slice.chunk_title && slice.chunk_title !== slice.content">
+            <span class="chunk-label">标题：</span>{{ slice.chunk_title }}
+          </div>
         </div>
 
         <!-- Card Footer -->
         <div class="card-footer">
           <div class="footer-left">
             <el-icon class="file-icon" :class="slice.fileType">
-              <Document v-if="slice.fileType === 'pdf' || slice.fileType === 'doc' || slice.fileType === 'docx'" />
+              <Document />
             </el-icon>
-            <span class="file-name">{{ slice.fileName }}</span>
+            <span class="file-name">{{ slice.doc_name }}</span>
             <span class="dot-divider">·</span>
             <span class="char-count">字符 {{ slice.charCount }}</span>
           </div>
           <div class="footer-right">
-            更新于 {{ slice.updateTime }}
+            更新于 {{ slice.updateTimeStr }}
           </div>
         </div>
       </div>
-    </div>
-    
-    <!-- Pagination -->
-    <div class="pagination-footer">
-      <el-pagination
-        layout="prev, pager, next, sizes, jumper"
-        :total="3"
-        :page-sizes="[10, 20, 50, 100]"
-        :page-size="20"
-        class="custom-pagination"
-      />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { Plus, Search, Expand, Grid, Document } from '@element-plus/icons-vue'
+import { ref, onMounted } from 'vue'
+import { Document } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
+import { knowledgeApi } from '../../../api/knowledge.js'
 
-const filterDoc = ref('all')
-const searchKeyword = ref('')
-const viewMode = ref('grid') // 'list' | 'grid'
-
-const slices = ref([
-  {
-    index: 1,
-    id: '271040-_sys_auto_gen_doc_id-14070803344570287666-0',
-    content: ['我的简历123', '我的简历123'],
-    fileType: 'doc',
-    fileName: 'doc简历.doc',
-    charCount: 7,
-    updateTime: '2026-04-08 09:29:49'
+const props = defineProps({
+  collectionName: {
+    type: String,
+    required: true
   },
-  {
-    index: 2,
-    id: '271040-_sys_auto_gen_doc_id-17101403853843155118-0',
-    content: ['我的简历123', '我的简历123'],
-    fileType: 'docx',
-    fileName: 'docx简历.docx',
-    charCount: 7,
-    updateTime: '2026-04-08 09:29:48'
-  },
-  {
-    index: 3,
-    id: '271040-_sys_auto_gen_doc_id-6364887156866483066-0',
-    content: ['我的简历123', '我的简历123', '123'],
-    fileType: 'pdf',
-    fileName: 'pdf简历.pdf',
-    charCount: 8,
-    updateTime: '2026-04-08 09:29:50'
+  filterDocId: {
+    type: String,
+    default: ''
   }
-])
+})
+
+const loading = ref(false)
+const slices = ref<any[]>([])
+const docOptions = ref<any[]>([])
+const totalCount = ref(0)
+
+/**
+ * 格式化 Unix 时间戳为可读字符串
+ */
+const formatUnixTime = (timestamp: number) => {
+  if (!timestamp) return '-'
+  const date = new Date(timestamp * 1000)
+  const Y = date.getFullYear()
+  const M = String(date.getMonth() + 1).padStart(2, '0')
+  const D = String(date.getDate()).padStart(2, '0')
+  const h = String(date.getHours()).padStart(2, '0')
+  const m = String(date.getMinutes()).padStart(2, '0')
+  const s = String(date.getSeconds()).padStart(2, '0')
+  return `${Y}-${M}-${D} ${h}:${m}:${s}`
+}
+
+/**
+ * 根据文件类型字符串推断类型分类
+ */
+const getFileType = (docType: string) => {
+  const t = (docType || '').toLowerCase()
+  if (t.includes('pdf')) return 'pdf'
+  if (t.includes('doc')) return 'doc'
+  return 'other'
+}
+
+/**
+ * 加载文档列表
+ */
+const fetchDocList = async () => {
+  try {
+    const res = await knowledgeApi.listDocuments(props.collectionName)
+    const responseData = res.data || res || {}
+    const rawList = responseData.doc_list || []
+    docOptions.value = rawList.map((item: any) => ({
+      doc_id: item.doc_id,
+      doc_name: item.title || item.doc_name || '未命名文档',
+      doc_type: item.doc_type || ''
+    }))
+  } catch (error) {
+    console.error('获取文档列表失败:', error)
+  }
+}
+
+/**
+ * 加载所有文档的切片列表
+ */
+const fetchSlices = async () => {
+  loading.value = true
+  slices.value = []
+  totalCount.value = 0
+
+  try {
+    if (docOptions.value.length === 0) {
+      await fetchDocList()
+    }
+
+    const allPoints: any[] = []
+    
+    // 如果传入了 filterDocId，则只获取该文档的切片，否则获取全部
+    const docsToFetch = props.filterDocId 
+      ? docOptions.value.filter((doc: any) => String(doc.doc_id) === String(props.filterDocId))
+      : docOptions.value
+
+    const promises = docsToFetch.map((doc: any) =>
+      knowledgeApi.listPoints(props.collectionName, doc.doc_id).catch(() => null)
+    )
+    const results = await Promise.all(promises)
+
+    for (const res of results) {
+      if (!res) continue
+      const data = res.data || res || {}
+      const pointList = data.point_list || []
+      allPoints.push(...pointList)
+    }
+    totalCount.value = allPoints.length
+
+    // 映射数据
+    slices.value = allPoints.map((item: any) => {
+      const docInfo = item.doc_info || {}
+      return {
+        point_id: item.point_id || '-',
+        content: item.content || '',
+        chunk_title: item.chunk_title || '',
+        chunk_id: item.chunk_id,
+        chunk_type: item.chunk_type || 'text',
+        doc_id: docInfo.doc_id || '',
+        doc_name: docInfo.doc_name || docInfo.title || '未命名',
+        fileType: getFileType(docInfo.doc_type),
+        charCount: (item.content || '').length,
+        updateTime: item.update_time || item.process_time,
+        updateTimeStr: formatUnixTime(item.update_time || item.process_time),
+        raw: item
+      }
+    })
+  } catch (error) {
+    console.error('获取切片列表失败:', error)
+    ElMessage.error('获取切片列表失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(async () => {
+  await fetchDocList()
+  await fetchSlices()
+})
 </script>
 
 <style lang="scss" scoped>
@@ -122,89 +181,18 @@ const slices = ref([
 }
 
 .action-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   margin-bottom: 24px;
   
-  .action-left {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    
-    .ghost-btn {
-      color: #165dff;
-      border-color: #165dff;
-      background: transparent;
-      
-      &:hover {
-        background-color: #e8f3ff;
-      }
-    }
-    
-    .total-text {
-      font-size: 13px;
-      color: #86909c;
-    }
-  }
-  
-  .action-right {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    
-    .filter-select {
-      width: 140px;
-    }
-    
-    .search-input {
-      width: 200px;
-    }
-    
-    .view-toggles {
-      display: flex;
-      border: 1px solid #e5e6eb;
-      border-radius: 4px;
-      overflow: hidden;
-      
-      .toggle-btn {
-        padding: 6px 10px;
-        color: #86909c;
-        background-color: #ffffff;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        
-        &:hover {
-          color: #4e5969;
-          background-color: #f2f3f5;
-        }
-        
-        &.active {
-          color: #165dff;
-          background-color: #e8f3ff;
-        }
-        
-        &:first-child {
-          border-right: 1px solid #e5e6eb;
-        }
-      }
-    }
+  .total-text {
+    font-size: 13px;
+    color: #86909c;
   }
 }
 
 .slice-grid {
   display: grid;
   gap: 20px;
-  
-  &.grid {
-    grid-template-columns: repeat(auto-fill, minmax(480px, 1fr));
-  }
-  
-  &.list {
-    grid-template-columns: 1fr;
-  }
+  grid-template-columns: repeat(auto-fill, minmax(480px, 1fr));
 }
 
 .slice-card {
@@ -241,6 +229,10 @@ const slices = ref([
     font-size: 12px;
     color: #86909c;
     font-family: monospace;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 360px;
   }
 }
 
@@ -253,6 +245,21 @@ const slices = ref([
     line-height: 1.6;
     color: #1d2129;
     word-break: break-all;
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .chunk-title {
+    margin-top: 8px;
+    font-size: 13px;
+    color: #86909c;
+
+    .chunk-label {
+      font-weight: 500;
+      color: #4e5969;
+    }
   }
 }
 
@@ -282,11 +289,5 @@ const slices = ref([
   .footer-right {
     color: #86909c;
   }
-}
-
-.pagination-footer {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 32px;
 }
 </style>

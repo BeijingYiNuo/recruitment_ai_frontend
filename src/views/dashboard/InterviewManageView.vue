@@ -70,6 +70,7 @@
             <div class="col-action">
               <el-button type="primary" link size="small" v-if="!item.session_id && item.status !== 'completed' && item.status !== 'cancelled'" @click.stop="handleCreateSession(item)">开始面试</el-button>
               <el-button type="success" link size="small" v-if="item.session_id && item.status !== 'completed' && item.status !== 'cancelled'" @click.stop="handleStartASR(item)">启动 ASR</el-button>
+              <el-button type="primary" link size="small" v-if="item.status === 'completed'" @click.stop="handleViewReport(item)">查看面试报告</el-button>
               <el-button type="primary" link size="small" v-if="item.status !== 'completed' && item.status !== 'cancelled'" @click.stop="interviewStore.editInterview(item)">编辑</el-button>
               <el-button type="danger" link size="small" v-if="item.status !== 'completed' && item.status !== 'cancelled'" @click.stop="handleDelete(item.id)">取消</el-button>
             </div>
@@ -84,6 +85,7 @@
       :is-edit-mode="interviewStore.isEditMode"
       :form="interviewStore.interviewForm"
       :resumes="resumeStore.resumes"
+      :knowledge-bases="knowledgeBases"
       :all-interviews="interviewStore.interviews"
       @save="handleSave"
     />
@@ -137,6 +139,7 @@ import { ElMessage, ElLoading, ElMessageBox } from 'element-plus'
 import { getCurrentUser } from '../../services/authService'
 import { interviewApi } from '../../api/interview'
 import { resumeApi } from '../../api/resume'
+import { knowledgeApi } from '../../api/knowledge'
 import { useInterviewStore } from '../../stores/interviewStore'
 import { useResumeStore } from '../../stores/resumeStore'
 import InterviewFormDialog from '../../components/InterviewFormDialog.vue'
@@ -146,6 +149,7 @@ const resumeStore = useResumeStore()
 const currentUser = ref(getCurrentUser() || { id: 1, username: '管理员' })
 const router = useRouter()
 const listLoading = ref(false)
+const knowledgeBases = ref([])
 
 const getStatusLabel = (status) => {
   const map = {
@@ -171,7 +175,16 @@ const fetchInterviews = async () => {
   listLoading.value = true
   try {
     const data = await interviewApi.getUserInterviewSessions(currentUser.value.id)
-    interviewStore.interviews = Array.isArray(data) ? data : (data.items || data.data || [])
+    let list = Array.isArray(data) ? data : (data.items || data.data || [])
+    
+    // 按创建时间降序排列，最新的在最上面
+    list.sort((a, b) => {
+      const timeA = new Date(a.created_at || 0).getTime()
+      const timeB = new Date(b.created_at || 0).getTime()
+      return timeB - timeA
+    })
+
+    interviewStore.interviews = list
   } catch (error) {
     ElMessage.error('获取面试列表失败: ' + (error?.detail || error?.message || '未知错误'))
   } finally {
@@ -189,9 +202,19 @@ const fetchResumesSilent = async () => {
   }
 }
 
+const fetchKnowledgeBasesSilent = async () => {
+  try {
+    const data = await knowledgeApi.getCollections()
+    knowledgeBases.value = Array.isArray(data) ? data : (data.items || data.data || [])
+  } catch (e) {
+    console.warn('获取关联知识库数据失败', e)
+  }
+}
+
 onMounted(() => {
   fetchInterviews()
   fetchResumesSilent()
+  fetchKnowledgeBasesSilent()
 })
 
 const handleSave = async () => {
@@ -227,6 +250,7 @@ const handleSave = async () => {
       const editPayload = {
         candidate_name: form.candidate_name,
         resume_id: form.resume_id || 0,
+        knowledge_id: form.knowledge_id || 0,
         session_type: form.session_type || 'online',
         scheduled_start_at: form.scheduled_start_at,
         scheduled_end_at: form.scheduled_end_at,
@@ -240,6 +264,7 @@ const handleSave = async () => {
         candidate_name: form.candidate_name,
         recruiter_id: currentUser.value.id,
         resume_id: form.resume_id || 0,
+        knowledge_id: form.knowledge_id || 0,
         session_type: form.session_type || 'online',
         scheduled_start_at: form.scheduled_start_at,
         scheduled_end_at: form.scheduled_end_at,
@@ -312,6 +337,11 @@ const handleStartASR = (item) => {
     return
   }
   router.push(`/interview/${item.session_id}`)
+}
+
+const handleViewReport = (item) => {
+  // 跳转到报告生成页面
+  router.push('/dashboard/report-generate')
 }
 </script>
 
