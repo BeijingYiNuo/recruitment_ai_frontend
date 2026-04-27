@@ -440,6 +440,7 @@ onBeforeUnmount(() => {
 const handleWsMessage = (event: MessageEvent | { data: string }) => {
   try {
     const raw = typeof event.data === 'string' ? event.data : new TextDecoder().decode(event.data as ArrayBuffer)
+    console.log('[WS Raw] Received:', raw.slice(0, 50) + (raw.length > 50 ? '...' : ''))
     const msg = JSON.parse(raw)
 
     if (msg.type === 'asr') {
@@ -515,6 +516,8 @@ const handleWsMessage = (event: MessageEvent | { data: string }) => {
       } else if (response_type === 'done') {
         console.log(`[LLM Done] 本轮输出完成, index: ${index}`)
       }
+    } else {
+      console.warn('[WS Unknown Type] 收到未知类型的消息:', msg.type, msg)
     }
   } catch (e) {
     const dataPreview = typeof event.data === 'string' ? event.data.slice(0, 100) : 'Binary Data'

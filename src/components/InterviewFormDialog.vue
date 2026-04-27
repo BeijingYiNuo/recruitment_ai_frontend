@@ -27,7 +27,7 @@
       <div class="dialog-form">
         <el-form :model="form" label-position="top" size="default">
           <el-form-item label="候选人姓名" required>
-            <el-input v-model="form.candidate_name" placeholder="请输入真实姓名"></el-input>
+            <el-input v-model="form.candidate_name" placeholder="请输入真实姓名" :disabled="!!form.resume_id"></el-input>
           </el-form-item>
 
           <el-form-item label="关联简历材料">
@@ -133,7 +133,7 @@ const durationText = computed(() => {
 })
 
 const handleResumeChange = (val) => {
-  if (val && !props.form.candidate_name) {
+  if (val) {
     const matched = props.resumes.find(r => r.id === val)
     if (matched && matched.candidate_name) {
       props.form.candidate_name = matched.candidate_name

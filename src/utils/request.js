@@ -32,16 +32,32 @@ request.interceptors.response.use(
       
       // 401: Token 失效、过期或未授权
       if (status === 401) {
-        console.warn('[Axios Response] 401 Unauthorized - Redirecting to login')
+        console.error('[Axios Response] 401 Unauthorized detected.')
+        console.error('Error detail:', data)
+        console.warn('Clearing local storage and redirecting to login...')
         
         // 1. 清理本地数据
         localStorage.removeItem('token')
         localStorage.removeItem('user')
         
         // 2. 避免在登录页重复提示和跳转
-        if (router.currentRoute.value.path !== '/login') {
+        const currentPath = router.currentRoute.value.path
+        if (currentPath !== '/login') {
           ElMessage.error(data?.detail || data?.message || '登录已过期，请重新登录')
-          router.push('/login')
+          
+          // 尝试使用 router 跳转
+          router.push('/login').catch(err => {
+            console.error('Router push failed, falling back to window.location:', err)
+            window.location.href = '/login'
+          })
+          
+          // 如果 1 秒后还在当前路径，强制跳转（双重保险）
+          setTimeout(() => {
+            if (window.location.pathname !== '/login') {
+              console.warn('Redirect sticky, forcing window.location.href')
+              window.location.href = '/login'
+            }
+          }, 1000)
         }
       } 
       // 403: 权限不足

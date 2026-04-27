@@ -14,190 +14,218 @@
       <!-- 功能区域 -->
       <div class="report-content">
 
-        <!-- 步骤 1：上传 DOCX 并流式生成 template.md -->
-        <div class="section-card">
-          <h2 class="section-title">1. 上传 DOCX 并流式生成 template.md</h2>
+        <el-row :gutter="24">
+          <el-col :span="10">
+            <!-- 步骤 1：上传docx生成面试报告 -->
+            <div class="section-card" style="height: 100%; box-sizing: border-box;">
+              <h2 class="section-title">1. 上传docx生成面试报告</h2>
 
-          <div class="upload-row">
-            <span class="upload-label">模板 DOCX 文件</span>
-            <el-upload
-              ref="uploadRef"
-              :auto-upload="false"
-              :limit="1"
-              :on-change="handleFileChange"
-              :on-remove="handleFileRemove"
-              accept=".docx,.doc"
-              class="inline-upload"
-            >
-              <el-button size="default">选择文件</el-button>
-            </el-upload>
-            <span v-if="selectedFile" class="file-name">{{ selectedFile.name }}</span>
-          </div>
+              <el-form label-width="130px" label-position="right">
+                <el-form-item label="模板 DOCX 文件" required>
+                  <div style="display: flex; align-items: center; gap: 12px; width: 100%;">
+                    <el-upload
+                      ref="uploadRef"
+                      :auto-upload="false"
+                      :limit="1"
+                      :on-change="handleFileChange"
+                      :on-remove="handleFileRemove"
+                      accept=".docx,.doc"
+                      class="inline-upload"
+                    >
+                      <el-button size="default">选择文件</el-button>
+                    </el-upload>
+                    <span v-if="selectedFile" class="file-name">{{ selectedFile.name }}</span>
+                  </div>
+                  <div style="font-size: 13px; color: #e6a23c; margin-top: 4px; line-height: 1.4; width: 100%;">提示：请上传docx文件</div>
+                </el-form-item>
 
-          <el-button
-            type="primary"
-            class="generate-btn"
-            :loading="isGenerating"
-            :disabled="!selectedFile"
-            @click="handleGenerate"
-          >
-            {{ isGenerating ? '生成中...' : '生成 template.md' }}
-          </el-button>
+                <el-form-item>
+                  <el-button
+                    type="primary"
+                    class="generate-btn"
+                    style="width: 200px; margin-bottom: 0px;"
+                    :loading="isGenerating"
+                    :disabled="!selectedFile"
+                    @click="handleGenerate"
+                  >
+                    {{ isGenerating ? '生成中...' : '生成面试报告' }}
+                  </el-button>
+                  <div class="hint-text" style="width: 100%; margin-top: 8px;">生成过程将通过服务器流式返回报告内容。</div>
+                </el-form-item>
+              </el-form>
 
-          <p class="hint-text">生成过程将通过服务器 SSE 流式返回 markdown 内容，可直接保存为 template.md。</p>
+              <!-- 流式输出区域 -->
+              <div v-if="markdownOutput" class="output-area" ref="outputAreaRef">
+                <pre class="markdown-output">{{ markdownOutput }}</pre>
+              </div>
 
-          <!-- 流式输出区域 -->
-          <div v-if="markdownOutput" class="output-area" ref="outputAreaRef">
-            <pre class="markdown-output">{{ markdownOutput }}</pre>
-          </div>
+              <!-- 保存按钮 -->
+              <div style="display: flex; justify-content: flex-end;" v-if="markdownOutput && !isGenerating">
+                <el-button
+                  type="primary"
+                  class="save-btn"
+                  style="width: 160px;"
+                  @click="handleSaveMd"
+                >
+                  保存为 MD
+                </el-button>
+              </div>
+            </div>
+          </el-col>
 
-          <!-- 保存按钮 -->
-          <el-button
-            v-if="markdownOutput && !isGenerating"
-            type="primary"
-            class="save-btn"
-            @click="handleSaveMd"
-          >
-            保存为 MD
-          </el-button>
-        </div>
+          <el-col :span="14">
+            <!-- 步骤 2：上传文件并生成报告 -->
+            <div class="section-card" style="height: 100%; box-sizing: border-box;">
+              <h2 class="section-title">2. 上传文件并生成报告</h2>
 
-        <!-- 步骤 2：上传文件并生成报告 -->
-        <div class="section-card">
-          <h2 class="section-title">2. 上传文件并生成报告</h2>
+              <el-form label-width="160px" label-position="right">
+                <el-row :gutter="24">
+                  <el-col :span="12">
+                    <el-form-item label="模板 DOCX (可选)">
+                      <div style="display: flex; align-items: center; gap: 12px; width: 100%;">
+                        <el-upload
+                          :auto-upload="false"
+                          :limit="1"
+                          :on-change="(f) => handleReportFile('templateDocx', f)"
+                          :on-remove="() => handleReportFileRemove('templateDocx')"
+                          accept=".docx,.doc"
+                          class="inline-upload"
+                        >
+                          <el-button size="default">选择文件</el-button>
+                        </el-upload>
+                        <span v-if="reportFiles.templateDocx" class="file-name">{{ reportFiles.templateDocx.name }}</span>
+                      </div>
+                    </el-form-item>
+                  </el-col>
 
-          <!-- 文件上传区 -->
-          <div class="upload-row">
-            <span class="upload-label">模板 DOCX (可选)</span>
-            <el-upload
-              :auto-upload="false"
-              :limit="1"
-              :on-change="(f) => handleReportFile('templateDocx', f)"
-              :on-remove="() => handleReportFileRemove('templateDocx')"
-              accept=".docx,.doc"
-              class="inline-upload"
-            >
-              <el-button size="default">选择文件</el-button>
-            </el-upload>
-            <span v-if="reportFiles.templateDocx" class="file-name">{{ reportFiles.templateDocx.name }}</span>
-          </div>
+                  <el-col :span="12">
+                    <el-form-item label="template.md (可选)">
+                      <div style="display: flex; align-items: center; gap: 12px; width: 100%;">
+                        <el-upload
+                          :auto-upload="false"
+                          :limit="1"
+                          :on-change="(f) => handleReportFile('templateMd', f)"
+                          :on-remove="() => handleReportFileRemove('templateMd')"
+                          accept=".md,.txt"
+                          class="inline-upload"
+                        >
+                          <el-button size="default">选择文件</el-button>
+                        </el-upload>
+                        <span v-if="reportFiles.templateMd" class="file-name">{{ reportFiles.templateMd.name }}</span>
+                      </div>
+                    </el-form-item>
+                  </el-col>
 
-          <div class="upload-row">
-            <span class="upload-label">template.md (可选)</span>
-            <el-upload
-              :auto-upload="false"
-              :limit="1"
-              :on-change="(f) => handleReportFile('templateMd', f)"
-              :on-remove="() => handleReportFileRemove('templateMd')"
-              accept=".md,.txt"
-              class="inline-upload"
-            >
-              <el-button size="default">选择文件</el-button>
-            </el-upload>
-            <span v-if="reportFiles.templateMd" class="file-name">{{ reportFiles.templateMd.name }}</span>
-          </div>
+                  <el-col :span="12">
+                    <el-form-item label="jd.md (可选)">
+                      <div style="display: flex; align-items: center; gap: 12px; width: 100%;">
+                        <el-upload
+                          :auto-upload="false"
+                          :limit="1"
+                          :on-change="(f) => handleReportFile('jdMd', f)"
+                          :on-remove="() => handleReportFileRemove('jdMd')"
+                          accept=".md,.txt"
+                          class="inline-upload"
+                        >
+                          <el-button size="default">选择文件</el-button>
+                        </el-upload>
+                        <span v-if="reportFiles.jdMd" class="file-name">{{ reportFiles.jdMd.name }}</span>
+                      </div>
+                    </el-form-item>
+                  </el-col>
 
-          <div class="upload-row">
-            <span class="upload-label">jd.md (可选)</span>
-            <el-upload
-              :auto-upload="false"
-              :limit="1"
-              :on-change="(f) => handleReportFile('jdMd', f)"
-              :on-remove="() => handleReportFileRemove('jdMd')"
-              accept=".md,.txt"
-              class="inline-upload"
-            >
-              <el-button size="default">选择文件</el-button>
-            </el-upload>
-            <span v-if="reportFiles.jdMd" class="file-name">{{ reportFiles.jdMd.name }}</span>
-          </div>
+                  <el-col :span="12">
+                    <el-form-item label="resume.md (可选)">
+                      <div style="display: flex; align-items: center; gap: 12px; width: 100%;">
+                        <el-upload
+                          :auto-upload="false"
+                          :limit="1"
+                          :on-change="(f) => handleReportFile('resumeMd', f)"
+                          :on-remove="() => handleReportFileRemove('resumeMd')"
+                          accept=".md,.txt"
+                          class="inline-upload"
+                        >
+                          <el-button size="default">选择文件</el-button>
+                        </el-upload>
+                        <span v-if="reportFiles.resumeMd" class="file-name">{{ reportFiles.resumeMd.name }}</span>
+                      </div>
+                    </el-form-item>
+                  </el-col>
 
-          <div class="upload-row">
-            <span class="upload-label">resume.md (可选)</span>
-            <el-upload
-              :auto-upload="false"
-              :limit="1"
-              :on-change="(f) => handleReportFile('resumeMd', f)"
-              :on-remove="() => handleReportFileRemove('resumeMd')"
-              accept=".md,.txt"
-              class="inline-upload"
-            >
-              <el-button size="default">选择文件</el-button>
-            </el-upload>
-            <span v-if="reportFiles.resumeMd" class="file-name">{{ reportFiles.resumeMd.name }}</span>
-          </div>
+                  <el-col :span="12">
+                    <el-form-item label="transcript.md (可选)">
+                      <div style="display: flex; align-items: center; gap: 12px; width: 100%;">
+                        <el-upload
+                          :auto-upload="false"
+                          :limit="1"
+                          :on-change="(f) => handleReportFile('transcriptMd', f)"
+                          :on-remove="() => handleReportFileRemove('transcriptMd')"
+                          accept=".md,.txt"
+                          class="inline-upload"
+                        >
+                          <el-button size="default">选择文件</el-button>
+                        </el-upload>
+                        <span v-if="reportFiles.transcriptMd" class="file-name">{{ reportFiles.transcriptMd.name }}</span>
+                      </div>
+                    </el-form-item>
+                  </el-col>
+                </el-row>
 
-          <div class="upload-row">
-            <span class="upload-label">transcript.md (可选)</span>
-            <el-upload
-              :auto-upload="false"
-              :limit="1"
-              :on-change="(f) => handleReportFile('transcriptMd', f)"
-              :on-remove="() => handleReportFileRemove('transcriptMd')"
-              accept=".md,.txt"
-              class="inline-upload"
-            >
-              <el-button size="default">选择文件</el-button>
-            </el-upload>
-            <span v-if="reportFiles.transcriptMd" class="file-name">{{ reportFiles.transcriptMd.name }}</span>
-          </div>
+                <el-form-item>
+                  <div class="hint-text" style="width: 100%; margin-top: 0; margin-bottom: 8px;">如果不上传某一项，服务端将使用默认示例内容。</div>
+                </el-form-item>
 
-          <p class="hint-text">如果不上传某一项，服务端将使用默认示例内容。</p>
+                <el-divider border-style="dashed" />
+                
+                <h3 class="sub-title" style="margin-top: 0; margin-bottom: 20px;">基本信息</h3>
 
-          <!-- 基本信息 -->
-          <h3 class="sub-title">基本信息</h3>
+                <el-row :gutter="24">
+                  <el-col :span="12">
+                    <el-form-item label="面试时间">
+                      <el-input v-model="baseInfo.interview_time" placeholder="2026年04月04日 14:00" />
+                    </el-form-item>
+                  </el-col>
+                  <el-col :span="12">
+                    <el-form-item label="面试形式">
+                      <el-input v-model="baseInfo.interview_format" placeholder="线上 / 线下" />
+                    </el-form-item>
+                  </el-col>
+                  <el-col :span="12">
+                    <el-form-item label="面试官">
+                      <el-input v-model="baseInfo.interviewer" placeholder="面试官姓名" />
+                    </el-form-item>
+                  </el-col>
+                  <el-col :span="12">
+                    <el-form-item label="报告输出类型">
+                      <el-select v-model="requestType" style="width: 100%">
+                        <el-option label="DOCX" value="docx" />
+                        <el-option label="JSON" value="json" />
+                      </el-select>
+                    </el-form-item>
+                  </el-col>
+                </el-row>
 
-          <div class="form-row">
-            <span class="form-label">面试时间</span>
-            <el-input v-model="baseInfo.interview_time" placeholder="2026年04月04日 14:00" />
-          </div>
-          <div class="form-row">
-            <span class="form-label">面试形式</span>
-            <el-input v-model="baseInfo.interview_format" placeholder="线上 / 线下" />
-          </div>
-          <div class="form-row">
-            <span class="form-label">面试官</span>
-            <el-input v-model="baseInfo.interviewer" placeholder="面试官姓名" />
-          </div>
-          <!-- <div class="form-row">
-            <span class="form-label">报告编制人</span>
-            <el-input v-model="baseInfo.report_author" placeholder="报告编制人" />
-          </div>
-          <div class="form-row">
-            <span class="form-label">报告编制时间</span>
-            <el-input v-model="baseInfo.report_time" placeholder="2026年04月04日 14:00" />
-          </div>
-          <div class="form-row">
-            <span class="form-label">应聘岗位</span>
-            <el-input v-model="baseInfo.position" placeholder="应聘岗位" />
-          </div> -->
+                <el-form-item style="margin-top: 16px;">
+                  <el-button
+                    type="primary"
+                    class="generate-btn"
+                    style="width: 200px; margin-bottom: 0;"
+                    :loading="isReportGenerating"
+                    @click="handleGenerateReport"
+                  >
+                    {{ isReportGenerating ? '生成中...' : '生成报告' }}
+                  </el-button>
+                  <div class="hint-text" style="width: 100%; margin-top: 8px;">生成完毕后，DOCX 文件会自动下载；选择 JSON 可查看填充后的数据结构。</div>
+                </el-form-item>
+              </el-form>
 
-          <!-- 报告输出类型 -->
-          <div class="form-row">
-            <span class="form-label">报告输出类型</span>
-            <el-select v-model="requestType" style="width: 100%">
-              <el-option label="DOCX" value="docx" />
-              <el-option label="JSON" value="json" />
-            </el-select>
-          </div>
-
-          <!-- 生成报告按钮 -->
-          <el-button
-            type="primary"
-            class="generate-btn"
-            :loading="isReportGenerating"
-            @click="handleGenerateReport"
-          >
-            {{ isReportGenerating ? '生成中...' : '生成报告' }}
-          </el-button>
-
-          <p class="hint-text">生成完毕后，DOCX 文件会自动下载；选择 JSON 可查看填充后的数据结构。</p>
-
-          <!-- JSON 结果展示区 -->
-          <div v-if="reportJsonResult" class="output-area">
-            <pre class="markdown-output">{{ reportJsonResult }}</pre>
-          </div>
-        </div>
+              <!-- JSON 结果展示区 -->
+              <div v-if="reportJsonResult" class="output-area">
+                <pre class="markdown-output">{{ reportJsonResult }}</pre>
+              </div>
+            </div>
+          </el-col>
+        </el-row>
 
       </div>
     </div>
@@ -635,8 +663,6 @@ const handleGenerateReport = async () => {
   border: 1px solid #E5E6EB;
   border-radius: 8px;
   padding: 20px;
-  max-height: 500px;
-  overflow-y: auto;
   margin-bottom: 16px;
   scroll-behavior: smooth;
 }
