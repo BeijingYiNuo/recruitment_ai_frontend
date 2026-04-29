@@ -6,12 +6,20 @@
       <div class="header-area">
         <div class="header-top">
           <div class="title-area">
-            <h1>文件管理</h1>
-            <span class="badge" v-if="files.length > 0">{{ files.length }}</span>
+            <!-- 子页面时显示返回按钮 -->
+            <el-button v-if="currentSessionId" class="back-btn" @click="goBackToRoot" :icon="ArrowLeft" circle size="small" />
+            <h1>{{ currentSessionId ? '会话 ' + currentSessionId : '文件管理' }}</h1>
+            <span class="badge" v-if="displayFiles.length > 0">{{ displayFiles.length }}</span>
           </div>
           <div class="action-btn-group">
             <el-button type="primary" class="lark-btn-primary" @click="uploadDialogVisible = true">上传文件</el-button>
           </div>
+        </div>
+        <!-- 面包屑导航 -->
+        <div v-if="currentSessionId" class="breadcrumb-bar">
+          <span class="breadcrumb-item clickable" @click="goBackToRoot">文件管理</span>
+          <span class="breadcrumb-sep">/</span>
+          <span class="breadcrumb-item current">会话 {{ currentSessionId }}</span>
         </div>
       </div>
 
@@ -22,7 +30,7 @@
             <el-icon class="empty-icon"><FolderOpened /></el-icon>
           </div>
           <p class="empty-title">文件夹为空</p>
-          <p class="empty-subtitle">点击左上角“上传文件”按钮添加</p>
+          <p class="empty-subtitle">点击右上角"上传文件"按钮添加</p>
         </div>
 
         <template v-else>
@@ -37,53 +45,103 @@
 
           <!-- 列表内容 -->
           <div class="list-body" style="overflow-y: auto;">
-            <div 
-              v-for="file in files" 
-              :key="file.id"
-              class="list-row file-row"
-            >
-              <!-- 文件名 & 图标 -->
-              <div class="col-name">
-                <div class="file-icon-wrapper" :style="{ color: file.iconColor }">
-                  <el-icon><component :is="file.icon" /></el-icon>
+
+            <!-- ====== 根视图：会话目录 + 独立文件 ====== -->
+            <template v-if="!currentSessionId">
+              <!-- 会话目录行 -->
+              <div
+                v-for="folder in sessionFolders"
+                :key="'folder-' + folder.sessionId"
+                class="list-row folder-row"
+                @click="enterSession(folder.sessionId)"
+              >
+                <div class="col-name">
+                  <div class="file-icon-wrapper" style="color: #3370FF;">
+                    <el-icon><Folder /></el-icon>
+                  </div>
+                  <span class="file-name-text">会话 {{ folder.sessionId }}</span>
                 </div>
-                <span class="file-name-text">{{ file.name }}</span>
-              </div>
-
-              <!-- 类型 -->
-              <div class="col-type">
-                <span class="file-type-tag" :class="'type-' + file.fileType">{{ file.fileTypeLabel }}</span>
-              </div>
-              
-              <!-- 所有者 -->
-              <div class="col-owner">
-                <div class="owner-info">
-                  <div class="owner-avatar">{{ file.owner.charAt(0) }}</div>
-                  <span class="owner-name">{{ file.owner }}</span>
+                <div class="col-type">
+                  <span class="folder-file-count">{{ folder.fileCount }} 个文件</span>
                 </div>
-              </div>
-
-              <!-- 更新时间 -->
-              <div class="col-time">{{ file.updateTime }}</div>
-
-              <!-- 大小 & 快捷操作栏 (Hover展现) -->
-              <div class="col-size has-actions">
-                <span class="size-text">{{ file.size }}</span>
-                
-                <!-- Hover 出现的按钮组 -->
-                <div class="quick-actions">
-                  <button class="action-btn preview-btn" title="预览" @click.stop="handlePreview(file)">
-                    <el-icon><View /></el-icon>
-                  </button>
-                  <button class="action-btn download-btn" title="下载" @click.stop="handleDownload(file)">
-                    <el-icon><Download /></el-icon>
-                  </button>
-                  <button class="action-btn delete-btn" title="删除" @click.stop="deleteFile(file.id)">
-                    <el-icon><Delete /></el-icon>
-                  </button>
+                <div class="col-owner">
+                  <div class="owner-info">
+                    <div class="owner-avatar">{{ folder.owner.charAt(0) }}</div>
+                    <span class="owner-name">{{ folder.owner }}</span>
+                  </div>
+                </div>
+                <div class="col-time">{{ folder.latestTime }}</div>
+                <div class="col-size">
+                  <span class="size-text">{{ folder.totalSize }}</span>
                 </div>
               </div>
-            </div>
+
+              <!-- 独立文件（session_id 为 0 或空） -->
+              <div
+                v-for="file in independentFiles"
+                :key="file.id"
+                class="list-row file-row"
+              >
+                <div class="col-name">
+                  <div class="file-icon-wrapper" :style="{ color: file.iconColor }">
+                    <el-icon><component :is="file.icon" /></el-icon>
+                  </div>
+                  <span class="file-name-text">{{ file.name }}</span>
+                </div>
+                <div class="col-type">
+                  <span class="file-type-tag" :class="'type-' + file.fileType">{{ file.fileTypeLabel }}</span>
+                </div>
+                <div class="col-owner">
+                  <div class="owner-info">
+                    <div class="owner-avatar">{{ file.owner.charAt(0) }}</div>
+                    <span class="owner-name">{{ file.owner }}</span>
+                  </div>
+                </div>
+                <div class="col-time">{{ file.updateTime }}</div>
+                <div class="col-size has-actions">
+                  <span class="size-text">{{ file.size }}</span>
+                  <div class="quick-actions">
+                    <button class="action-btn preview-btn" title="预览" @click.stop="handlePreview(file)"><el-icon><View /></el-icon></button>
+                    <button class="action-btn download-btn" title="下载" @click.stop="handleDownload(file)"><el-icon><Download /></el-icon></button>
+                    <button class="action-btn delete-btn" title="删除" @click.stop="deleteFile(file.id)"><el-icon><Delete /></el-icon></button>
+                  </div>
+                </div>
+              </div>
+            </template>
+
+            <!-- ====== 子页面视图：某个会话内的文件列表 ====== -->
+            <template v-else>
+              <div
+                v-for="file in sessionFiles"
+                :key="file.id"
+                class="list-row file-row"
+              >
+                <div class="col-name">
+                  <div class="file-icon-wrapper" :style="{ color: file.iconColor }">
+                    <el-icon><component :is="file.icon" /></el-icon>
+                  </div>
+                  <span class="file-name-text">{{ file.name }}</span>
+                </div>
+                <div class="col-type">
+                  <span class="file-type-tag" :class="'type-' + file.fileType">{{ file.fileTypeLabel }}</span>
+                </div>
+                <div class="col-owner">
+                  <div class="owner-info">
+                    <div class="owner-avatar">{{ file.owner.charAt(0) }}</div>
+                    <span class="owner-name">{{ file.owner }}</span>
+                  </div>
+                </div>
+                <div class="col-time">{{ file.updateTime }}</div>
+                <div class="col-size has-actions">
+                  <span class="size-text">{{ file.size }}</span>
+                  <div class="quick-actions">
+                    <button class="action-btn preview-btn" title="预览" @click.stop="handlePreview(file)"><el-icon><View /></el-icon></button>
+                    <button class="action-btn download-btn" title="下载" @click.stop="handleDownload(file)"><el-icon><Download /></el-icon></button>
+                    <button class="action-btn delete-btn" title="删除" @click.stop="deleteFile(file.id)"><el-icon><Delete /></el-icon></button>
+                  </div>
+                </div>
+              </div>
+            </template>
           </div>
         </template>
       </div>
@@ -141,18 +199,15 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { 
   Plus, Delete,
-  Document, Picture, FolderOpened, Close, MoreFilled, Download, View
+  Document, Picture, FolderOpened, Folder, Close, MoreFilled, Download, View, ArrowLeft
 } from '@element-plus/icons-vue'
 import { fileApi } from '../../api/file'
 import FilePreviewDialog from '../../components/FilePreviewDialog.vue'
 
-// --- 独立组件逻辑 ---
-
-// 1. 导航与视图状态管理
 // --- 预览相关 ---
 const previewDialogVisible = ref(false)
 const previewLoading = ref(false)
@@ -161,9 +216,18 @@ const previewType = ref('')
 const previewTitle = ref('文件预览')
 const previewFileData = ref(null)
 
+// --- 视图导航状态 ---
+const currentSessionId = ref(null) // null = 根视图，有值 = 会话子页面
 
+const enterSession = (sessionId) => {
+  currentSessionId.value = sessionId
+}
 
-// 3. 真实拉取文件列表数据
+const goBackToRoot = () => {
+  currentSessionId.value = null
+}
+
+// --- 文件列表数据 ---
 const files = ref([])
 
 const fetchFileList = async () => {
@@ -207,7 +271,7 @@ const fetchFileList = async () => {
       const mb = kb / 1024
       const sizeStr = mb > 1 ? mb.toFixed(2) + ' MB' : kb.toFixed(2) + ' KB'
       
-      // 格式化日期并且简单把 T 替换掉看着舒服些
+      // 格式化日期
       const timeStr = item.updated_at ? item.updated_at.replace('T', ' ') : '未知'
 
       const ft = item.file_type || ''
@@ -215,6 +279,8 @@ const fetchFileList = async () => {
       return {
         id: item.id,
         name: item.file_name,
+        sessionId: item.session_id,
+        sizeBytes: sizeBytes,
         fileType: ft,
         fileTypeLabel: fileTypeMap[ft] || ft || '未知',
         owner: '用户 ' + (item.user_id || '-'),
@@ -230,11 +296,65 @@ const fetchFileList = async () => {
   }
 }
 
+// --- 计算属性：分离会话目录和独立文件 ---
+
+// 判断是否为独立文件（session_id 为 0、null、undefined、空字符串）
+const isIndependent = (file) => {
+  return !file.sessionId || file.sessionId === '0' || file.sessionId === 0
+}
+
+// 独立文件列表（session_id 为 0 或空）
+const independentFiles = computed(() => {
+  return files.value.filter(f => isIndependent(f))
+})
+
+// 会话目录列表
+const sessionFolders = computed(() => {
+  const map = {}
+  files.value.forEach(file => {
+    if (isIndependent(file)) return
+    const sid = file.sessionId
+    if (!map[sid]) {
+      map[sid] = {
+        sessionId: sid,
+        fileCount: 0,
+        totalSizeBytes: 0,
+        latestTime: file.updateTime,
+        owner: file.owner,
+        files: []
+      }
+    }
+    map[sid].fileCount++
+    map[sid].totalSizeBytes += (file.sizeBytes || 0)
+  })
+
+  return Object.values(map).map(folder => {
+    const kb = folder.totalSizeBytes / 1024
+    const mb = kb / 1024
+    return {
+      ...folder,
+      totalSize: mb > 1 ? mb.toFixed(2) + ' MB' : kb.toFixed(2) + ' KB'
+    }
+  })
+})
+
+// 当前会话子页面的文件列表
+const sessionFiles = computed(() => {
+  if (!currentSessionId.value) return []
+  return files.value.filter(f => f.sessionId === currentSessionId.value)
+})
+
+// 用于 badge 显示的文件数
+const displayFiles = computed(() => {
+  if (currentSessionId.value) return sessionFiles.value
+  return files.value
+})
+
 onMounted(() => {
   fetchFileList()
 })
 
-// --- 4. 上传文件逻辑 ---
+// --- 上传文件逻辑 ---
 const uploadDialogVisible = ref(false)
 const isUploading = ref(false)
 const uploadForm = ref({
@@ -281,7 +401,7 @@ const submitUpload = async () => {
   }
 }
 
-// --- 5. 删除文件逻辑 ---
+// --- 删除文件逻辑 ---
 const deleteFile = async (fileId) => {
   try {
     await ElMessageBox.confirm(
@@ -329,7 +449,7 @@ const handleDownload = async (file) => {
   }
 }
 
-// --- 6. 预览文件逻辑 ---
+// --- 预览文件逻辑 ---
 const handlePreview = async (file) => {
   if (!file) return
 
@@ -338,10 +458,8 @@ const handlePreview = async (file) => {
   previewType.value = (file.name?.split('.').pop() || '').toLowerCase()
   previewDialogVisible.value = true
   
-  // 设置一个初始 URL 防止残留
   previewUrl.value = ''
 
-  // 图像、PDF 和 Markdown 支持 Blob 预览
   const supportBlobPreview = ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'md'].includes(previewType.value)
   
   if (supportBlobPreview) {
@@ -383,6 +501,40 @@ const onPreviewClose = () => {
 .col-time { flex: 1.5; min-width: 140px; display: flex; align-items: center; }
 .col-size { flex: 1; min-width: 120px; position: relative; display: flex; align-items: center; justify-content: space-between; }
 
+/* 返回按钮 */
+.back-btn {
+  margin-right: 12px;
+  border-color: #DEE0E3 !important;
+  color: #1F2329 !important;
+  &:hover {
+    border-color: #3370FF !important;
+    color: #3370FF !important;
+  }
+}
+
+/* 面包屑 */
+.breadcrumb-bar {
+  margin-top: 8px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.breadcrumb-item {
+  color: #8F959E;
+  &.clickable {
+    cursor: pointer;
+    &:hover { color: #3370FF; }
+  }
+  &.current {
+    color: #1F2329;
+    font-weight: 500;
+  }
+}
+.breadcrumb-sep {
+  color: #C4C6CC;
+}
+
 /* 文件类型标签 */
 .file-type-tag {
   display: inline-block;
@@ -394,17 +546,41 @@ const onPreviewClose = () => {
   background-color: #f0f1f5;
   color: #646a73;
 
-  &.type-resume {
-    background-color: #e8f3ff;
-    color: #3370ff;
+  &.type-resume { background-color: #e8f3ff; color: #3370ff; }
+  &.type-voice { background-color: #e8faf0; color: #10b981; }
+  &.type-dialogue { background-color: #fff5e6; color: #f59e0b; }
+}
+
+/* 目录行样式 */
+.list-row.folder-row {
+  cursor: pointer;
+  position: relative;
+
+  .file-icon-wrapper {
+    font-size: 24px;
+    margin-right: 12px;
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
   }
-  &.type-voice {
-    background-color: #e8faf0;
-    color: #10b981;
+
+  .file-name-text {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1f2329;
   }
-  &.type-dialogue {
-    background-color: #fff5e6;
-    color: #f59e0b;
+
+  .folder-file-count {
+    font-size: 12px;
+    color: #8F959E;
+    background: #F0F1F5;
+    padding: 2px 8px;
+    border-radius: 4px;
+  }
+
+  &:hover {
+    background-color: #EDF4FF;
+    .file-name-text { color: #3370FF; }
   }
 }
 
@@ -414,13 +590,8 @@ const onPreviewClose = () => {
   position: relative;
   
   &:hover {
-    .size-text {
-      opacity: 0;
-    }
-    .quick-actions {
-      opacity: 1;
-      pointer-events: auto;
-    }
+    .size-text { opacity: 0; }
+    .quick-actions { opacity: 1; pointer-events: auto; }
   }
 
   .file-icon-wrapper {
@@ -445,64 +616,39 @@ const onPreviewClose = () => {
     align-items: center;
     
     .owner-avatar {
-      width: 22px;
-      height: 22px;
+      width: 22px; height: 22px;
       border-radius: 50%;
       background-color: #3370ff;
       color: #ffffff;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      display: flex; align-items: center; justify-content: center;
       font-size: 11px;
       margin-right: 8px;
       flex-shrink: 0;
     }
     .owner-name {
-      font-size: 14px;
-      color: #1f2329;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      font-size: 14px; color: #1f2329;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
   }
 
-  .col-time, .size-text {
-    font-size: 14px;
-    color: #646a73;
-    white-space: nowrap;
-  }
-  .size-text {
-    transition: opacity 0.2s;
-  }
+  .col-time, .size-text { font-size: 14px; color: #646a73; white-space: nowrap; }
+  .size-text { transition: opacity 0.2s; }
 
-  /* 操作组样式 */
   .quick-actions {
     position: absolute;
-    right: 24px;
-    top: 50%;
-    transform: translateY(-50%);
-    display: flex;
-    gap: 4px;
-    opacity: 0;
-    pointer-events: none;
+    right: 24px; top: 50%; transform: translateY(-50%);
+    display: flex; gap: 4px;
+    opacity: 0; pointer-events: none;
     transition: opacity 0.2s;
-    background-color: #F0F4FF; /* 和 hover 的背景色保持一致 */
-    padding: 0;
-    border-radius: 6px;
+    background-color: #F0F4FF;
+    padding: 0; border-radius: 6px;
     
     .action-btn {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 28px;
-      height: 28px;
-      border: none;
-      background: transparent;
-      border-radius: 4px;
-      color: #3370ff;
-      cursor: pointer;
-      transition: all 0.2s;
-      font-size: 16px;
+      display: flex; align-items: center; justify-content: center;
+      width: 28px; height: 28px;
+      border: none; background: transparent;
+      border-radius: 4px; color: #3370ff;
+      cursor: pointer; transition: all 0.2s; font-size: 16px;
       
       &:hover { background-color: #e1eaff; }
       &.delete-btn { color: #f56c6c; }
@@ -511,56 +657,46 @@ const onPreviewClose = () => {
   }
 }
 
-/* 空状态 */
-.empty-state {
+/* 目录行也需要 owner 样式 */
+.list-row.folder-row .owner-info {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  height: 100%;
-  
-  .empty-icon-wrapper {
-    width: 160px;
-    height: 160px;
-    background-color: #F8F9FA;
+  .owner-avatar {
+    width: 22px; height: 22px;
     border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-bottom: 16px;
-    
-    .empty-icon {
-      font-size: 64px;
-      color: #dee1e5;
-    }
+    background-color: #3370ff;
+    color: #ffffff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; margin-right: 8px; flex-shrink: 0;
   }
-  
-  .empty-title {
-    font-size: 16px;
-    font-weight: 500;
-    color: #1f2329;
-    margin: 0 0 6px 0;
+  .owner-name {
+    font-size: 14px; color: #1f2329;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
-  
-  .empty-subtitle {
-    font-size: 14px;
-    color: #8f959e;
-    margin: 0;
-  }
+}
+.list-row.folder-row .col-time,
+.list-row.folder-row .size-text {
+  font-size: 14px; color: #646a73; white-space: nowrap;
 }
 
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+/* 空状态 */
+.empty-state {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; height: 100%;
+  
+  .empty-icon-wrapper {
+    width: 160px; height: 160px;
+    background-color: #F8F9FA; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 16px;
+    .empty-icon { font-size: 64px; color: #dee1e5; }
+  }
+  .empty-title { font-size: 16px; font-weight: 500; color: #1f2329; margin: 0 0 6px 0; }
+  .empty-subtitle { font-size: 14px; color: #8f959e; margin: 0; }
 }
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: #dee1e5;
-  border-radius: 4px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #8f959e;
-}
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #dee1e5; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #8f959e; }
 </style>

@@ -1,67 +1,101 @@
 <template>
-  <div class="profile-container">
-    <header class="profile-header">
-      <div class="header-left">
-        <el-button circle @click="$router.push('/dashboard')">⬅</el-button>
-        <h1>个人信息中心</h1>
-      </div>
-      <div class="user-info">
-        <span>当前状态: <el-tag :type="userProfile.status === 'activate' ? 'success' : 'danger'">{{ userProfile.status }}</el-tag></span>
+  <div class="feishu-profile">
+    <header class="feishu-header">
+      <div class="header-inner">
+        <div class="header-left">
+          <button class="lark-back-btn" @click="$router.push('/dashboard')">
+             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <h1 class="page-title">个人信息中心</h1>
+        </div>
+        <div class="user-info-status">
+          <span class="status-label">当前状态</span>
+          <div :class="['dot-status', userProfile.status === 'activate' ? 'success' : 'danger']">
+            <span class="dot"></span>
+            <span class="text">{{ userProfile.status }}</span>
+          </div>
+        </div>
       </div>
     </header>
 
-    <main class="profile-content">
-      <el-card class="box-card" shadow="hover">
-        <template #header>
-          <div class="card-header">
-            <span>基础账户信息</span>
-            <el-button type="primary" size="small" @click="handleEdit">编辑信息</el-button>
-          </div>
-        </template>
-        
-        <!-- Element Plus 的描述列表组件，非常适合呈现只读的属性面板 -->
-        <el-descriptions :column="2" border size="default">
-          <el-descriptions-item label="用户数字 ID">
-            <el-tag type="info">{{ userProfile.id }}</el-tag>
-          </el-descriptions-item>
-          
-          <el-descriptions-item label="用户名">
-            <strong>{{ userProfile.username }}</strong>
-          </el-descriptions-item>
-
-          <el-descriptions-item label="注册邮箱">
-            {{ userProfile.email }}
-          </el-descriptions-item>
-          
-          <el-descriptions-item label="绑定手机号">
-            {{ userProfile.phone || '尚未绑定手机号' }}
-          </el-descriptions-item>
-
-          <el-descriptions-item label="系统角色">
-            <el-tag v-if="userProfile.role === 'admin'" type="danger">系统管理员</el-tag>
-            <el-tag v-else-if="userProfile.role === 'recruiter'" type="primary">招聘官</el-tag>
-            <el-tag v-else-if="userProfile.role === 'candidate'" type="success">候选人</el-tag>
-            <span v-else>{{ userProfile.role }}</span>
-          </el-descriptions-item>
-
-          <el-descriptions-item label="账户状态">
-            {{ userProfile.status === 'activate' ? '正常激活' : userProfile.status === 'inactivate' ? '未激活' : '已注销' }}
-          </el-descriptions-item>
-        </el-descriptions>
-        
-        <div style="margin-top: 30px;">
-          <h3 style="margin-bottom: 15px; font-size: 15px; color: #555; border-left: 4px solid #4caf50; padding-left: 10px;">安全与时间审计</h3>
-          <el-descriptions :column="1" border size="default" direction="horizontal">
-            <el-descriptions-item label="账户创建时间">
-              {{ userProfile.created_at }}
-            </el-descriptions-item>
-            <el-descriptions-item label="最后登录记录">
-              {{ userProfile.last_login_at }}
-            </el-descriptions-item>
-          </el-descriptions>
+    <main class="feishu-main">
+      <div class="feishu-card">
+        <div class="card-header">
+          <h2 class="card-title">基础账户信息</h2>
+          <button class="lark-btn-primary small-btn" @click="handleEdit">编辑信息</button>
         </div>
         
-      </el-card>
+        <div class="lark-descriptions">
+          <div class="lark-desc-item">
+            <div class="lark-desc-label">用户数字 ID</div>
+            <div class="lark-desc-value">
+              <span class="id-text">{{ userProfile.id }}</span>
+            </div>
+          </div>
+          
+          <div class="lark-desc-item">
+            <div class="lark-desc-label">用户名</div>
+            <div class="lark-desc-value">
+              <span class="text-bold">{{ userProfile.username }}</span>
+            </div>
+          </div>
+
+          <div class="lark-desc-item">
+            <div class="lark-desc-label">注册邮箱</div>
+            <div class="lark-desc-value">{{ userProfile.email }}</div>
+          </div>
+          
+          <div class="lark-desc-item">
+            <div class="lark-desc-label">绑定手机号</div>
+            <div class="lark-desc-value">{{ userProfile.phone || '尚未绑定手机号' }}</div>
+          </div>
+
+          <div class="lark-desc-item">
+            <div class="lark-desc-label">系统角色</div>
+            <div class="lark-desc-value">
+              <div v-if="userProfile.role === 'admin'" class="dot-status danger">
+                <span class="dot"></span><span class="text">系统管理员</span>
+              </div>
+              <div v-else-if="userProfile.role === 'recruiter'" class="dot-status primary">
+                <span class="dot"></span><span class="text">招聘官</span>
+              </div>
+              <div v-else-if="userProfile.role === 'candidate'" class="dot-status success">
+                <span class="dot"></span><span class="text">候选人</span>
+              </div>
+              <div v-else class="dot-status gray">
+                <span class="dot"></span><span class="text">{{ userProfile.role }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="lark-desc-item">
+            <div class="lark-desc-label">账户状态</div>
+            <div class="lark-desc-value">
+              <div :class="['dot-status', userProfile.status === 'activate' ? 'success' : userProfile.status === 'inactivate' ? 'gray' : 'danger']">
+                <span class="dot"></span>
+                <span class="text">{{ userProfile.status === 'activate' ? '正常激活' : userProfile.status === 'inactivate' ? '未激活' : '已注销' }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="lark-section-divider"></div>
+        
+        <div class="card-header">
+          <h3 class="card-subtitle">安全与时间审计</h3>
+        </div>
+        
+        <div class="lark-descriptions format-horizontal">
+          <div class="lark-desc-item">
+            <div class="lark-desc-label">账户创建时间</div>
+            <div class="lark-desc-value text-tertiary font-mono">{{ userProfile.created_at }}</div>
+          </div>
+          <div class="lark-desc-item">
+            <div class="lark-desc-label">最后登录记录</div>
+            <div class="lark-desc-value text-tertiary font-mono">{{ userProfile.last_login_at }}</div>
+          </div>
+        </div>
+      </div>
 
       <!-- 编辑个人信息弹窗组件 -->
       <UserEditModal 
@@ -143,79 +177,251 @@ onMounted(() => {
 })
 </script>
 
-<style scoped>
-.profile-container {
+<style scoped lang="scss">
+/* --- 飞书风格重构 (Lark Design System) --- */
+$primary-color: #3370ff;
+$primary-hover: #2458d9;
+$bg-color: #f5f6f7;
+$bg-white: #ffffff;
+$text-main: #1f2329;
+$text-secondary: #646a73;
+$text-tertiary: #8f959e;
+$border-color: #dee0e3;
+
+.feishu-profile {
+  font-family: "Lark Sans", "Lark Unicode", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background-color: $bg-color;
   min-height: 100vh;
-  background-color: #f5f8fa;
+  display: flex;
+  flex-direction: column;
 }
 
-.profile-header {
-  background-color: #fff;
-  padding: 15px 30px;
+/* --- Header --- */
+.feishu-header {
+  height: 64px;
+  background-color: $bg-white;
+  border-bottom: 1px solid rgba(31, 35, 41, 0.08);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.header-inner {
+  max-width: 1000px;
+  margin: 0 auto;
+  height: 100%;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
-  position: sticky;
-  top: 0;
-  z-index: 10;
+  padding: 0 24px;
 }
 
 .header-left {
   display: flex;
   align-items: center;
-  gap: 15px;
+  gap: 16px;
 }
 
-/* 调整按钮让内部的箭头完全居中 */
-:deep(.header-left .el-button) {
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  padding: 0;
-  width: 40px;
-  height: 40px;
-}
-:deep(.header-left .el-button span) {
-  margin-left: 0 !important; /* 重置可能因为 icon="Back" 引起的默认偏移 */
+.lark-back-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background-color: transparent;
+  color: $text-secondary;
   display: flex;
-  justify-content: center;
   align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  padding: 0;
+  
+  &:hover {
+    background-color: rgba(31, 35, 41, 0.08);
+    color: $text-main;
+  }
 }
 
-.profile-header h1 {
-  margin: 0;
+.page-title {
   font-size: 20px;
-  color: #333;
+  font-weight: 600;
+  color: $text-main;
+  margin: 0;
+}
+
+.user-info-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  
+  .status-label {
+    font-size: 14px;
+    color: $text-secondary;
+  }
+}
+
+/* Dot Status Indicator */
+.dot-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
   font-weight: 500;
 }
 
-.profile-content {
-  padding: 40px 20px;
-  max-width: 900px;
-  margin: 0 auto;
+.dot-status .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #dee0e3;
+  transition: all 0.2s ease;
 }
 
-.box-card {
+.dot-status.success .dot { background-color: #13a248; box-shadow: 0 0 0 3px rgba(19, 162, 72, 0.15); }
+.dot-status.danger .dot { background-color: #f54a45; box-shadow: 0 0 0 3px rgba(245, 74, 69, 0.15); }
+.dot-status.primary .dot { background-color: #3370ff; box-shadow: 0 0 0 3px rgba(51, 112, 255, 0.15); }
+.dot-status.gray .dot { background-color: #8f959e; box-shadow: 0 0 0 3px rgba(143, 149, 158, 0.15); }
+
+.dot-status .text {
+  color: #1f2329;
+}
+
+/* ID Text */
+.id-text {
+  font-family: SFMono-Regular, Consolas, "Liberation Mono", Menlo, Courier, monospace;
+  background-color: #f5f6f7;
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: #646a73;
+  font-size: 13px;
+  border: 1px solid #dee0e3;
+  letter-spacing: 0.5px;
+}
+
+/* --- Main Content --- */
+.feishu-main {
+  flex: 1;
+  padding: 32px 24px;
+  max-width: 1000px;
+  width: 100%;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+.feishu-card {
+  background: $bg-white;
   border-radius: 8px;
-  border: none;
+  padding: 32px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04), 0 1px 4px rgba(0, 0, 0, 0.02);
 }
 
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-weight: bold;
-  font-size: 16px;
+  margin-bottom: 24px;
 }
 
-/* 覆盖 Element Plus 的描述表格默认颜色，使其看起来更清爽高端 */
-:deep(.el-descriptions__label) {
-  background-color: #f8f9fc !important;
-  color: #606266;
-  width: 180px;
+.card-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: $text-main;
+  margin: 0;
 }
-:deep(.el-descriptions__content) {
-  color: #303133;
+
+.card-subtitle {
+  font-size: 16px;
+  font-weight: 600;
+  color: $text-main;
+  margin: 0;
+}
+
+/* Buttons */
+.lark-btn-primary {
+  background-color: $primary-color;
+  border: none;
+  color: #fff;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  
+  &:hover {
+    background-color: $primary-hover;
+  }
+  
+  &.small-btn {
+    height: 32px;
+    padding: 0 16px;
+  }
+}
+
+/* Descriptions */
+.lark-descriptions {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+  margin-bottom: 8px;
+  
+  &.format-horizontal {
+    gap: 16px;
+  }
+}
+
+.lark-desc-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  
+  .format-horizontal & {
+    flex-direction: row;
+    align-items: center;
+    gap: 16px;
+  }
+}
+
+.lark-desc-label {
+  font-size: 14px;
+  color: $text-secondary;
+  
+  .format-horizontal & {
+    min-width: 100px;
+  }
+}
+
+.lark-desc-value {
+  font-size: 14px;
+  color: $text-main;
+  min-height: 24px;
+  display: flex;
+  align-items: center;
+}
+
+.text-bold {
+  font-weight: 600;
+}
+
+.text-tertiary {
+  color: $text-tertiary;
+}
+
+.font-mono {
+  font-family: SFMono-Regular, Consolas, "Liberation Mono", Menlo, Courier, monospace;
+}
+
+.lark-section-divider {
+  height: 1px;
+  background-color: $border-color;
+  margin: 32px 0;
+}
+
+@media (max-width: 768px) {
+  .lark-descriptions {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

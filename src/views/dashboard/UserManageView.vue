@@ -43,8 +43,8 @@
           </el-table-column>
           <el-table-column prop="status" label="状态" width="100">
             <template #default="scope">
-              <el-tag :type="scope.row.status === 'activate' ? 'success' : 'info'" size="small">
-                {{ scope.row.status === 'activate' ? '正常激活' : '未激活' }}
+              <el-tag :type="getStatusTagType(scope.row.status)" size="small">
+                {{ getStatusLabel(scope.row.status) }}
               </el-tag>
             </template>
           </el-table-column>
@@ -99,6 +99,29 @@ const getRoleTagType = (role) => {
   if (role === 'admin') return 'danger'
   if (role === 'recruiter') return 'primary'
   return 'success'
+}
+
+const statusLabelMap = {
+  CREATED: '已创建',
+  INTERVIEWED: '已预约',
+  COMPLETED: '已完成',
+  CANCELLED: '已取消',
+  OTHER: '其他',
+}
+
+const getStatusLabel = (status) => {
+  return statusLabelMap[status] || status || '未知'
+}
+
+const getStatusTagType = (status) => {
+  const typeMap = {
+    CREATED: 'info',
+    INTERVIEWED: 'warning',
+    COMPLETED: 'success',
+    CANCELLED: 'danger',
+    OTHER: 'info',
+  }
+  return typeMap[status] || 'info'
 }
 
 const loadUsers = async () => {

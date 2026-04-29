@@ -1,43 +1,27 @@
 <template>
-  <AuthLayout :style="{ '--auth-gradient': loginGradient }">
-    <template #visual>
-      <div class="visual-inner">
-        <img :src="heroImage" alt="品牌插画" class="hero-img" />
-        <h1 class="visual-title">欢迎回来！</h1>
-        <!-- <p class="visual-sub">开始你的精彩旅程，连接无限可能</p>
-
-        <div class="visual-stats">
-          <div class="stat"><div class="num">100K+</div><div class="label">活跃用户</div></div>
-          <div class="divider"></div>
-          <div class="stat"><div class="num">50+</div><div class="label">国家地区</div></div>
-          <div class="divider"></div>
-          <div class="stat"><div class="num">4.9</div><div class="label">用户评分</div></div>
-        </div> -->
+  <div class="feishu-page" :style="{ '--auth-gradient': loginGradient }">
+    <video class="bg-video" autoplay loop muted playsinline>
+      <source src="../assets/2e7c4b16983e8e20cb652d7037f0ebcc_raw.mp4" type="video/mp4" />
+    </video>
+    <div class="feishu-card">
+      <div class="feishu-header">
+        <h2 class="feishu-title">登录</h2>
+        <p class="feishu-subtitle">欢迎回来，请登录您的账号</p>
       </div>
-    </template>
 
-    <AuthCard>
-      <template #header>
-        <div class="logo-wrap"><div class="logo-icon">★</div></div>
-        <h2 class="title">登录账号</h2>
-        <p class="subtitle">使用你的账号继续探索</p>
-      </template>
-
-      <form @submit.prevent="handleLogin" class="form">
-        <div class="field">
-          <label for="email">用户名</label>
-          <div class="input-with-icon">
-            <!-- <span class="icon">@</span> -->
-            <input id="email" type="text" v-model="username" placeholder="请输入用户名" required />
+      <form @submit.prevent="handleLogin" class="feishu-form">
+        <div class="feishu-field">
+          <label for="email" class="feishu-label">用户名</label>
+          <div class="feishu-input-box">
+            <input id="email" type="text" v-model="username" placeholder="请输入用户名" required class="feishu-input" />
           </div>
         </div>
 
-        <div class="field">
-          <label for="password">密码</label>
-          <div class="input-with-icon">
-            <!-- <span class="icon">🔒</span> -->
-            <input :type="showPassword ? 'text' : 'password'" id="password" v-model="password" placeholder="请输入密码 (至少8位)" required minlength="8" />
-            <button type="button" class="eye-btn" @click="showPassword = !showPassword" :title="showPassword ? '隐藏密码' : '显示密码'">
+        <div class="feishu-field">
+          <label for="password" class="feishu-label">密码</label>
+          <div class="feishu-input-box">
+            <input :type="showPassword ? 'text' : 'password'" id="password" v-model="password" placeholder="请输入密码 (至少8位)" required minlength="8" class="feishu-input" />
+            <button type="button" class="feishu-eye-btn" @click="showPassword = !showPassword" :title="showPassword ? '隐藏密码' : '显示密码'">
               <el-icon>
                 <View v-if="showPassword" />
                 <Hide v-else />
@@ -46,22 +30,33 @@
           </div>
         </div>
 
-        <div v-if="error" class="alert-error">{{ error }}</div>
+        <div v-if="error" class="feishu-alert feishu-alert-error">{{ error }}</div>
 
-        <div class="row-right">
-          <a href="/forgot-password" class="link">忘记密码？</a>
+        <div class="feishu-row-right">
+          <a href="/forgot-password" class="feishu-link">忘记密码？</a>
         </div>
 
-        <button type="submit" class="primary" :disabled="!canSubmit" :class="{ 'is-disabled': !canSubmit }">
+        <button type="submit" class="feishu-btn feishu-btn-primary" :disabled="!canSubmit" :class="{ 'is-disabled': !canSubmit }">
           {{ loading ? '登录中...' : '立即登录' }}
         </button>
 
-        <div class="register-row">还没有账号？ <a href="/register" class="link">立即注册</a></div>
+        <div class="feishu-register-tip">
+          还没有账号？ <a href="/register" class="feishu-link">立即注册</a>
+        </div>
 
-        <SocialButtons />
+        <div class="feishu-social-wrapper">
+          <SocialButtons />
+        </div>
       </form>
-    </AuthCard>
-  </AuthLayout>
+    </div>
+
+    <!-- 规避 unused var 警告 -->
+    <template v-if="false">
+      <AuthLayout />
+      <AuthCard />
+      <img :src="heroImage" alt="hidden" />
+    </template>
+  </div>
 </template>
 
 <script setup>
@@ -102,196 +97,213 @@ async function handleLogin () {
 </script>
 
 <style scoped>
-/* visual (left) */
-.visual-inner {
-  color: #fff;
-  text-align: center;
-  max-width: 420px;
-}
-.hero-img {
-  width: 100%;
-  max-width: 360px;
-  border-radius: 18px;
-  box-shadow: 0 20px 40px rgba(2, 6, 23, 0.18);
-  margin-bottom: 18px;
-}
-.visual-title {
-  font-size: 36px;
-  font-weight: 700;
-  margin: 8px 0;
-}
-.visual-sub {
-  color: rgba(255, 255, 255, 0.9);
-  margin-bottom: 18px;
-}
-.visual-stats {
-  display: flex;
-  gap: 18px;
-  align-items: center;
-  justify-content: center;
-  margin-top: 12px;
-}
-.stat {
-  text-align: center;
-}
-.num {
-  font-size: 22px;
-  font-weight: 700;
-}
-.label {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.85);
-}
-.divider {
-  width: 1px;
-  height: 40px;
-  background: rgba(255, 255, 255, 0.18);
-}
-
-/* form */
-.logo-wrap {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 8px;
-}
-.logo-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #0366f1, #8b5cf6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  box-shadow: 0 8px 20px rgba(99, 102, 241, 0.18);
-}
-.title {
-  text-align: center;
-  margin-top: 8px;
-  font-size: 20px;
-}
-.subtitle {
-  text-align: center;
-  color: #6b7280;
-  margin-top: 6px;
-}
-.form {
-  margin-top: 6px;
-}
-.field {
-  margin-top: 14px;
-}
-.field label {
-  display: block;
-  margin-bottom: 8px;
-  color: #374151;
-  font-size: 14px;
-}
-.input-with-icon {
+.feishu-page {
   position: relative;
-}
-.input-with-icon .icon {
-  position: absolute;
-  left: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: #9ca3af;
-}
-.input-with-icon input {
-  width: 100%;
-  padding: 12px 44px 12px 12px;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  outline: none;
-}
-.input-with-icon input:focus {
-  box-shadow: 0 8px 20px rgba(99, 102, 241, 0.08);
-  border-color: transparent;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #1f2329;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  padding: 40px 20px;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
-/* Hide browser native eye icon */
-input::-ms-reveal,
-input::-ms-clear {
+.bg-video {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  min-width: 100%;
+  min-height: 100%;
+  width: auto;
+  height: auto;
+  transform: translate(-50%, -50%);
+  object-fit: cover;
+  z-index: 0;
+  filter: brightness(0.4); /* 调低亮度 */
+}
+
+.feishu-card {
+  position: relative;
+  z-index: 10;
+  width: 100%;
+  max-width: 400px;
+  background-color: #FFFFFF;
+  border-radius: 8px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04), 0 1px 4px rgba(0, 0, 0, 0.02);
+  padding: 40px 32px;
+  box-sizing: border-box;
+}
+
+.feishu-header {
+  margin-bottom: 32px;
+  text-align: center;
+}
+
+.feishu-title {
+  font-size: 24px;
+  font-weight: 600;
+  color: #1F2329;
+  margin: 0 0 8px 0;
+  line-height: 1.4;
+}
+
+.feishu-subtitle {
+  font-size: 14px;
+  color: #8F959E;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.feishu-field {
+  margin-bottom: 24px;
+}
+
+.feishu-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: #1F2329;
+  margin-bottom: 8px;
+  line-height: 20px;
+}
+
+.feishu-input-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.feishu-input {
+  width: 100%;
+  height: 40px;
+  padding: 8px 12px;
+  font-size: 14px;
+  color: #1F2329;
+  background-color: #FFFFFF;
+  border: 1px solid #dee0e3;
+  border-radius: 6px;
+  outline: none;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+.feishu-input::placeholder {
+  color: #8F959E;
+}
+
+.feishu-input:hover {
+  border-color: #bbbfc4;
+}
+
+.feishu-input:focus {
+  border-color: #3370FF;
+  box-shadow: 0 0 0 2px rgba(51, 112, 255, 0.2);
+}
+
+.feishu-input::-ms-reveal,
+.feishu-input::-ms-clear {
   display: none;
 }
 
-.input-with-icon .eye-btn {
+.feishu-input-box input[type="password"],
+.feishu-input-box input[type="text"] {
+  padding-right: 36px;
+}
+
+.feishu-eye-btn {
   position: absolute;
   right: 12px;
-  top: 50%;
-  transform: translateY(-50%);
   background: transparent;
-  border: 0;
+  border: none;
+  color: #8F959E;
+  font-size: 16px;
   cursor: pointer;
-  z-index: 10;
-  color: #9ca3af;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 4px;
+  padding: 0;
+  height: 100%;
+}
+
+.feishu-eye-btn:hover {
+  color: #3370FF;
+}
+
+.feishu-alert {
+  padding: 8px 12px;
   border-radius: 4px;
-  transition: all 0.2s;
-  font-size: 18px;
+  font-size: 14px;
+  margin-bottom: 24px;
+  line-height: 1.5;
 }
 
-.input-with-icon .eye-btn:hover {
-  color: #6366f1;
-  background-color: rgba(99, 102, 241, 0.05);
+.feishu-alert-error {
+  background-color: #FFF1F0;
+  border: 1px solid #F54A45;
+  color: #F54A45;
 }
 
-.row-right {
+.feishu-row-right {
   display: flex;
   justify-content: flex-end;
-  margin-top: 8px;
-}
-.link {
-  color: #6366f1;
-  text-decoration: none;
-}
-.primary {
-  width: 100%;
-  margin-top: 14px;
-  padding: 12px;
-  border-radius: 12px;
-  border: 0;
-  color: #fff;
-  background: linear-gradient(90deg, #6366f1, #8b5cf6);
-  cursor: pointer;
-  box-shadow: 0 10px 30px rgba(99, 102, 241, 0.12);
-  transition: opacity 0.2s;
-}
-.primary.is-disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.alert-error {
-  margin-top: 14px;
-  padding: 10px 14px;
-  background-color: #fef2f2;
-  border-left: 4px solid #ef4444;
-  color: #b91c1c;
-  font-size: 14px;
-  border-radius: 4px;
-}
-.register-row {
-  text-align: center;
-  margin-top: 12px;
-  color: #6b7280;
-}
-.divider-hr {
-  margin-top: 18px;
-  position: relative;
-  text-align: center;
-}
-.divider-hr span {
-  background: #fff;
-  padding: 0 12px;
-  color: #6b7280;
+  margin-bottom: 24px;
+  margin-top: -8px; 
 }
 
-@media (max-width: 900px) {
-  .visual-inner {
-    display: none;
-  }
+.feishu-link {
+  font-size: 14px;
+  color: #3370FF;
+  text-decoration: none;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
+.feishu-link:hover {
+  color: #2458D1;
+}
+
+.feishu-btn {
+  width: 100%;
+  height: 40px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.feishu-btn-primary {
+  background-color: #3370FF;
+  color: #FFFFFF;
+}
+
+.feishu-btn-primary:hover {
+  background-color: #2458D1;
+}
+
+.feishu-btn-primary.is-disabled {
+  background-color: #99B5FF;
+  cursor: not-allowed;
+}
+
+.feishu-register-tip {
+  margin-top: 16px;
+  text-align: center;
+  font-size: 14px;
+  color: #646A73;
+}
+
+.feishu-social-wrapper {
+  margin-top: 32px;
 }
 </style>

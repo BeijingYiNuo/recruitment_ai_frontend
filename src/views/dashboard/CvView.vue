@@ -171,8 +171,8 @@
                         <span class="main-title">{{ proj.project_name }}</span>
                         <span class="item-date">{{ formatDateRange(proj.start_date, proj.end_date) }}</span>
                       </div>
-                      <div class="item-sub">
-                        <span class="role-text">{{ proj.role || '参与者' }}</span>
+                      <div class="item-sub" v-if="proj.role">
+                        <span class="role-text">{{ proj.role }}</span>
                       </div>
                       <div class="item-desc" v-if="proj.description">
                         {{ proj.description }}
@@ -511,12 +511,18 @@ const handleFetchSpecialInDrawer = async (type, titleName) => {
     if (type === 'educations') {
       data = await resumeApi.getResumeEducations(currentDetail.value.id)
       const list = Array.isArray(data) ? data : []
-      specialEduList.value = list.sort((a, b) => new Date(b.end_date) - new Date(a.end_date))
+      // 过滤掉无核心内容的记录
+      specialEduList.value = list
+        .filter(e => e.school_name || e.major)
+        .sort((a, b) => new Date(b.end_date) - new Date(a.end_date))
     }
     else if (type === 'work-experiences') {
       data = await resumeApi.getResumeWorkExperiences(currentDetail.value.id)
       const list = Array.isArray(data) ? data : []
-      specialWorkList.value = list.sort((a, b) => new Date(b.end_date) - new Date(a.end_date))
+      // 过滤掉无核心内容的记录
+      specialWorkList.value = list
+        .filter(w => w.company_name || w.position)
+        .sort((a, b) => new Date(b.end_date) - new Date(a.end_date))
     }
     else if (type === 'skills') {
       data = await resumeApi.getResumeSkills(currentDetail.value.id)
@@ -525,7 +531,10 @@ const handleFetchSpecialInDrawer = async (type, titleName) => {
     else if (type === 'projects') {
       data = await resumeApi.getResumeProjects(currentDetail.value.id)
       const list = Array.isArray(data) ? data : []
-      specialProjectList.value = list.sort((a, b) => new Date(b.end_date) - new Date(a.end_date))
+      // 过滤掉无核心内容的记录（项目名、描述、角色均为空）
+      specialProjectList.value = list
+        .filter(p => p.project_name || p.description || p.role)
+        .sort((a, b) => new Date(b.end_date) - new Date(a.end_date))
     }
 
     specialDataStr.value = JSON.stringify(data, null, 2)

@@ -19,7 +19,10 @@
         class="segment-block"
         :class="getSpeakerClass(segment.speakerId)"
       >
-        <div class="speaker-label">{{ getSpeakerName(segment.speakerId) }}</div>
+        <div class="speaker-label-row">
+          <span class="speaker-label">{{ getSpeakerName(segment.speakerId) }}</span>
+          <span class="segment-timestamp" v-if="segment.timestamp">{{ segment.timestamp }}</span>
+        </div>
         <p class="segment-text">{{ segment.text }}</p>
       </div>
 
@@ -29,7 +32,10 @@
         class="segment-block live"
         :class="getSpeakerClass(liveSpeakerId)"
       >
-        <div class="speaker-label">{{ getSpeakerName(liveSpeakerId) }}</div>
+        <div class="speaker-label-row">
+          <span class="speaker-label">{{ getSpeakerName(liveSpeakerId) }}</span>
+          <span class="segment-timestamp live-timestamp">now</span>
+        </div>
         <p class="segment-text">{{ liveText }}<span v-if="isListening" class="typing-cursor"></span></p>
       </div>
 
@@ -47,6 +53,7 @@ import { useScrollToBottom } from '../../composables/useScrollToBottom'
 export type AsrSegment = {
   text: string
   speakerId: string | null
+  timestamp?: string
 }
 
 const props = defineProps<{
@@ -164,10 +171,28 @@ watch(() => props.asrSegments?.length, scrollToBottom)
   opacity: 0.85;
 }
 
+.speaker-label-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
 .speaker-label {
   font-size: 12px;
   font-weight: 600;
-  margin-bottom: 4px;
+}
+
+.segment-timestamp {
+  font-size: 11px;
+  font-weight: 400;
+  color: #94a3b8;
+  letter-spacing: 0.3px;
+}
+
+.segment-timestamp.live-timestamp {
+  color: #f54a45;
+  font-style: italic;
 }
 
 .segment-text {

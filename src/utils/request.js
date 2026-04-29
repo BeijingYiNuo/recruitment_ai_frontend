@@ -32,32 +32,22 @@ request.interceptors.response.use(
       
       // 401: Token 失效、过期或未授权
       if (status === 401) {
-        console.error('[Axios Response] 401 Unauthorized detected.')
-        console.error('Error detail:', data)
-        console.warn('Clearing local storage and redirecting to login...')
+        console.error('[Axios Response] 401 Unauthorized detected.', data)
         
-        // 1. 清理本地数据
+        // 1. 彻底清理本地登录凭证
         localStorage.removeItem('token')
         localStorage.removeItem('user')
         
-        // 2. 避免在登录页重复提示和跳转
-        const currentPath = router.currentRoute.value.path
-        if (currentPath !== '/login') {
-          ElMessage.error(data?.detail || data?.message || '登录已过期，请重新登录')
+        // 2. 避免在已经是登录页时陷入无限死循环跳转
+        if (window.location.pathname !== '/login') {
+          // 只提示核心信息
+          ElMessage.error(data?.detail || data?.message || '登录已失效，系统即将返回登录页...')
           
-          // 尝试使用 router 跳转
-          router.push('/login').catch(err => {
-            console.error('Router push failed, falling back to window.location:', err)
-            window.location.href = '/login'
-          })
-          
-          // 如果 1 秒后还在当前路径，强制跳转（双重保险）
+          // 3. 放弃会导致遮罩卡死、并发拦截失败的 router.push 软跳转
+          // 直接下达底层页面重定向指令，确保能暴力粉碎所有的弹窗（ElDialog）和 DOM 锁定状态
           setTimeout(() => {
-            if (window.location.pathname !== '/login') {
-              console.warn('Redirect sticky, forcing window.location.href')
-              window.location.href = '/login'
-            }
-          }, 1000)
+            window.location.href = '/login'
+          }, 500)
         }
       } 
       // 403: 权限不足

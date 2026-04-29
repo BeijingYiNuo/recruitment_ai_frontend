@@ -16,6 +16,20 @@
       <el-button size="medium" type="primary" @click="$emit('startAsr')" :disabled="isAsrActive">开始面试</el-button>
       
       <el-button 
+        v-if="isAsrActive && !isPaused"
+        size="medium" 
+        type="warning" 
+        @click="$emit('pauseInterview')"
+      >暂停面试</el-button>
+
+      <el-button 
+        v-if="isAsrActive && isPaused"
+        size="medium" 
+        type="success" 
+        @click="$emit('resumeInterview')"
+      >恢复面试</el-button>
+      
+      <el-button 
         v-if="!isRecording"
         size="medium" 
         type="warning" 
@@ -56,6 +70,7 @@ defineProps<{
   info: InterviewStatus
   isAsrActive?: boolean
   isRecording?: boolean
+  isPaused?: boolean
 }>()
 </script>
 

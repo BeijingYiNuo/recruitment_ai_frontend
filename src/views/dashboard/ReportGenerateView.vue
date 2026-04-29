@@ -15,85 +15,21 @@
       <div class="report-content">
 
         <el-row :gutter="24">
-          <el-col :span="10">
-            <!-- 步骤 1：上传docx生成面试报告 -->
+          <el-col :span="24">
+            <!-- 上传文件并生成报告 -->
             <div class="section-card" style="height: 100%; box-sizing: border-box;">
-              <h2 class="section-title">1. 上传docx生成面试报告</h2>
-
-              <el-form label-width="130px" label-position="right">
-                <el-form-item label="模板 DOCX 文件" required>
-                  <div style="display: flex; align-items: center; gap: 12px; width: 100%;">
-                    <el-upload
-                      ref="uploadRef"
-                      :auto-upload="false"
-                      :limit="1"
-                      :on-change="handleFileChange"
-                      :on-remove="handleFileRemove"
-                      accept=".docx,.doc"
-                      class="inline-upload"
-                    >
-                      <el-button size="default">选择文件</el-button>
-                    </el-upload>
-                    <span v-if="selectedFile" class="file-name">{{ selectedFile.name }}</span>
-                  </div>
-                  <div style="font-size: 13px; color: #e6a23c; margin-top: 4px; line-height: 1.4; width: 100%;">提示：请上传docx文件</div>
-                </el-form-item>
-
-                <el-form-item>
-                  <el-button
-                    type="primary"
-                    class="generate-btn"
-                    style="width: 200px; margin-bottom: 0px;"
-                    :loading="isGenerating"
-                    :disabled="!selectedFile"
-                    @click="handleGenerate"
-                  >
-                    {{ isGenerating ? '生成中...' : '生成面试报告' }}
-                  </el-button>
-                  <div class="hint-text" style="width: 100%; margin-top: 8px;">生成过程将通过服务器流式返回报告内容。</div>
-                </el-form-item>
-              </el-form>
-
-              <!-- 流式输出区域 -->
-              <div v-if="markdownOutput" class="output-area" ref="outputAreaRef">
-                <pre class="markdown-output">{{ markdownOutput }}</pre>
-              </div>
-
-              <!-- 保存按钮 -->
-              <div style="display: flex; justify-content: flex-end;" v-if="markdownOutput && !isGenerating">
-                <el-button
-                  type="primary"
-                  class="save-btn"
-                  style="width: 160px;"
-                  @click="handleSaveMd"
-                >
-                  保存为 MD
-                </el-button>
-              </div>
-            </div>
-          </el-col>
-
-          <el-col :span="14">
-            <!-- 步骤 2：上传文件并生成报告 -->
-            <div class="section-card" style="height: 100%; box-sizing: border-box;">
-              <h2 class="section-title">2. 上传文件并生成报告</h2>
+              <h2 class="section-title">上传文件并生成报告</h2>
 
               <el-form label-width="160px" label-position="right">
                 <el-row :gutter="24">
                   <el-col :span="12">
                     <el-form-item label="模板 DOCX (可选)">
                       <div style="display: flex; align-items: center; gap: 12px; width: 100%;">
-                        <el-upload
-                          :auto-upload="false"
-                          :limit="1"
-                          :on-change="(f) => handleReportFile('templateDocx', f)"
-                          :on-remove="() => handleReportFileRemove('templateDocx')"
-                          accept=".docx,.doc"
-                          class="inline-upload"
-                        >
-                          <el-button size="default">选择文件</el-button>
-                        </el-upload>
-                        <span v-if="reportFiles.templateDocx" class="file-name">{{ reportFiles.templateDocx.name }}</span>
+                        <el-button size="default" plain @click="openFileSelector('templateDocx')">从文件库选择</el-button>
+                        <template v-if="reportFiles.templateDocx">
+                          <span class="file-name" :title="reportFiles.templateDocx.name">{{ reportFiles.templateDocx.name }}</span>
+                          <el-button link type="danger" @click="() => handleReportFileRemove('templateDocx')" style="flex-shrink: 0;">取消选择</el-button>
+                        </template>
                       </div>
                     </el-form-item>
                   </el-col>
@@ -101,17 +37,11 @@
                   <el-col :span="12">
                     <el-form-item label="template.md (可选)">
                       <div style="display: flex; align-items: center; gap: 12px; width: 100%;">
-                        <el-upload
-                          :auto-upload="false"
-                          :limit="1"
-                          :on-change="(f) => handleReportFile('templateMd', f)"
-                          :on-remove="() => handleReportFileRemove('templateMd')"
-                          accept=".md,.txt"
-                          class="inline-upload"
-                        >
-                          <el-button size="default">选择文件</el-button>
-                        </el-upload>
-                        <span v-if="reportFiles.templateMd" class="file-name">{{ reportFiles.templateMd.name }}</span>
+                        <el-button size="default" plain @click="openFileSelector('templateMd')">从文件库选择</el-button>
+                        <template v-if="reportFiles.templateMd">
+                          <span class="file-name" :title="reportFiles.templateMd.name">{{ reportFiles.templateMd.name }}</span>
+                          <el-button link type="danger" @click="() => handleReportFileRemove('templateMd')" style="flex-shrink: 0;">取消选择</el-button>
+                        </template>
                       </div>
                     </el-form-item>
                   </el-col>
@@ -119,17 +49,11 @@
                   <el-col :span="12">
                     <el-form-item label="jd.md (可选)">
                       <div style="display: flex; align-items: center; gap: 12px; width: 100%;">
-                        <el-upload
-                          :auto-upload="false"
-                          :limit="1"
-                          :on-change="(f) => handleReportFile('jdMd', f)"
-                          :on-remove="() => handleReportFileRemove('jdMd')"
-                          accept=".md,.txt"
-                          class="inline-upload"
-                        >
-                          <el-button size="default">选择文件</el-button>
-                        </el-upload>
-                        <span v-if="reportFiles.jdMd" class="file-name">{{ reportFiles.jdMd.name }}</span>
+                        <el-button size="default" plain @click="openFileSelector('jdMd')">从文件库选择</el-button>
+                        <template v-if="reportFiles.jdMd">
+                          <span class="file-name" :title="reportFiles.jdMd.name">{{ reportFiles.jdMd.name }}</span>
+                          <el-button link type="danger" @click="() => handleReportFileRemove('jdMd')" style="flex-shrink: 0;">取消选择</el-button>
+                        </template>
                       </div>
                     </el-form-item>
                   </el-col>
@@ -137,17 +61,11 @@
                   <el-col :span="12">
                     <el-form-item label="resume.md (可选)">
                       <div style="display: flex; align-items: center; gap: 12px; width: 100%;">
-                        <el-upload
-                          :auto-upload="false"
-                          :limit="1"
-                          :on-change="(f) => handleReportFile('resumeMd', f)"
-                          :on-remove="() => handleReportFileRemove('resumeMd')"
-                          accept=".md,.txt"
-                          class="inline-upload"
-                        >
-                          <el-button size="default">选择文件</el-button>
-                        </el-upload>
-                        <span v-if="reportFiles.resumeMd" class="file-name">{{ reportFiles.resumeMd.name }}</span>
+                        <el-button size="default" plain @click="openFileSelector('resumeMd')">从文件库选择</el-button>
+                        <template v-if="reportFiles.resumeMd">
+                          <span class="file-name" :title="reportFiles.resumeMd.name">{{ reportFiles.resumeMd.name }}</span>
+                          <el-button link type="danger" @click="() => handleReportFileRemove('resumeMd')" style="flex-shrink: 0;">取消选择</el-button>
+                        </template>
                       </div>
                     </el-form-item>
                   </el-col>
@@ -155,17 +73,11 @@
                   <el-col :span="12">
                     <el-form-item label="transcript.md (可选)">
                       <div style="display: flex; align-items: center; gap: 12px; width: 100%;">
-                        <el-upload
-                          :auto-upload="false"
-                          :limit="1"
-                          :on-change="(f) => handleReportFile('transcriptMd', f)"
-                          :on-remove="() => handleReportFileRemove('transcriptMd')"
-                          accept=".md,.txt"
-                          class="inline-upload"
-                        >
-                          <el-button size="default">选择文件</el-button>
-                        </el-upload>
-                        <span v-if="reportFiles.transcriptMd" class="file-name">{{ reportFiles.transcriptMd.name }}</span>
+                        <el-button size="default" plain @click="openFileSelector('transcriptMd')">从文件库选择</el-button>
+                        <template v-if="reportFiles.transcriptMd">
+                          <span class="file-name" :title="reportFiles.transcriptMd.name">{{ reportFiles.transcriptMd.name }}</span>
+                          <el-button link type="danger" @click="() => handleReportFileRemove('transcriptMd')" style="flex-shrink: 0;">取消选择</el-button>
+                        </template>
                       </div>
                     </el-form-item>
                   </el-col>
@@ -228,159 +140,53 @@
         </el-row>
 
       </div>
+      
+      <!-- 文件选择弹窗 -->
+      <el-dialog v-model="fileSelectorVisible" title="选择文件" width="700px" destroy-on-close>
+        <el-table :data="serverFiles" v-loading="loadingFiles" height="400px" @row-click="handleConfirmSelection" highlight-current-row stripe>
+          <el-table-column prop="file_name" label="文件名" min-width="200" show-overflow-tooltip>
+            <template #default="{ row }">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <el-icon><Document /></el-icon>
+                <span>{{ row.file_name }}</span>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column prop="file_type" label="类型" width="100">
+            <template #default="{ row }">
+              <el-tag size="small" type="info">{{ row.file_type || '未知' }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="updated_at" label="更新时间" width="180">
+            <template #default="{ row }">
+              {{ row.updated_at ? row.updated_at.replace('T', ' ') : '-' }}
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="100" fixed="right" align="center">
+            <template #default="{ row }">
+              <el-button link type="primary" @click.stop="handleConfirmSelection(row)">选取</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+        <template #footer>
+          <span class="dialog-footer">
+            <el-button @click="fileSelectorVisible = false">取消</el-button>
+            <el-button type="danger" plain @click="clearSelection">清除当前已选</el-button>
+          </span>
+        </template>
+      </el-dialog>
+
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, nextTick } from 'vue'
+import { ref, reactive, nextTick, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import { Document, Close } from '@element-plus/icons-vue'
+import { fileApi } from '../../api/file'
 
-// ==================== LLM 配置 ====================
-// 报告生成后端所需的 LLM 参数
-const LLM_CONFIG = {
-  openai_api_key: 'sk-60153691578a4f6b97d9df84ad51a495',
-  openai_base_url: 'https://api.deepseek.com',
-  openai_model: 'deepseek-chat'
-}
-
-// ==================== 步骤 1：流式生成 template.md ====================
-
-const uploadRef = ref(null)
-const selectedFile = ref(null)
-const isGenerating = ref(false)
-const markdownOutput = ref('')
-const outputAreaRef = ref(null)
-
-const handleFileChange = (uploadFile) => {
-  console.log('[Step1] handleFileChange:', uploadFile, 'raw:', uploadFile.raw)
-  selectedFile.value = uploadFile.raw
-}
-
-const handleFileRemove = () => {
-  selectedFile.value = null
-}
-
-/**
- * 将文件读取为 Base64 字符串
- */
-const fileToBase64 = (file) => {
-  return new Promise((resolve, reject) => {
-    if (!file || !(file instanceof Blob)) {
-      reject(new Error('无效的文件对象'))
-      return
-    }
-    const reader = new FileReader()
-    reader.onload = () => {
-      // reader.result 格式为 "data:application/...;base64,XXXXX"
-      // 只取逗号后面的纯 Base64 部分
-      const base64 = reader.result.split(',')[1]
-      console.log('[fileToBase64] 转换完成, 长度:', base64?.length)
-      resolve(base64)
-    }
-    reader.onerror = (e) => {
-      console.error('[fileToBase64] 读取失败:', e)
-      reject(new Error('文件读取失败'))
-    }
-    reader.readAsDataURL(file)
-  })
-}
-
-/**
- * 将文件读取为文本
- */
-const fileToText = (file) => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(reader.result)
-    reader.onerror = reject
-    reader.readAsText(file)
-  })
-}
-
-// 流式生成 template.md - 调用 /doc2md/stream
-const handleGenerate = async () => {
-  console.log('[Step1] handleGenerate 被调用, selectedFile:', selectedFile.value)
-  if (!selectedFile.value) {
-    ElMessage.warning('请先选择一个 DOCX 模板文件')
-    return
-  }
-
-  isGenerating.value = true
-  markdownOutput.value = ''
-
-  const token = localStorage.getItem('token')
-
-  try {
-    // 将 DOCX 文件转为 Base64
-    console.log('[Step1] 开始 Base64 转换...')
-    const base64Str = await fileToBase64(selectedFile.value)
-    console.log('[Step1] Base64 转换完成, 长度:', base64Str?.length)
-
-    // 使用 fetch 进行流式请求（POST + JSON）
-    console.log('[Step1] 发送 fetch 请求到 /api/doc2md/stream ...')
-    const response = await fetch('/api/doc2md/stream', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({
-        template_docx_b64: base64Str,
-        ...LLM_CONFIG
-      })
-    })
-
-    console.log('[Step1] 收到响应, status:', response.status)
-
-    if (!response.ok) {
-      throw new Error(`服务器错误: ${response.status}`)
-    }
-
-    const reader = response.body.getReader()
-    const decoder = new TextDecoder('utf-8')
-
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-
-      const chunk = decoder.decode(value, { stream: true })
-
-      // 直接追加流式文本（纯文本流）
-      markdownOutput.value += chunk
-
-      // 自动滚动到底部
-      await nextTick()
-      if (outputAreaRef.value) {
-        outputAreaRef.value.scrollTop = outputAreaRef.value.scrollHeight
-      }
-    }
-
-    ElMessage.success('模板生成完成')
-  } catch (err) {
-    console.error('[Step1] Generate failed:', err)
-    ElMessage.error('生成失败: ' + (err.message || '网络异常'))
-  } finally {
-    isGenerating.value = false
-  }
-}
-
-// 保存为 MD 文件
-const handleSaveMd = () => {
-  if (!markdownOutput.value) return
-
-  const blob = new Blob([markdownOutput.value], { type: 'text/markdown;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = 'template.md'
-  a.click()
-  URL.revokeObjectURL(url)
-  ElMessage.success('文件已保存')
-}
-
-// ==================== 步骤 2：上传文件并生成报告 ====================
-
+// ==================== 状态定义 ====================
 const reportFiles = reactive({
   templateDocx: null,
   templateMd: null,
@@ -401,6 +207,128 @@ const baseInfo = reactive({
 const requestType = ref('docx')
 const isReportGenerating = ref(false)
 const reportJsonResult = ref('')
+
+// --- 选择文件弹窗相关 ---
+const fileSelectorVisible = ref(false)
+const loadingFiles = ref(false)
+const serverFiles = ref([])
+const currentSelectKey = ref('')
+
+const openFileSelector = async (key) => {
+  currentSelectKey.value = key
+  fileSelectorVisible.value = true
+  if (serverFiles.value.length === 0) {
+    loadingFiles.value = true
+    try {
+      const res = await fileApi.getFileList()
+      let list = res.data || []
+      list.sort((a, b) => new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime())
+      serverFiles.value = list
+    } catch (e) {
+      ElMessage.error('获取文件列表失败')
+    } finally {
+      loadingFiles.value = false
+    }
+  }
+}
+
+const handleConfirmSelection = (fileRow) => {
+  if (!fileRow) return
+  const meta = { id: fileRow.id, name: fileRow.file_name }
+  reportFiles[currentSelectKey.value] = meta
+  fileSelectorVisible.value = false
+}
+
+const clearSelection = () => {
+  reportFiles[currentSelectKey.value] = null
+  fileSelectorVisible.value = false
+}
+
+// ==================== LLM 配置 ====================
+// 报告生成后端所需的 LLM 参数
+const LLM_CONFIG = {
+  openai_api_key: 'sk-60153691578a4f6b97d9df84ad51a495',
+  openai_base_url: 'https://api.deepseek.com',
+  openai_model: 'deepseek-chat'
+}
+
+// 初始化默认文件
+const initDefaultFiles = async () => {
+  try {
+    const filesToFetch = [
+      { key: 'templateDocx', url: '/template.docx', name: 'template.docx' },
+      { key: 'templateMd', url: '/template.md', name: 'template.md' },
+      { key: 'jdMd', url: '/jd.md', name: 'jd.md' }
+    ]
+
+    for (const item of filesToFetch) {
+      const res = await fetch(item.url)
+      if (res.ok) {
+        const blob = await res.blob()
+        // 创建 File 对象以便保留文件名并在 UI 中显示
+        reportFiles[item.key] = new File([blob], item.name, { type: blob.type })
+      }
+    }
+  } catch (error) {
+    console.error('Failed to load default files:', error)
+  }
+}
+
+onMounted(() => {
+  initDefaultFiles()
+})
+
+const fetchRealBlob = async (fileObj) => {
+  if (!fileObj) return null;
+  if (fileObj instanceof Blob) return fileObj;
+  if (fileObj.id) {
+    return await fileApi.downloadFile(fileObj.id);
+  }
+  throw new Error('无效的文件对象');
+}
+
+/**
+ * 获取文件并转为 Base64 字符串
+ */
+const fileToBase64 = async (fileObj) => {
+  const file = await fetchRealBlob(fileObj);
+  return new Promise((resolve, reject) => {
+    if (!file) {
+      reject(new Error('无效的文件对象'))
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => {
+      const base64 = reader.result.split(',')[1]
+      console.log('[fileToBase64] 转换完成, 长度:', base64?.length)
+      resolve(base64)
+    }
+    reader.onerror = (e) => {
+      console.error('[fileToBase64] 读取失败:', e)
+      reject(new Error('文件读取失败'))
+    }
+    reader.readAsDataURL(file)
+  })
+}
+
+/**
+ * 获取文件并读取为文本
+ */
+const fileToText = async (fileObj) => {
+  const file = await fetchRealBlob(fileObj);
+  return new Promise((resolve, reject) => {
+    if (!file) {
+      reject(new Error('无效的文件对象'))
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result)
+    reader.onerror = reject
+    reader.readAsText(file)
+  })
+}
+
+// ==================== 逻辑处理 ====================
 
 const handleReportFile = (key, uploadFile) => {
   reportFiles[key] = uploadFile.raw

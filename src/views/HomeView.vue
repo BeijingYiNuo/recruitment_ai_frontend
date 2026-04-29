@@ -26,13 +26,13 @@
           <h1 class="hero-title">重新定义智能面试体验</h1>
           <p class="hero-subtitle">基于先进的 AI 语音识别与知识引擎，为企业级招聘提供智能化、自动化的专业面试管理解决方案。</p>
           <div class="hero-actions">
-            <el-button type="primary" size="large" class="lark-btn-primary massive-btn" @click="$router.push('/register')">
+            <el-button type="primary" size="large" class="lark-btn-primary massive-btn" @click="$router.push('/login')">
               立即开启
               <el-icon class="ml-2"><ArrowRight /></el-icon>
             </el-button>
-            <el-button size="large" class="lark-btn-ghost massive-btn" @click="$router.push('/login')">
+            <!-- <el-button size="large" class="lark-btn-ghost massive-btn" @click="$router.push('/login')">
               登录系统
-            </el-button>
+            </el-button> -->
           </div>
         </div>
       </section>

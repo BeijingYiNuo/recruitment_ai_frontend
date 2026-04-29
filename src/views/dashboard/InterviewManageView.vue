@@ -72,7 +72,7 @@
               <el-button type="success" link size="small" v-if="item.session_id && item.status !== 'completed' && item.status !== 'cancelled'" @click.stop="handleStartASR(item)">启动 ASR</el-button>
               <el-button type="primary" link size="small" v-if="item.status === 'completed'" @click.stop="handleViewReport(item)">查看面试报告</el-button>
               <el-button type="primary" link size="small" v-if="item.status !== 'completed' && item.status !== 'cancelled'" @click.stop="interviewStore.editInterview(item)">编辑</el-button>
-              <el-button type="danger" link size="small" v-if="item.status !== 'completed' && item.status !== 'cancelled'" @click.stop="handleDelete(item.id)">取消</el-button>
+              <el-button type="danger" link size="small" @click.stop="handleDelete(item.id)">删除</el-button>
             </div>
           </div>
         </div>
@@ -306,8 +306,8 @@ const handleViewDetail = async (id) => {
 
 const handleDelete = (id) => {
   ElMessageBox.confirm(
-    '是否确定要永久取消并删除该面试会话记录？',
-    '撤销警告',
+    '是否确定要永久删除该面试记录？删除后将无法恢复。',
+    '删除确认',
     {
       confirmButtonText: '确定删除',
       cancelButtonText: '取消',

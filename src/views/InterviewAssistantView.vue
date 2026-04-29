@@ -4,11 +4,14 @@
       :info="interviewInfo"
       :isAsrActive="isAsrActive"
       :isRecording="isRecording"
+      :isPaused="isPaused"
       @goBack="goBack"
       @startAsr="onStartAsr"
       @stopAsr="onStopAsr"
       @startRecording="onStartRecording"
       @stopRecording="onStopRecording"
+      @pauseInterview="onPauseInterview"
+      @resumeInterview="onResumeInterview"
       @manualFollowUp="onManualFollowUp"
       @endInterview="onEndInterview"
     />
@@ -59,6 +62,7 @@ const route = useRoute()
 const router = useRouter()
 const sessionId = route.params.id as string
 const isAsrActive = ref(false)
+const isPaused = ref(false)
 let socket: WebSocket | null = null
 let mediaStream: MediaStream | null = null
 let audioContext: any = null
@@ -79,6 +83,17 @@ let recordedChunks: Blob[] = []
 type AsrSegment = {
   text: string
   speakerId: string | null
+  timestamp: string // 该段话确认时的时间戳 HH:MM:SS
+}
+
+// 获取当前时间 HH:MM:SS 格式
+const getNowTimeStr = (): string => {
+  const now = new Date()
+  return [
+    now.getHours().toString().padStart(2, '0'),
+    now.getMinutes().toString().padStart(2, '0'),
+    now.getSeconds().toString().padStart(2, '0'),
+  ].join(':')
 }
 const currentAsrText = ref('')
 const currentSpeakerId = ref<string | null>(null)
@@ -186,6 +201,11 @@ const startAudioCapture = async () => {
     // 3. 当队列中的样本数超过 480 (30ms@16kHz) 时，切片并发送
     while (audioDataQueue.length >= 480) {
       const slice = audioDataQueue.splice(0, 480)
+      
+      if (isPaused.value) {
+        continue
+      }
+
       const pcm16Data = convertFloat32ToInt16(new Float32Array(slice))
 
       if (socket && socket.readyState === WebSocket.OPEN) {
@@ -226,10 +246,12 @@ const stopAudioCapture = () => {
 }
 
 // ========== 计时器逻辑 ==========
-const startTimer = () => {
+const startTimer = (resume = false) => {
   if (timerInterval) clearInterval(timerInterval)
-  secondsElapsed = 0
-  interviewInfo.value.timer = '00:00'
+  if (!resume) {
+    secondsElapsed = 0
+    interviewInfo.value.timer = '00:00'
+  }
   
   timerInterval = setInterval(() => {
     secondsElapsed++
@@ -438,6 +460,7 @@ onBeforeUnmount(() => {
 
 // ========== WebSocket 消息处理（核心改造：支持 speaker_id + definite） ==========
 const handleWsMessage = (event: MessageEvent | { data: string }) => {
+  if (isPaused.value) return
   try {
     const raw = typeof event.data === 'string' ? event.data : new TextDecoder().decode(event.data as ArrayBuffer)
     console.log('[WS Raw] Received:', raw.slice(0, 50) + (raw.length > 50 ? '...' : ''))
@@ -468,7 +491,7 @@ const handleWsMessage = (event: MessageEvent | { data: string }) => {
         if (lastSeg && lastSeg.speakerId === currentSpeakerId.value) {
           lastSeg.text += currentAsrText.value
         } else {
-          asrSegments.value.push({ text: currentAsrText.value, speakerId: currentSpeakerId.value })
+          asrSegments.value.push({ text: currentAsrText.value, speakerId: currentSpeakerId.value, timestamp: getNowTimeStr() })
         }
         currentAsrText.value = ''
         currentSpeakerId.value = null
@@ -482,7 +505,7 @@ const handleWsMessage = (event: MessageEvent | { data: string }) => {
         if (lastSeg && lastSeg.speakerId === speakerId) {
           lastSeg.text += text
         } else {
-          asrSegments.value.push({ text, speakerId })
+          asrSegments.value.push({ text, speakerId, timestamp: getNowTimeStr() })
         }
         currentAsrText.value = ''
         currentSpeakerId.value = null
@@ -551,6 +574,7 @@ const onStartAsr = async () => {
     streamingEvaluationMap.value = {}
 
     isAsrActive.value = true
+    isPaused.value = false
     interviewInfo.value.status = 'ASR 服务初始化中...'
     interviewInfo.value.statusColor = '#409eff'
 
@@ -646,12 +670,35 @@ const onStopAsr = async () => {
       })
     }
     isAsrActive.value = false
+    isPaused.value = false
     interviewInfo.value.status = '识别已停止'
     interviewInfo.value.statusColor = '#909399'
     ElMessage.success('ASR 识别已停止')
   } catch (err: any) {
     ElMessage.error('停止 ASR 失败: ' + (err.message || '未知错误'))
   }
+}
+
+const onPauseInterview = () => {
+  isPaused.value = true
+  interviewInfo.value.status = '面试已暂停'
+  interviewInfo.value.statusColor = '#e6a23c'
+  stopTimer()
+  if (mediaRecorder && mediaRecorder.state === 'recording') {
+    mediaRecorder.pause()
+  }
+  ElMessage.warning('面试已暂停')
+}
+
+const onResumeInterview = () => {
+  isPaused.value = false
+  interviewInfo.value.status = '持续听写中...'
+  interviewInfo.value.statusColor = '#67c23a'
+  startTimer(true)
+  if (mediaRecorder && mediaRecorder.state === 'paused') {
+    mediaRecorder.resume()
+  }
+  ElMessage.success('面试已恢复')
 }
 
 function onManualFollowUp() {
