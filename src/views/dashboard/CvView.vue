@@ -11,6 +11,7 @@
           </div>
           <div class="action-btn-group">
             <el-button type="primary" class="lark-btn-primary" @click="uploadDialogVisible = true">添加简历</el-button>
+            <el-button class="lark-btn-ghost" @click="batchDialogVisible = true">批量导入</el-button>
           </div>
         </div>
       </div>
@@ -199,6 +200,75 @@
       </transition>
     </Teleport>
 
+    <!-- 批量导入弹窗 -->
+    <el-dialog v-model="batchDialogVisible" title="批量导入简历" width="580px" @close="resetBatchForm">
+      <el-upload
+        ref="batchUploadRef"
+        class="batch-upload-area"
+        drag
+        multiple
+        :auto-upload="false"
+        :on-change="handleBatchFileChange"
+        :on-remove="handleBatchFileRemove"
+        accept=".pdf,.doc,.docx"
+        style="width: 100%;"
+      >
+        <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
+        <div class="el-upload__text">
+          拖拽多个文件到此处或 <em>点击选取</em>
+        </div>
+        <template #tip>
+          <div class="el-upload__tip">
+            支持 PDF / DOC / DOCX 格式，每份简历不超过 5MB
+          </div>
+        </template>
+      </el-upload>
+
+      <div v-if="batchFiles.length > 0" class="batch-file-list">
+        <div class="batch-list-header">
+          <span>已选择 {{ batchFiles.length }} 份简历，请填写每位候选人姓名：</span>
+        </div>
+        <div
+          v-for="(item, index) in batchFiles"
+          :key="index"
+          class="batch-file-row"
+        >
+          <span class="batch-file-index">{{ index + 1 }}.</span>
+          <el-input
+            v-model="item.candidateName"
+            :placeholder="'例如：' + autoFillName(item.file.name)"
+            class="batch-name-input"
+            size="small"
+          />
+          <span class="batch-file-name">{{ item.file.name }}</span>
+          <span class="batch-file-size">{{ formatSize(item.file.size) }}</span>
+          <el-button
+            link
+            type="danger"
+            size="small"
+            @click="removeBatchFile(index)"
+          >
+            移除
+          </el-button>
+        </div>
+      </div>
+
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="batchDialogVisible = false">取消</el-button>
+          <el-button
+            type="primary"
+            class="lark-btn-primary"
+            :loading="batchUploading"
+            :disabled="batchFiles.length === 0"
+            @click="submitBatchUpload"
+          >
+            {{ batchUploading ? `正在导入 ${batchProgress}/${batchFiles.length}` : '确认批量导入' }}
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
+
     <!-- 简历预览弹窗 -->
     <FilePreviewDialog
       v-model="previewDialogVisible"
@@ -248,7 +318,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
 import { ElMessage, ElLoading, ElMessageBox } from 'element-plus'
-import { UploadFilled, Download, Close } from '@element-plus/icons-vue'
+import { UploadFilled, Download, Close, Upload } from '@element-plus/icons-vue'
 import { getCurrentUser } from '../../services/authService'
 import { useResumeStore } from '../../stores/resumeStore'
 import { resumeApi } from '../../api/resume'
@@ -437,6 +507,121 @@ const submitUpload = () => {
       listLoading.value = false
     }
   })
+}
+
+// ====== 批量导入逻辑 ======
+const batchDialogVisible = ref(false)
+const batchUploading = ref(false)
+const batchProgress = ref(0)
+const batchUploadRef = ref(null)
+const batchFiles = ref([])
+
+const validateBatchFile = (file) => {
+  const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
+  if (!allowedTypes.includes(file.type) && !file.name.match(/\.(pdf|doc|docx)$/i)) {
+    ElMessage.error(`${file.name}: 只支持 PDF 或 Word 格式`)
+    return false
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    ElMessage.error(`${file.name}: 文件大小不能超过 5MB`)
+    return false
+  }
+  // 检查是否已添加同名文件
+  if (batchFiles.value.some(f => f.file.name === file.name)) {
+    ElMessage.warning(`${file.name} 已存在列表中`)
+    return false
+  }
+  return true
+}
+
+const handleBatchFileChange = (uploadFile) => {
+  if (!validateBatchFile(uploadFile.raw)) {
+    batchUploadRef.value?.handleRemove(uploadFile)
+    return
+  }
+  batchFiles.value.push({
+    file: uploadFile.raw,
+    candidateName: autoFillName(uploadFile.raw.name)
+  })
+}
+
+const handleBatchFileRemove = (uploadFile) => {
+  batchFiles.value = batchFiles.value.filter(f => f.file.name !== uploadFile.name)
+}
+
+const removeBatchFile = (index) => {
+  const removed = batchFiles.value[index]
+  batchFiles.value.splice(index, 1)
+  // 同步清除 el-upload 中的对应文件
+  if (batchUploadRef.value) {
+    const uploadFiles = batchUploadRef.value.uploadFiles
+    const target = uploadFiles.find(f => f.name === removed.file.name)
+    if (target) batchUploadRef.value.handleRemove(target)
+  }
+}
+
+const autoFillName = (fileName) => {
+  // 尝试从文件名提取候选人姓名：去掉扩展名和常见后缀
+  let name = fileName.replace(/\.(pdf|doc|docx)$/i, '')
+  // 去掉常见简历相关后缀
+  name = name.replace(/[-_——]*(简历|resume|个人简历|簡歷|CV)$/i, '')
+  return name.trim()
+}
+
+const formatSize = (bytes) => {
+  const kb = bytes / 1024
+  const mb = kb / 1024
+  return mb > 1 ? mb.toFixed(1) + ' MB' : kb.toFixed(0) + ' KB'
+}
+
+const resetBatchForm = () => {
+  batchFiles.value = []
+  batchProgress.value = 0
+  if (batchUploadRef.value) batchUploadRef.value.clearFiles()
+}
+
+const submitBatchUpload = async () => {
+  // 校验所有文件是否都有候选人姓名
+  const emptyNames = batchFiles.value.filter(f => !f.candidateName?.trim())
+  if (emptyNames.length > 0) {
+    ElMessage.warning(`请填写 ${emptyNames[0].file.name} 的候选人姓名`)
+    return
+  }
+
+  batchUploading.value = true
+  batchProgress.value = 0
+
+  try {
+    const files = batchFiles.value.map(item => item.file)
+    const names = batchFiles.value.map(item => item.candidateName.trim())
+    batchProgress.value = files.length
+
+    const results = await resumeApi.batchUploadResumes(currentUser.value.id, files, names)
+    const list = Array.isArray(results) ? results : []
+
+    const successCount = list.filter(r => r.success !== false).length
+    const failCount = list.filter(r => r.success === false).length
+
+    // 显示单个失败详情
+    for (const r of list) {
+      if (r.success === false && r.error) {
+        ElMessage.error(`${r.filename} 导入失败: ${r.error}`)
+      }
+    }
+
+    if (successCount > 0) {
+      ElMessage.success(`批量导入完成：成功 ${successCount} 份，失败 ${failCount} 份`)
+      batchDialogVisible.value = false
+      fetchResumes()
+    } else {
+      ElMessage.error('批量导入全部失败')
+    }
+  } catch (error) {
+    const msg = error?.detail || error?.message || '未知错误'
+    ElMessage.error('批量导入失败: ' + (typeof msg === 'string' ? msg : JSON.stringify(msg)))
+  } finally {
+    batchUploading.value = false
+  }
 }
 
 // Custom Drawer logic
@@ -981,5 +1166,62 @@ const onPreviewClose = () => {
   align-items: center;
 }
 
+
+/* ====== 批量导入样式 ====== */
+.batch-upload-area {
+  margin-bottom: 16px;
+}
+
+.batch-file-list {
+  border: 1px solid #dee0e3;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.batch-list-header {
+  padding: 10px 16px;
+  background: #f5f6f7;
+  font-size: 13px;
+  color: #646a73;
+  border-bottom: 1px solid #dee0e3;
+}
+
+.batch-file-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 13px;
+}
+.batch-file-row:last-child {
+  border-bottom: none;
+}
+
+.batch-file-index {
+  color: #8f959e;
+  font-weight: 500;
+  min-width: 24px;
+}
+
+.batch-name-input {
+  width: 140px;
+  flex-shrink: 0;
+}
+
+.batch-file-name {
+  flex: 1;
+  color: #1f2329;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.batch-file-size {
+  color: #8f959e;
+  white-space: nowrap;
+  min-width: 50px;
+  text-align: right;
+}
 
 </style>

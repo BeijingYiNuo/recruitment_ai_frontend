@@ -19,14 +19,15 @@
           <el-icon><Document /></el-icon>
           <span>简历管理</span>
         </el-menu-item>
+        <el-menu-item index="/dashboard/resume-review">
+          <el-icon><Select /></el-icon>
+          <span>简历审核</span>
+        </el-menu-item>
         <el-menu-item index="/dashboard/interview-manage">
           <el-icon><ChatLineRound /></el-icon>
           <span>面试管理</span>
         </el-menu-item>
-        <el-menu-item index="/dashboard/appointment">
-          <el-icon><Calendar /></el-icon>
-          <span>约见安排</span>
-        </el-menu-item>
+        <!-- 约见安排已合并到首页中 -->
         <el-menu-item index="/dashboard/users">
           <el-icon><User /></el-icon>
           <span>用户管理</span>
@@ -42,6 +43,10 @@
         <el-menu-item index="/dashboard/report-generate">
           <el-icon><Notebook /></el-icon>
           <span>面试报告生成</span>
+        </el-menu-item>
+        <el-menu-item index="/dashboard/positions">
+          <el-icon><Setting /></el-icon>
+          <span>岗位设置</span>
         </el-menu-item>
         <!-- <el-menu-item index="" disabled>
           <el-icon><DataLine /></el-icon>
@@ -105,7 +110,7 @@ import { getCurrentUser } from '../services/authService'
 import authService from '../services/authService'
 import { authApi } from '../api/auth'
 import {
-  House, Document, User, ChatLineRound, Calendar, DataLine, Setting, Search, Bell, ArrowDown, DocumentCopy, Folder, Notebook
+  House, Document, User, ChatLineRound, ArrowDown, DocumentCopy, Folder, Notebook, Select, Setting
 } from '@element-plus/icons-vue'
 
 const router = useRouter()
@@ -152,11 +157,12 @@ const pageTitleMap = {
   '/dashboard/home': '首页',
   '/dashboard/cv': '简历管理',
   '/dashboard/interview-manage': '面试管理',
-  '/dashboard/appointment': '约见安排',
   '/dashboard/users': '用户管理',
   '/dashboard/knowledge-base': '知识库管理',
   '/dashboard/file-manager': '文件管理',
-  '/dashboard/report-generate': '面试报告生成'
+  '/dashboard/report-generate': '面试报告生成',
+  '/dashboard/positions': '岗位设置',
+  '/dashboard/resume-review': '简历审核'
 }
 const currentPageTitle = computed(() => {
   if (route.path.startsWith('/dashboard/knowledge-base')) {
@@ -220,6 +226,7 @@ const handleLogout = () => {
         font-size: 18px;
         margin-right: 12px;
       }
+
 
       &.is-active {
         background-color: #eef2fe !important;

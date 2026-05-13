@@ -1,185 +1,318 @@
 <template>
   <div class="dashboard-home">
-    <!-- 欢迎卡片 -->
+    <!-- Welcome Card -->
     <el-card class="welcome-card" shadow="never">
       <div class="card-content">
         <div class="welcome-left">
           <h2>欢迎回来，{{ currentUser?.username || '管理员' }}</h2>
-          <p>招聘管理系统 — 快速入口</p>
+          <p>{{ todayStr }} · 招聘管理系统</p>
         </div>
-        <!-- <div class="welcome-right">
-          <el-button @click="triggerResumeUpload">上传简历</el-button>
-          <el-button type="primary" @click="interviewStore.openModal('online')">新增线上面试</el-button>
-          <el-button @click="interviewStore.openModal('offline')">新增线下面试</el-button>
-          <el-button @click="router.push('/profile')">进入个人中心</el-button>
-          <input type="file" ref="resumeInput" style="display: none" accept=".pdf,.doc,.docx" @change="handleResumeUpload" />
-        </div> -->
       </div>
     </el-card>
 
-    <!-- 面试表单弹窗 -->
-    <InterviewFormDialog
-      v-model:visible="interviewStore.showModal"
-      :is-edit-mode="interviewStore.isEditMode"
-      :form="interviewStore.interviewForm"
-      :resumes="resumeStore.resumes"
-      @save="handleSaveInterview"
-    />
+    <!-- Stats Cards -->
+    <div class="stats-grid" v-loading="statsLoading">
+      <div class="stat-card">
+        <div class="stat-icon total"><el-icon><Document /></el-icon></div>
+        <div class="stat-info">
+          <span class="stat-value">{{ stats.totalResumes }}</span>
+          <span class="stat-label">总体简历数</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon pending-review"><el-icon><Edit /></el-icon></div>
+        <div class="stat-info">
+          <span class="stat-value">{{ stats.pendingReview }}</span>
+          <span class="stat-label">待审阅简历</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon pending-interview"><el-icon><Timer /></el-icon></div>
+        <div class="stat-info">
+          <span class="stat-value">{{ stats.pendingInterview }}</span>
+          <span class="stat-label">待面试人数</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon pending-decision"><el-icon><QuestionFilled /></el-icon></div>
+        <div class="stat-info">
+          <span class="stat-value">{{ stats.pendingDecision }}</span>
+          <span class="stat-label">待决策人数</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon today"><el-icon><Calendar /></el-icon></div>
+        <div class="stat-info">
+          <span class="stat-value">{{ stats.todayInterviews }}</span>
+          <span class="stat-label">今日面试</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon completed"><el-icon><CircleCheck /></el-icon></div>
+        <div class="stat-info">
+          <span class="stat-value">{{ stats.completedInterviews }}</span>
+          <span class="stat-label">已面试场次</span>
+        </div>
+      </div>
+    </div>
 
-    <!-- 简历详情弹窗 -->
-    <ResumeDetailModal
-      :resume="resumeStore.selectedResume"
-      @close="resumeStore.clearSelection()"
-    />
+    <!-- Calendar Section -->
+    <el-card class="calendar-card" shadow="never">
+      <div class="calendar-header">
+        <h3>约见安排</h3>
+        <span class="header-tip">仅预览已预约的面试时间段</span>
+      </div>
+      <div v-loading="calendarLoading" class="calendar-body">
+        <el-empty v-if="!calendarLoading && interviewList.length === 0" description="暂无已预约面试安排" style="padding: 40px 0" />
+        <div v-else style="min-height: 600px;">
+          <InterviewCalendar
+            :interviews="interviewList"
+            :read-only="true"
+            :disable-past-selection="false"
+            :hour-height="45"
+          />
+        </div>
+      </div>
+    </el-card>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import { authApi } from '../../api/auth'
+import { ref, reactive, onMounted } from 'vue'
+import { resumeApi } from '../../api/resume'
+import { interviewApi } from '../../api/interview'
 import { getCurrentUser } from '../../services/authService'
-import { useResumeStore } from '../../stores/resumeStore'
-import { useInterviewStore } from '../../stores/interviewStore'
-import InterviewFormDialog from '../../components/InterviewFormDialog.vue'
-import ResumeDetailModal from '../../components/ResumeDetailModal.vue'
+import InterviewCalendar from '../../components/calendar/InterviewCalendar.vue'
+import {
+  Document, Edit, Timer, QuestionFilled, Calendar, CircleCheck
+} from '@element-plus/icons-vue'
 
-const router = useRouter()
 const currentUser = ref(getCurrentUser() || { id: 1, username: '管理员' })
+const statsLoading = ref(false)
+const calendarLoading = ref(false)
+const interviewList = ref([])
+const todayStr = ref('')
+
+const stats = reactive({
+  totalResumes: 0,
+  pendingReview: 0,
+  pendingInterview: 0,
+  pendingDecision: 0,
+  todayInterviews: 0,
+  completedInterviews: 0
+})
+
+function formatDate(d) {
+  const dt = d || new Date()
+  const weekdays = ['日', '一', '二', '三', '四', '五', '六']
+  const m = String(dt.getMonth() + 1).padStart(2, '0')
+  const day = String(dt.getDate()).padStart(2, '0')
+  return `${dt.getFullYear()}-${m}-${day} 星期${weekdays[dt.getDay()]}`
+}
+
+async function fetchStats() {
+  statsLoading.value = true
+  try {
+    // Parallel fetch all data
+    const [allResumes, pendingResumes, pendingDecResumes, sessions] = await Promise.all([
+      resumeApi.getResumes(0, 1000).catch(() => null),
+      resumeApi.getResumes(0, 1000, 'null').catch(() => null),
+      resumeApi.getResumes(0, 1000, 'PENDING').catch(() => null),
+      interviewApi.getUserInterviewSessions(currentUser.value.id).catch(() => null),
+    ])
+
+    const allList = Array.isArray(allResumes) ? allResumes : (allResumes?.data || [])
+    const pendingList = Array.isArray(pendingResumes) ? pendingResumes : (pendingResumes?.data || [])
+    const pendingDecList = Array.isArray(pendingDecResumes) ? pendingDecResumes : (pendingDecResumes?.data || [])
+    const sessionList = Array.isArray(sessions) ? sessions : (sessions?.data || [])
+
+    stats.totalResumes = allList.length
+    stats.pendingReview = pendingList.length
+    stats.pendingDecision = pendingDecList.length
+
+    // Count interview stats
+    const now = new Date()
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const todayEnd = new Date(todayStart.getTime() + 86400000)
+
+    let pendingInterview = 0
+    let todayCount = 0
+    let completedCount = 0
+
+    for (const s of sessionList) {
+      if (s.status === 'scheduled') {
+        pendingInterview++
+        const startTime = new Date(s.scheduled_start_at?.replace('T', ' ') || s.scheduled_start_at)
+        if (startTime >= todayStart && startTime < todayEnd) {
+          todayCount++
+        }
+      }
+      if (s.status === 'completed' || s.status === 'ongoing') {
+        completedCount++
+      }
+    }
+
+    stats.pendingInterview = pendingInterview
+    stats.todayInterviews = todayCount
+    stats.completedInterviews = completedCount
+  } catch (e) {
+    console.error('Failed to fetch stats:', e)
+  } finally {
+    statsLoading.value = false
+  }
+}
+
+async function fetchInterviewSchedules() {
+  calendarLoading.value = true
+  try {
+    const data = await interviewApi.getUserInterviewSessions(currentUser.value.id)
+    interviewList.value = Array.isArray(data) ? data : (data.items || data.data || [])
+  } catch (error) {
+    console.error('Failed to fetch schedules:', error)
+  } finally {
+    calendarLoading.value = false
+  }
+}
 
 onMounted(async () => {
-  if (currentUser.value?.id) {
-    try {
-      const res = await authApi.getUserProfile(currentUser.value.id)
-      let data = Array.isArray(res) && res.length > 0 ? res[0] : (!Array.isArray(res) ? res : null)
-      if (data && data.username) {
-        currentUser.value.username = data.username
-      }
-    } catch (e) {
-      console.error('Failed to fetch user profile:', e)
-    }
-  }
+  todayStr.value = formatDate(new Date())
+  await Promise.all([fetchStats(), fetchInterviewSchedules()])
 })
-const resumeInput = ref(null)
-const resumeStore = useResumeStore()
-const interviewStore = useInterviewStore()
-
-// 简历上传
-const triggerResumeUpload = () => {
-  resumeInput.value.click()
-}
-
-const handleResumeUpload = async (event) => {
-  const file = event.target.files[0]
-  if (!file) return
-
-  const allowedTypes = [
-    'application/pdf',
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-  ]
-
-  if (!allowedTypes.includes(file.type) && !file.name.match(/\.(pdf|doc|docx)$/i)) {
-    ElMessage.error('只支持 PDF 或 Word 格式的简历文件')
-    event.target.value = ''
-    return
-  }
-
-  if (file.size > 5 * 1024 * 1024) {
-    ElMessage.error('简历文件大小不能超过 5MB')
-    event.target.value = ''
-    return
-  }
-
-  ElMessage.info('正在解析并上传简历...')
-
-  try {
-    await new Promise(resolve => setTimeout(resolve, 1500))
-    const nowStr = new Date().toISOString().slice(0, 19).replace('T', ' ')
-    const fileExt = file.name.split('.').pop().toLowerCase()
-    const mockId = Date.now()
-    const blobUrl = URL.createObjectURL(file)
-
-    resumeStore.addResume({
-      id: mockId,
-      user_id: currentUser.value.id,
-      file_name: file.name,
-      file_path: '/mock/resumes/' + mockId + '_' + file.name,
-      file_type: fileExt,
-      status: 'uploaded',
-      content: '暂无提取内容...',
-      created_at: nowStr,
-      updated_at: nowStr,
-      extracted_at: null,
-      preview_url: blobUrl
-    })
-    ElMessage.success(`简历 ${file.name} 上传成功！`)
-  } catch (error) {
-    ElMessage.error('上传失败: ' + (error.detail || error.message))
-  } finally {
-    event.target.value = ''
-  }
-}
-
-// 保存面试
-const handleSaveInterview = () => {
-  const form = interviewStore.interviewForm
-  if (!form.candidate_id) {
-    ElMessage.warning('请填写候选人 ID')
-    return
-  }
-  if (!form.scheduled_at) {
-    ElMessage.warning('请选择面试时间')
-    return
-  }
-  if (!form.extra_info) {
-    ElMessage.warning(form.session_type === 'online' ? '会议链接不能为空' : '面试地点不能为空')
-    return
-  }
-  interviewStore.saveInterview(currentUser.value.id)
-  ElMessage.success(interviewStore.isEditMode ? '面试信息修改成功！' : '面试会话创建成功！')
-}
 </script>
 
 <style scoped lang="scss">
 .dashboard-home {
-  .welcome-card {
-    border-radius: 12px;
-    border: 1px solid #dee0e3;
-    margin-bottom: 24px;
-    box-shadow: 0 4px 12px rgba(31, 35, 41, 0.04);
+  max-width: 1400px;
+}
 
-    :deep(.el-card__body) {
-      padding: 0;
+.welcome-card {
+  border-radius: 12px;
+  border: 1px solid #dee0e3;
+  margin-bottom: 24px;
+  box-shadow: 0 4px 12px rgba(31, 35, 41, 0.04);
+
+  :deep(.el-card__body) { padding: 0; }
+
+  .card-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 24px 28px;
+  }
+
+  .welcome-left {
+    h2 {
+      margin: 0 0 6px 0;
+      font-size: 20px;
+      color: #1f2937;
+      font-weight: 600;
     }
-
-    .card-content {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 24px;
-    }
-
-    .welcome-left {
-      h2 {
-        margin: 0 0 8px 0;
-        font-size: 20px;
-        color: #1f2937;
-        font-weight: 600;
-      }
-      p {
-        margin: 0;
-        font-size: 14px;
-        color: #6b7280;
-      }
-    }
-
-    .welcome-right {
-      display: flex;
-      gap: 12px;
-      flex-wrap: wrap;
+    p {
+      margin: 0;
+      font-size: 14px;
+      color: #6b7280;
     }
   }
+}
+
+/* Stats Grid */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.stat-card {
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid #dee0e3;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-shadow: 0 2px 8px rgba(31, 35, 41, 0.04);
+  transition: transform 0.2s, box-shadow 0.2s;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(31, 35, 41, 0.08);
+  }
+}
+
+.stat-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+
+  .el-icon { font-size: 24px; }
+
+  &.total { background: #eef2fe; color: #3370ff; }
+  &.pending-review { background: #fff7e6; color: #faad14; }
+  &.pending-interview { background: #e8f8e8; color: #52c41a; }
+  &.pending-decision { background: #fce8e6; color: #ff4d4f; }
+  &.today { background: #f0f4ff; color: #3370ff; }
+  &.completed { background: #e8f8e8; color: #13a248; }
+}
+
+.stat-info {
+  display: flex;
+  flex-direction: column;
+
+  .stat-value {
+    font-size: 26px;
+    font-weight: 700;
+    color: #1f2329;
+    line-height: 1.2;
+  }
+
+  .stat-label {
+    font-size: 13px;
+    color: #8f959e;
+    margin-top: 2px;
+  }
+}
+
+/* Calendar Card */
+.calendar-card {
+  border-radius: 12px;
+  border: 1px solid #dee0e3;
+  box-shadow: 0 4px 12px rgba(31, 35, 41, 0.04);
+
+  :deep(.el-card__body) { padding: 0; }
+
+  .calendar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+    border-bottom: 1px solid #dee0e3;
+
+    h3 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 600;
+      color: #1f2329;
+    }
+
+    .header-tip {
+      font-size: 13px;
+      color: #8f959e;
+    }
+  }
+
+  .calendar-body {
+    padding: 0;
+    min-height: 600px;
+  }
+}
+
+// Responsive: 3-col on smaller screens
+@media (max-width: 1200px) {
+  .stats-grid { grid-template-columns: repeat(3, 1fr); }
 }
 </style>

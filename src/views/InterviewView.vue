@@ -43,6 +43,7 @@ export default {
   data() {
     return {
       sessionId: '',
+      roundId: '',
       isAsrRunning: false,
       asrText: '',
       followUpText: '',
@@ -69,9 +70,12 @@ export default {
     }
   },
   created() {
-    // 从路由参数中获取会话ID
+    // 从路由参数中获取会话ID和轮次ID
     if (this.$route.params.sessionId) {
       this.sessionId = this.$route.params.sessionId
+    }
+    if (this.$route.params.roundId) {
+      this.roundId = this.$route.params.roundId
     }
   },
   methods: {
@@ -97,6 +101,10 @@ export default {
         alert('请先创建会话')
         return
       }
+      if (!this.roundId) {
+        alert('缺少轮次ID，无法启动')
+        return
+      }
       
       try {
         this.asrStatus = '正在启动ASR...'
@@ -108,7 +116,7 @@ export default {
           use_llm: true
         }
         
-        await interviewApi.startASR(this.sessionId, requestData)
+        await interviewApi.startASR(this.sessionId, this.roundId, requestData)
         
         this.isAsrRunning = true
         this.asrStatus = 'ASR已启动'
@@ -154,11 +162,15 @@ export default {
         alert('请先创建会话')
         return
       }
+      if (!this.roundId) {
+        alert('缺少轮次ID，无法停止')
+        return
+      }
       
       try {
         this.asrStatus = '正在停止ASR...'
         
-        await interviewApi.stopASR(this.sessionId)
+        await interviewApi.stopASR(this.sessionId, this.roundId)
         
         this.isAsrRunning = false
         this.asrStatus = 'ASR已停止'
@@ -175,10 +187,10 @@ export default {
       // 关闭之前的连接
       this.stopSSE()
       
-      console.log('开始创建SSE连接:', `/asr/stream/${this.sessionId}`)
+      console.log('开始创建SSE连接:', `/asr/stream/${this.sessionId}/${this.roundId}`)
       
       // 创建新的SSE连接
-      this.abortController = createSSEConnection(`/asr/stream/${this.sessionId}`, {
+      this.abortController = createSSEConnection(`/asr/stream/${this.sessionId}/${this.roundId}`, {
         onopen: async (response) => {
           if (response.ok) {
             console.log('SSE连接已建立')

@@ -77,6 +77,16 @@ const routes = [
         path: 'report-generate',
         name: 'reportGenerate',
         component: () => import('../views/dashboard/ReportGenerateView.vue')
+      },
+      {
+        path: 'positions',
+        name: 'positionSettings',
+        component: () => import('../views/dashboard/PositionSettingsView.vue')
+      },
+      {
+        path: 'resume-review',
+        name: 'resumeReview',
+        component: () => import('../views/dashboard/ResumeReviewView.vue')
       }
     ]
   },
@@ -97,7 +107,7 @@ const routes = [
     }
   },
   {
-    path: '/interview/:sessionId',
+    path: '/interview/:sessionId/:roundId?',
     name: 'interviewWithSession',
     component: () => import('../views/InterviewView.vue'),
     meta: {
@@ -105,7 +115,7 @@ const routes = [
     }
   },
   {
-    path: '/interview-assistant/:id',
+    path: '/interview-assistant/:sessionId/:roundId',
     name: 'interviewAssistant',
     component: () => import('../views/InterviewAssistantView.vue'),
     meta: {

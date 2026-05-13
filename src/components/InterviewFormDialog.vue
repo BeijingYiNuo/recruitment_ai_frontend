@@ -32,13 +32,25 @@
 
           <el-form-item label="关联简历材料">
             <el-select v-model="form.resume_id" placeholder="-- 不关联或暂无简历 --" style="width: 100%" clearable @change="handleResumeChange">
-              <el-option v-for="r in resumes" :key="r.id" :label="`${r.candidate_name || r.file_name} (ID: ${r.id})`" :value="r.id"></el-option>
+              <el-option v-for="r in resumes" :key="r.id" :value="r.id" :label="`${r.candidate_name} - ${r.created_at?.slice(0, 16).replace('T', ' ') || ''}`">
+                <span style="flex: 1">{{ r.candidate_name }} - {{ r.created_at?.slice(0, 16).replace('T', ' ') || '' }}</span>
+                <span style="color: #13a248; font-size: 12px; margin-left: auto;">通过</span>
+              </el-option>
             </el-select>
             <div v-if="resumes.length === 0" class="form-hint">
               提示: 当前还没有上传过简历，如需强力匹配请先去简历管理页上传。
             </div>
           </el-form-item>
           
+          <el-form-item label="关联岗位">
+            <el-select v-model="form.position_id" placeholder="-- 不关联或暂无岗位 --" style="width: 100%" clearable>
+              <el-option v-for="p in positions" :key="p.id" :label="p.name" :value="p.id"></el-option>
+            </el-select>
+            <div v-if="positions.length === 0" class="form-hint">
+              提示: 当前还没有创建岗位，请先去岗位设置页面创建。
+            </div>
+          </el-form-item>
+
           <el-form-item label="关联知识库 (问答辅助)">
             <el-select v-model="form.knowledge_id" placeholder="-- 不关联或暂无知识库 --" style="width: 100%" clearable>
               <el-option v-for="k in knowledgeBases" :key="k.id" :label="k.name" :value="k.id"></el-option>
@@ -104,6 +116,7 @@ const props = defineProps({
   form: { type: Object, required: true },
   resumes: { type: Array, default: () => [] },
   knowledgeBases: { type: Array, default: () => [] },
+  positions: { type: Array, default: () => [] },
   /** 所有已有面试列表，用于在日历上展示占用情况 */
   allInterviews: { type: Array, default: () => [] }
 })

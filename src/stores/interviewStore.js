@@ -16,6 +16,7 @@ export const useInterviewStore = defineStore('interview', () => {
       session_type: type,
       candidate_name: '',
       resume_id: null,
+      position_id: null,
       scheduled_start_at: '',
       scheduled_end_at: '',
       notes: '',
@@ -40,6 +41,7 @@ export const useInterviewStore = defineStore('interview', () => {
       candidate_name: item.candidate_name,
       // 将后端返回的 0 转换为 null 以便 el-select 显示占位符
       resume_id: item.resume_id || null,
+      position_id: item.position_id || null,
       session_type: item.session_type,
       scheduled_start_at: item.scheduled_start_at ? item.scheduled_start_at.substring(0, 19).replace('T', ' ') : '',
       scheduled_end_at: item.scheduled_end_at ? item.scheduled_end_at.substring(0, 19).replace('T', ' ') : '',

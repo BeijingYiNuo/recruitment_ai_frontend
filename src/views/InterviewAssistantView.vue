@@ -60,7 +60,8 @@ import { startMockAsr, type MockAsrHandle } from '../utils/mockAsrWs'
 
 const route = useRoute()
 const router = useRouter()
-const sessionId = route.params.id as string
+const sessionId = route.params.sessionId as string
+const roundId = route.params.roundId as string
 const isAsrActive = ref(false)
 const isPaused = ref(false)
 let socket: WebSocket | null = null
@@ -438,12 +439,14 @@ const fetchResumePreview = async (id: number) => {
 onMounted(() => {
   requestMicPermission()
   fetchInterviewDetails()
+  window.addEventListener('beforeunload', handleBeforeUnload)
 })
 
 onBeforeUnmount(() => {
   stopAudioCapture()
   stopTimer()
   if (socket) {
+    socket.onclose = null
     socket.close()
     socket = null
   }
@@ -451,11 +454,15 @@ onBeforeUnmount(() => {
     mediaStream.getTracks().forEach(track => track.stop())
     mediaStream = null
   }
-  // 清理预览 URL
   if (resumePreviewUrl.value) {
     URL.revokeObjectURL(resumePreviewUrl.value)
     resumePreviewUrl.value = null
   }
+  // 仅在 ASR 会话仍活跃时清理后端
+  if (isAsrActive.value) {
+    interviewApi.stopASR(sessionId, roundId).catch(() => {})
+  }
+  window.removeEventListener('beforeunload', handleBeforeUnload)
 })
 
 // ========== WebSocket 消息处理（核心改造：支持 speaker_id + definite） ==========
@@ -564,7 +571,7 @@ const onStartAsr = async () => {
     const token = localStorage.getItem('token')
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     // 使用当前宿主机的 host，让其经过 vite proxy 统一转发
-    const wsUrl = `${wsProtocol}//${window.location.host}/api/asr/stream/${sessionId}?token=${token}`
+    const wsUrl = `${wsProtocol}//${window.location.host}/api/asr/stream/${sessionId}/${roundId}?token=${token}`
 
     // 重置流式缓冲数据
     currentAsrText.value = ''
@@ -592,7 +599,7 @@ const onStartAsr = async () => {
     // ===== 真实模式 =====
     // 必须先通过 HTTP 调用后端初始化 ASR 服务，否则 WebSocket 会被 1008 拒绝
     try {
-      await interviewApi.startASR(sessionId, {})
+      await interviewApi.startASR(sessionId, roundId, {})
       console.log('[ASR] HTTP startASR 初始化成功')
     } catch (err) {
       console.error('[ASR] HTTP startASR 初始化失败:', err)
@@ -665,7 +672,7 @@ const onStopAsr = async () => {
     }
     // 通知后端停止 ASR 服务（失败不阻塞前端清理）
     if (!USE_MOCK) {
-      interviewApi.stopASR(sessionId).catch(err => {
+      interviewApi.stopASR(sessionId, roundId).catch(err => {
         console.warn('[ASR] HTTP stopASR 请求异常:', err)
       })
     }
@@ -690,37 +697,143 @@ const onPauseInterview = () => {
   ElMessage.warning('面试已暂停')
 }
 
-const onResumeInterview = () => {
+const resumeAsrConnection = async () => {
+  ElMessage.info('ASR 连接已断开，正在重新连接...')
+  try {
+    // 确保麦克风可用
+    if (!mediaStream) {
+      const granted = await requestMicPermission()
+      if (!granted) {
+        ElMessage.warning('需要麦克风权限才能恢复面试')
+        return
+      }
+    }
+
+    // 必须在 startASR 之前将旧 socket 的 onclose 置空
+    // 因为 startASR 内部会通过 stop_asr 关闭旧 WebSocket，触发 onclose 导致 isAsrActive 被置为 false
+    if (socket) {
+      socket.onclose = null
+    }
+
+    // 重新初始化后端 ASR 服务
+    await interviewApi.startASR(sessionId, roundId, {})
+    // 关闭旧的音频采集
+    stopAudioCapture()
+    audioDataQueue = []
+    frameCount = 0
+    // 关闭旧 socket
+    if (socket) {
+      socket.close()
+      socket = null
+    }
+    // 建立新 WebSocket 连接
+    const token = localStorage.getItem('token')
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const wsUrl = `${wsProtocol}//${window.location.host}/api/asr/stream/${sessionId}/${roundId}?token=${token}`
+    socket = new WebSocket(wsUrl)
+    socket.binaryType = 'arraybuffer'
+    socket.onopen = () => {
+      isAsrActive.value = true
+      startAudioCapture()
+      startTimer(true)
+      interviewInfo.value.status = '持续听写中...'
+      interviewInfo.value.statusColor = '#67c23a'
+      ElMessage.success('ASR 连接已恢复')
+    }
+    socket.onmessage = handleWsMessage
+    socket.onclose = (ev) => {
+      console.log(`ASR WebSocket closed | code: ${ev.code} | reason: "${ev.reason}"`)
+      isAsrActive.value = false
+      stopAudioCapture()
+      interviewInfo.value.status = '等待连接'
+      interviewInfo.value.statusColor = '#909399'
+    }
+    socket.onerror = (err) => {
+      console.error('ASR WebSocket reconnect error:', err)
+      ElMessage.error('ASR 重连失败')
+      isAsrActive.value = false
+    }
+  } catch (err) {
+    ElMessage.error('ASR 重连初始化失败: ' + (err.message || '未知错误'))
+    isAsrActive.value = false
+  }
+}
+
+const onResumeInterview = async () => {
   isPaused.value = false
-  interviewInfo.value.status = '持续听写中...'
-  interviewInfo.value.statusColor = '#67c23a'
-  startTimer(true)
+  interviewInfo.value.status = '正在重连...'
+  interviewInfo.value.statusColor = '#409eff'
   if (mediaRecorder && mediaRecorder.state === 'paused') {
     mediaRecorder.resume()
   }
-  ElMessage.success('面试已恢复')
+  await resumeAsrConnection()
 }
 
 function onManualFollowUp() {
   // TODO: 接入真正的大模型追问请求
 }
 
-function onEndInterview() {
-  // 结束面试时也要清理 ASR 资源
+async function onEndInterview() {
+  // 结束面试时先清理 ASR 资源
   if (isAsrActive.value) {
-    onStopAsr()
+    await onStopAsr()
   }
   interviewInfo.value.status = '通话已结束'
   interviewInfo.value.statusColor = '#909399'
-  // TODO: 触发结束动作
+
+  // 弹出通过/未通过确认框
+  try {
+    await ElMessageBox.confirm(
+      '该轮次面试是否通过？',
+      '面试结束',
+      {
+        confirmButtonText: '通过',
+        cancelButtonText: '未通过',
+        type: 'question',
+        distinguishCancelAndClose: true
+      }
+    )
+    // 点击"通过"
+    await interviewApi.updateSessionRound(sessionId, roundId, { status: 'pass' })
+    ElMessage.success('已标记为通过')
+  } catch (action: any) {
+    if (action === 'cancel') {
+      // 点击"未通过"
+      await interviewApi.updateSessionRound(sessionId, roundId, { status: 'fail' })
+      ElMessage.success('已标记为未通过')
+    } else {
+      // 关闭弹窗，不更新状态，也不跳转
+      return
+    }
+  }
+
+  // 跳转回面试管理页面
+  router.push('/dashboard/interview-manage')
 }
 
 function onGenerateMoreSuggestions() {
   // TODO: 通过后端要求大模型根据当前上下文产出下一批发问题库
 }
 
-function goBack() {
+async function goBack() {
+  if (isAsrActive.value) {
+    await onStopAsr()
+  }
   router.back()
+}
+
+/**
+ * 处理浏览器/标签页关闭等突发情况
+ */
+const handleBeforeUnload = () => {
+  if (isAsrActive.value) {
+    const token = localStorage.getItem('token')
+    fetch(`/api/asr/stop/${sessionId}/${roundId}`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` },
+      keepalive: true
+    }).catch(() => {})
+  }
 }
 </script>
 

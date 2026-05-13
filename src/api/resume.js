@@ -13,9 +13,13 @@ export const resumeApi = {
     })
   },
 
-  // 获取简历
-  getResumes: (skip = 0, limit = 100) => {
-    return request.get('/resumes', { params: { skip, limit } })
+  // 获取简历（支持按审核状态筛选）
+  getResumes: (skip = 0, limit = 100, reviewStatus = null) => {
+    const params = { skip, limit }
+    if (reviewStatus !== null) {
+      params.review_status = reviewStatus
+    }
+    return request.get('/resumes', { params })
   },
 
   // 获取特定用户列表简历 (原接口)
@@ -37,6 +41,25 @@ export const resumeApi = {
   downloadResume: (resumeId) => {
     return request.get(`/resumes/download/${resumeId}`, {
       responseType: 'blob'
+    })
+  },
+
+  // 审核简历
+  reviewResume: (resumeId, data) => {
+    return request.post(`/resumes/${resumeId}/review`, data)
+  },
+
+  // 批量导入简历
+  batchUploadResumes: (userId, files, candidateNames) => {
+    const formData = new FormData()
+    for (const file of files) {
+      formData.append('files', file)
+    }
+    formData.append('candidate_names', JSON.stringify(candidateNames))
+    return request.post(`/resumes/import/batch?user_id=${userId}`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
     })
   },
 
