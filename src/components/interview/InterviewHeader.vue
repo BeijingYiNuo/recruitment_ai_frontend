@@ -11,38 +11,58 @@
       <div class="candidate-text">{{ info.candidateName }} - {{ info.candidateTitle }}</div>
     </div>
 
+    <!-- 面试阶段进度条 -->
+    <div class="stage-bar" v-if="stageInfo && stageInfo.currentIndex >= 0">
+      <div class="stage-label">
+        <span class="stage-current">{{ stageInfo.displayName }}</span>
+        <span class="stage-progress">阶段 {{ stageInfo.currentIndex + 1 }} / {{ stageInfo.stages.length }}</span>
+      </div>
+      <div class="stage-steps">
+        <div
+          v-for="(s, i) in stageInfo.stages"
+          :key="s.key"
+          class="stage-step"
+          :class="{ done: i < stageInfo.currentIndex, current: i === stageInfo.currentIndex }"
+        >
+          <div class="connector" v-if="i > 0"></div>
+          <div class="stage-dot">{{ i < stageInfo.currentIndex ? '✓' : i === stageInfo.currentIndex ? '●' : '○' }}</div>
+          <div class="stage-name">{{ s.name }}</div>
+        </div>
+      </div>
+    </div>
+
     <div class="actions">
       <el-button size="medium" @click="$emit('goBack')">返回</el-button>
       <el-button size="medium" type="primary" @click="$emit('startAsr')" :disabled="isAsrActive">开始面试</el-button>
-      
-      <el-button 
+
+      <el-button
         v-if="isAsrActive && !isPaused"
-        size="medium" 
-        type="warning" 
+        size="medium"
+        type="warning"
         @click="$emit('pauseInterview')"
       >暂停面试</el-button>
 
-      <el-button 
+      <el-button
         v-if="isAsrActive && isPaused"
-        size="medium" 
-        type="success" 
+        size="medium"
+        type="success"
         @click="$emit('resumeInterview')"
       >恢复面试</el-button>
-      
-      <el-button 
+
+      <el-button
         v-if="!isRecording"
-        size="medium" 
-        type="warning" 
-        @click="$emit('startRecording')" 
+        size="medium"
+        type="warning"
+        @click="$emit('startRecording')"
         :disabled="!isAsrActive"
         class="record-btn"
       >
         <i class="el-icon-video-camera"></i> 开始录音
       </el-button>
-      <el-button 
+      <el-button
         v-else
-        size="medium" 
-        type="danger" 
+        size="medium"
+        type="danger"
         @click="$emit('stopRecording')"
         class="record-btn is-recording"
       >
@@ -65,11 +85,29 @@ type InterviewStatus = {
   candidateTitle: string
 }
 
-defineProps<{
+type StageItem = {
+  key: string
+  name: string
+}
+
+type StageInfo = {
+  stages: StageItem[]
+  currentIndex: number
+  displayName: string
+  description: string
+}
+
+const props = defineProps<{
   info: InterviewStatus
   isAsrActive?: boolean
   isRecording?: boolean
   isPaused?: boolean
+  stageInfo?: StageInfo
+  meetingMode?: boolean
+}>()
+
+defineEmits<{
+  (e: 'update:meetingMode', val: boolean): void
 }>()
 </script>
 
@@ -83,6 +121,8 @@ defineProps<{
   border: 1px solid #dce2ed;
   padding: 16px 18px;
   box-shadow: 0 2px 10px rgba(17, 29, 63, 0.07);
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
 .title-block h1 {
@@ -135,6 +175,12 @@ defineProps<{
   color: #ffffff;
 }
 
+.meeting-mode-toggle {
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+}
+
 .record-btn {
   position: relative;
   display: flex;
@@ -159,5 +205,119 @@ defineProps<{
   0% { box-shadow: 0 0 0 0 rgba(245, 63, 63, 0.4); }
   70% { box-shadow: 0 0 0 10px rgba(245, 63, 63, 0); }
   100% { box-shadow: 0 0 0 0 rgba(245, 63, 63, 0); }
+}
+
+/* 阶段进度条 */
+.stage-bar {
+  flex: 1;
+  min-width: 300px;
+  max-width: 600px;
+  padding: 8px 12px;
+  background: #f8faff;
+  border-radius: 8px;
+  border: 1px solid #dbe5ff;
+}
+
+.stage-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.stage-current {
+  font-weight: 600;
+  font-size: 13px;
+  color: #1d4ed8;
+}
+
+.stage-progress {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.stage-steps {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+.stage-step {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  position: relative;
+}
+
+.stage-dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  background: #e2e8f0;
+  color: #94a3b8;
+  position: relative;
+  z-index: 1;
+  border: 2px solid #e2e8f0;
+  transition: all 0.3s;
+}
+
+.stage-step.done .stage-dot {
+  background: #10b981;
+  color: white;
+  border-color: #10b981;
+}
+
+.stage-step.current .stage-dot {
+  background: #1d4ed8;
+  color: white;
+  border-color: #1d4ed8;
+  box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.2);
+  animation: pulse-dot 2s infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.2); }
+  50% { box-shadow: 0 0 0 6px rgba(29, 78, 216, 0.1); }
+}
+
+.connector {
+  position: absolute;
+  top: 11px;
+  right: 50%;
+  width: 100%;
+  height: 2px;
+  background: #e2e8f0;
+  z-index: 0;
+}
+
+.stage-step.done .connector {
+  background: #10b981;
+}
+
+.stage-step:first-child .connector {
+  display: none;
+}
+
+.stage-name {
+  font-size: 10px;
+  color: #94a3b8;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.stage-step.current .stage-name {
+  color: #1d4ed8;
+  font-weight: 500;
+}
+
+.stage-step.done .stage-name {
+  color: #10b981;
 }
 </style>
