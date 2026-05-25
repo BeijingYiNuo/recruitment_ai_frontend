@@ -244,7 +244,7 @@
         </div>
         <template #tip>
           <div class="el-upload__tip">
-            支持 PDF / DOC / DOCX 格式，每份简历不超过 5MB
+            支持 PDF / DOC / DOCX 格式，每份简历不超过 10MB
           </div>
         </template>
       </el-upload>
@@ -288,7 +288,7 @@
             :disabled="batchFiles.length === 0"
             @click="submitBatchUpload"
           >
-            {{ batchUploading ? `正在导入 ${batchProgress}/${batchFiles.length}` : '确认批量导入' }}
+            {{ batchUploading ? `正在导入 ${batchUploadedCount}/${batchFiles.length}` : '确认批量导入' }}
           </el-button>
         </span>
       </template>
@@ -503,8 +503,8 @@ const submitUpload = () => {
       return
     }
 
-    if (file.size > 5 * 1024 * 1024) {
-      ElMessage.error('简历文件大小不能超过 5MB')
+    if (file.size > 10 * 1024 * 1024) {
+      ElMessage.error('简历文件大小不能超过 10MB')
       return
     }
 
@@ -546,6 +546,7 @@ const submitUpload = () => {
 const batchDialogVisible = ref(false)
 const batchUploading = ref(false)
 const batchProgress = ref(0)
+const batchUploadedCount = ref(0)
 const batchUploadRef = ref(null)
 const batchFiles = ref([])
 
@@ -555,8 +556,8 @@ const validateBatchFile = (file) => {
     ElMessage.error(`${file.name}: 只支持 PDF 或 Word 格式`)
     return false
   }
-  if (file.size > 5 * 1024 * 1024) {
-    ElMessage.error(`${file.name}: 文件大小不能超过 5MB`)
+  if (file.size > 10 * 1024 * 1024) {
+    ElMessage.error(`${file.name}: 文件大小不能超过 10MB`)
     return false
   }
   // 检查是否已添加同名文件
@@ -610,7 +611,30 @@ const formatSize = (bytes) => {
 const resetBatchForm = () => {
   batchFiles.value = []
   batchProgress.value = 0
+  batchUploadedCount.value = 0
   if (batchUploadRef.value) batchUploadRef.value.clearFiles()
+}
+
+/** 带重试的单文件上传，返回 tos_key 或 null */
+const uploadSingleFileWithRetry = async (file, candidateName, maxRetries = 2) => {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const result = await resumeApi.batchUploadFile(file)
+      if (result?.tos_key) {
+        return { tos_key: result.tos_key, filename: result.filename, candidate_name: candidateName }
+      }
+    } catch (e) {
+      const errMsg = e?.detail || e?.message || '未知错误'
+      if (attempt < maxRetries) {
+        // 指数退避: 1s, 2s
+        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)))
+        continue
+      }
+      ElMessage.error(`${file.name} 上传失败（已重试${maxRetries}次）: ${errMsg}`)
+      return null
+    }
+  }
+  return null
 }
 
 const submitBatchUpload = async () => {
@@ -623,38 +647,42 @@ const submitBatchUpload = async () => {
 
   batchUploading.value = true
   batchProgress.value = 0
+  const totalFiles = batchFiles.value.length
+  const names = batchFiles.value.map(item => item.candidateName.trim())
 
   try {
-    const names = batchFiles.value.map(item => item.candidateName.trim())
-
-    // Step 1: 逐个上传文件到后端，后端代为上传到TOS（同源请求，无CORS问题）
+    // Step 1: 并发上传所有文件（并发数 3），每文件失败自动重试 2 次
+    const CONCURRENCY = 3
+    const MAX_RETRIES = 2
+    const queue = batchFiles.value.map((item, i) => ({ ...item, nameIndex: i }))
     const uploadedItems = []
-    for (let i = 0; i < batchFiles.value.length; i++) {
-      const item = batchFiles.value[i]
-      try {
-        const result = await resumeApi.batchUploadFile(item.file)
-        if (result && result.tos_key) {
-          uploadedItems.push({
-            tos_key: result.tos_key,
-            filename: result.filename,
-            candidate_name: names[i]
-          })
-        } else {
-          ElMessage.error(`${item.file.name} 上传到存储失败`)
+    let completedCount = 0
+
+    async function uploadWorker() {
+      while (queue.length > 0) {
+        const item = queue.shift()
+        const result = await uploadSingleFileWithRetry(item.file, names[item.nameIndex], MAX_RETRIES)
+        if (result) {
+          uploadedItems.push(result)
+          batchUploadedCount.value = uploadedItems.length
         }
-      } catch (e) {
-        ElMessage.error(`${item.file.name} 上传到存储失败: ${e?.detail || e?.message || '未知错误'}`)
+        completedCount++
+        batchProgress.value = Math.round((completedCount / totalFiles) * 50)  // 上传阶段占总进度 0-50%
       }
-      batchProgress.value = i + 1
     }
+
+    const workers = Array.from({ length: Math.min(CONCURRENCY, totalFiles) }, () => uploadWorker())
+    await Promise.all(workers)
 
     if (uploadedItems.length === 0) {
       ElMessage.error('所有文件上传到存储均失败')
       return
     }
 
-    // Step 2: 通知服务器处理已上传到TOS的文件（小JSON请求，不会超时）
+    // Step 2: 建库（不分析，快速返回）
+    batchProgress.value = 55
     const importResponse = await resumeApi.importFromTos(uploadedItems)
+    batchProgress.value = 70
     const importResults = Array.isArray(importResponse) ? importResponse : []
 
     const successCount = importResults.filter(r => r.success !== false).length
@@ -666,13 +694,26 @@ const submitBatchUpload = async () => {
       }
     }
 
-    if (successCount > 0) {
-      ElMessage.success(`批量导入完成：成功 ${successCount} 份，失败 ${failCount} 份`)
-      batchDialogVisible.value = false
-      fetchResumes()
-    } else {
+    if (successCount === 0) {
       ElMessage.error('批量导入全部失败')
+      return
     }
+
+    // 导入成功，立即关闭弹窗、刷新列表
+    ElMessage.success(`导入 ${successCount} 份成功${failCount > 0 ? `，${failCount} 份失败` : ''}，正在后台解析...`)
+    batchProgress.value = 80
+    batchDialogVisible.value = false
+    fetchResumes()
+
+    // Step 3: 触发后台分析（与导入解耦，失败不影响导入）
+    const importedIds = importResults.filter(r => r.success !== false).map(r => r.id).filter(Boolean)
+    if (importedIds.length > 0) {
+      resumeApi.processPending(importedIds).catch(() => {
+        // 分析触发失败不影响导入，稍后系统会自动处理
+        console.warn('后台分析触发失败，简历将在稍后自动解析')
+      })
+    }
+    batchProgress.value = 100
   } catch (error) {
     const msg = error?.detail || error?.message || error?.error || '未知错误'
     ElMessage.error('批量导入失败: ' + (typeof msg === 'string' ? msg : JSON.stringify(msg)))

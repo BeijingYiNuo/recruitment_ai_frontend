@@ -89,6 +89,13 @@ export const resumeApi = {
     })
   },
 
+  // 批量处理待分析的简历（分析与导入解耦）
+  processPending: (resumeIds = null) => {
+    return request.post('/resumes/batch/process-pending', {
+      resume_ids: resumeIds
+    })
+  },
+
   // 彻底删除单份简历
   deleteResume: (resumeId) => {
     return request.delete(`/resumes/${resumeId}`)
