@@ -1,9 +1,9 @@
 import request from '../utils/request'
 
 export const positionApi = {
-  // 岗位列表
-  list: () => {
-    return request.get('/positions')
+  // 岗位列表（支持搜索和分页）
+  list: (params = {}) => {
+    return request.get('/positions', { params })
   },
 
   // 岗位详情（含轮次）

@@ -1,8 +1,8 @@
 import request from '../utils/request'
 
 export const fileApi = {
-  // 获取文件列表
-  getFileList: () => request.get('/file/list'),
+  // 获取文件列表（支持搜索和分页）
+  getFileList: (params = {}) => request.get('/file/list', { params }),
 
   // 上传文件
   uploadFile: (formData) => request.post('/file/upload', formData, {

@@ -143,7 +143,21 @@
       
       <!-- 文件选择弹窗 -->
       <el-dialog v-model="fileSelectorVisible" title="选择文件" width="700px" destroy-on-close>
-        <el-table :data="serverFiles" v-loading="loadingFiles" height="400px" @row-click="handleConfirmSelection" highlight-current-row stripe>
+        <div style="margin-bottom: 12px;">
+          <el-input
+            v-model="fileSearchKeyword"
+            placeholder="搜索文件名"
+            clearable
+            style="width: 260px;"
+            @keyup.enter="handleFileSearch"
+            @clear="handleFileSearch"
+          >
+            <template #prefix>
+              <el-icon><Search /></el-icon>
+            </template>
+          </el-input>
+        </div>
+        <el-table :data="serverFiles" v-loading="loadingFiles" height="350px" @row-click="handleConfirmSelection" highlight-current-row stripe>
           <el-table-column prop="file_name" label="文件名" min-width="200" show-overflow-tooltip>
             <template #default="{ row }">
               <div style="display: flex; align-items: center; gap: 8px;">
@@ -168,6 +182,17 @@
             </template>
           </el-table-column>
         </el-table>
+        <div style="margin-top: 12px; display: flex; justify-content: flex-end;" v-if="fileTotalCount > 0">
+          <el-pagination
+            v-model:current-page="fileCurrentPage"
+            v-model:page-size="filePageSize"
+            :total="fileTotalCount"
+            layout="total, prev, pager, next"
+            background
+            small
+            @current-change="handleFilePageChange"
+          />
+        </div>
         <template #footer>
           <span class="dialog-footer">
             <el-button @click="fileSelectorVisible = false">取消</el-button>
@@ -183,7 +208,7 @@
 <script setup>
 import { ref, reactive, nextTick, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Document, Close } from '@element-plus/icons-vue'
+import { Document, Close, Search } from '@element-plus/icons-vue'
 import { fileApi } from '../../api/file'
 
 // ==================== 状态定义 ====================
@@ -213,23 +238,44 @@ const fileSelectorVisible = ref(false)
 const loadingFiles = ref(false)
 const serverFiles = ref([])
 const currentSelectKey = ref('')
+const fileSearchKeyword = ref('')
+const fileCurrentPage = ref(1)
+const filePageSize = ref(10)
+const fileTotalCount = ref(0)
+
+const fetchFileList = async () => {
+  loadingFiles.value = true
+  try {
+    const skip = (fileCurrentPage.value - 1) * filePageSize.value
+    const params = { skip, limit: filePageSize.value }
+    if (fileSearchKeyword.value) params.keyword = fileSearchKeyword.value
+    const res = await fileApi.getFileList(params)
+    serverFiles.value = res.data || []
+    fileTotalCount.value = res.total || serverFiles.value.length
+  } catch (e) {
+    ElMessage.error('获取文件列表失败')
+    serverFiles.value = []
+  } finally {
+    loadingFiles.value = false
+  }
+}
 
 const openFileSelector = async (key) => {
   currentSelectKey.value = key
   fileSelectorVisible.value = true
-  if (serverFiles.value.length === 0) {
-    loadingFiles.value = true
-    try {
-      const res = await fileApi.getFileList()
-      let list = res.data || []
-      list.sort((a, b) => new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime())
-      serverFiles.value = list
-    } catch (e) {
-      ElMessage.error('获取文件列表失败')
-    } finally {
-      loadingFiles.value = false
-    }
-  }
+  fileCurrentPage.value = 1
+  fileSearchKeyword.value = ''
+  await fetchFileList()
+}
+
+const handleFileSearch = () => {
+  fileCurrentPage.value = 1
+  fetchFileList()
+}
+
+const handleFilePageChange = (page) => {
+  fileCurrentPage.value = page
+  fetchFileList()
 }
 
 const handleConfirmSelection = (fileRow) => {

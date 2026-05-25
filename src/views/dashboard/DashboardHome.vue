@@ -118,13 +118,13 @@ async function fetchStats() {
       resumeApi.getResumes(0, 1000).catch(() => null),
       resumeApi.getResumes(0, 1000, 'null').catch(() => null),
       resumeApi.getResumes(0, 1000, 'PENDING').catch(() => null),
-      interviewApi.getUserInterviewSessions(currentUser.value.id).catch(() => null),
+      interviewApi.getUserInterviewSessions({}).catch(() => null),
     ])
 
-    const allList = Array.isArray(allResumes) ? allResumes : (allResumes?.data || [])
-    const pendingList = Array.isArray(pendingResumes) ? pendingResumes : (pendingResumes?.data || [])
-    const pendingDecList = Array.isArray(pendingDecResumes) ? pendingDecResumes : (pendingDecResumes?.data || [])
-    const sessionList = Array.isArray(sessions) ? sessions : (sessions?.data || [])
+    const allList = Array.isArray(allResumes) ? allResumes : (allResumes?.items || [])
+    const pendingList = Array.isArray(pendingResumes) ? pendingResumes : (pendingResumes?.items || [])
+    const pendingDecList = Array.isArray(pendingDecResumes) ? pendingDecResumes : (pendingDecResumes?.items || [])
+    const sessionList = Array.isArray(sessions) ? sessions : (sessions?.items || [])
 
     stats.totalResumes = allList.length
     stats.pendingReview = pendingList.length
@@ -165,8 +165,8 @@ async function fetchStats() {
 async function fetchInterviewSchedules() {
   calendarLoading.value = true
   try {
-    const data = await interviewApi.getUserInterviewSessions(currentUser.value.id)
-    interviewList.value = Array.isArray(data) ? data : (data.items || data.data || [])
+    const data = await interviewApi.getUserInterviewSessions({})
+    interviewList.value = Array.isArray(data) ? data : (data.items || [])
   } catch (error) {
     console.error('Failed to fetch schedules:', error)
   } finally {

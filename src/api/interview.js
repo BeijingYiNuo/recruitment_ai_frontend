@@ -1,8 +1,8 @@
 import request from '../utils/request'
 
 export const interviewApi = {
-  // 获取用户的预约面试列表
-  getUserInterviewSessions: (userId) => request.get(`/reserve/sessions`),
+  // 获取用户的预约面试列表（支持搜索和分页）
+  getUserInterviewSessions: (params = {}) => request.get('/reserve/sessions', { params }),
 
   // 获取单一预约面试详情
   getReserveSession: (sessionId) => request.get(`/reserve/sessions/${sessionId}`),

@@ -11,16 +11,30 @@
         </div>
 
         <div class="toolbar">
-          <div class="filter-tabs">
-            <div
-              v-for="tab in filterTabs"
-              :key="tab.key"
-              class="filter-tab"
-              :class="{ active: activeFilter === tab.key }"
-              @click="switchFilter(tab.key)"
-            >
-              <span>{{ tab.label }}</span>
+          <div class="toolbar-left">
+            <div class="filter-tabs">
+              <div
+                v-for="tab in filterTabs"
+                :key="tab.key"
+                class="filter-tab"
+                :class="{ active: activeFilter === tab.key }"
+                @click="switchFilter(tab.key)"
+              >
+                <span>{{ tab.label }}</span>
+              </div>
             </div>
+            <el-input
+              v-model="searchKeyword"
+              placeholder="搜索候选人姓名"
+              clearable
+              style="width: 200px; margin-left: 16px;"
+              @keyup.enter="handleSearch"
+              @clear="handleSearch"
+            >
+              <template #prefix>
+                <el-icon><Search /></el-icon>
+              </template>
+            </el-input>
           </div>
 
           <!-- View Mode Toggle -->
@@ -94,6 +108,18 @@
                 </div>
               </div>
             </div>
+          </div>
+          <!-- 分页 -->
+          <div class="pagination-wrapper" v-if="totalCount > 0" style="padding: 16px 24px; display: flex; justify-content: flex-end; border-top: 1px solid #DEE0E3;">
+            <el-pagination
+              v-model:current-page="currentPage"
+              v-model:page-size="pageSize"
+              :total="totalCount"
+              layout="total, prev, pager, next"
+              background
+              small
+              @current-change="handlePageChange"
+            />
           </div>
         </div>
       </div>
@@ -215,7 +241,7 @@ import { resumeApi } from '../../api/resume'
 import { ElMessage } from 'element-plus'
 import {
   ArrowLeft, ArrowRight, Close, QuestionFilled, Check, Document,
-  Reading, Briefcase, Coin, Collection, List, Grid, Plus
+  Reading, Briefcase, Coin, Collection, List, Grid, Plus, Search
 } from '@element-plus/icons-vue'
 
 const router = useRouter()
@@ -231,6 +257,10 @@ const reviewComment = ref('')
 const activeFilter = ref('null')
 const detailLoading = ref(false)
 const viewMode = ref('list')
+const searchKeyword = ref('')
+const currentPage = ref(1)
+const pageSize = ref(10)
+const totalCount = ref(0)
 
 const parsedData = reactive({
   educations: [],
@@ -297,14 +327,14 @@ function enterDetail(index) {
 async function fetchResumes() {
   loading.value = true
   try {
-    const res = await resumeApi.getResumes(0, 100, getFilterParam())
-    const list = Array.isArray(res) ? res : (res?.data || [])
-    list.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    const skip = (currentPage.value - 1) * pageSize.value
+    const res = await resumeApi.getResumes(skip, pageSize.value, getFilterParam(), searchKeyword.value)
+    const list = Array.isArray(res) ? res : (res?.items || res?.data || [])
+    totalCount.value = res.total || list.length
 
-    // Load parsed summaries for list mode (batch: first 4 resume details per row)
-    const batch = list.slice(0, 20)
+    // Load parsed summaries for list mode (batch: first page resumes)
     const summaryMap = {}
-    await Promise.all(batch.map(async (r) => {
+    await Promise.all(list.slice(0, 20).map(async (r) => {
       try {
         const [educations, workExperiences, skills] = await Promise.all([
           resumeApi.getResumeEducations(r.id).catch(() => null),
@@ -335,6 +365,16 @@ async function fetchResumes() {
   } finally {
     loading.value = false
   }
+}
+
+function handleSearch() {
+  currentPage.value = 1
+  fetchResumes()
+}
+
+function handlePageChange(page) {
+  currentPage.value = page
+  fetchResumes()
 }
 
 async function loadCurrent() {
@@ -459,6 +499,11 @@ onMounted(() => fetchResumes())
   align-items: center;
   justify-content: space-between;
   margin-top: 16px;
+}
+
+.toolbar-left {
+  display: flex;
+  align-items: center;
 }
 
 .filter-tabs {

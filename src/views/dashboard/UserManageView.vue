@@ -6,9 +6,21 @@
         <div class="header-top">
           <div class="title-area">
             <h1>用户管理</h1>
-            <span class="badge" v-if="users.length > 0">{{ users.length }}</span>
+            <span class="badge" v-if="totalCount > 0">{{ totalCount }}</span>
           </div>
           <div class="action-btn-group">
+            <el-input
+              v-model="searchKeyword"
+              placeholder="搜索用户名/邮箱"
+              clearable
+              style="width: 220px; margin-right: 12px;"
+              @keyup.enter="handleSearch"
+              @clear="handleSearch"
+            >
+              <template #prefix>
+                <el-icon><Search /></el-icon>
+              </template>
+            </el-input>
             <el-button type="primary" class="lark-btn-primary" @click="handleAddUser">新增用户</el-button>
           </div>
         </div>
@@ -65,6 +77,18 @@
             </template>
           </el-table-column>
         </el-table>
+        <!-- 分页 -->
+        <div class="pagination-wrapper" v-if="totalCount > 0" style="padding: 16px 24px; display: flex; justify-content: flex-end;">
+          <el-pagination
+            v-model:current-page="currentPage"
+            v-model:page-size="pageSize"
+            :total="totalCount"
+            layout="total, prev, pager, next"
+            background
+            small
+            @current-change="handlePageChange"
+          />
+        </div>
       </div>
     </div>
 
@@ -81,11 +105,16 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Search } from '@element-plus/icons-vue'
 import { userApi } from '../../api/user'
 import UserEditModal from '../../components/UserEditModal.vue'
 
 const users = ref([])
 const loading = ref(false)
+const searchKeyword = ref('')
+const currentPage = ref(1)
+const pageSize = ref(10)
+const totalCount = ref(0)
 
 const editDialogVisible = ref(false)
 const selectedUser = ref({})
@@ -127,13 +156,27 @@ const getStatusTagType = (status) => {
 const loadUsers = async () => {
   loading.value = true
   try {
-    const res = await userApi.getUsers()
+    const skip = (currentPage.value - 1) * pageSize.value
+    const params = { skip, limit: pageSize.value }
+    if (searchKeyword.value) params.keyword = searchKeyword.value
+    const res = await userApi.getUsers(params)
     users.value = Array.isArray(res) ? res : (res.items || res.data || [])
+    totalCount.value = res.total || users.value.length
   } catch (err) {
     ElMessage.error('获取用户列表失败: ' + (err?.detail || err?.message || '未知错误'))
   } finally {
     loading.value = false
   }
+}
+
+const handleSearch = () => {
+  currentPage.value = 1
+  loadUsers()
+}
+
+const handlePageChange = (page) => {
+  currentPage.value = page
+  loadUsers()
 }
 
 onMounted(() => {

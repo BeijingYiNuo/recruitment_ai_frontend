@@ -7,9 +7,21 @@
         <div class="header-top">
           <div class="title-area">
             <h1>面试管理</h1>
-            <span class="badge">{{ interviewStore.interviews?.length || 0 }}</span>
+            <span class="badge">{{ totalCount }}</span>
           </div>
           <div class="action-btn-group">
+            <el-input
+              v-model="searchKeyword"
+              placeholder="搜索候选人姓名"
+              clearable
+              style="width: 220px; margin-right: 12px;"
+              @keyup.enter="handleSearch"
+              @clear="handleSearch"
+            >
+              <template #prefix>
+                <el-icon><Search /></el-icon>
+              </template>
+            </el-input>
             <el-button type="primary" class="lark-btn-primary" @click="interviewStore.openModal('online')">新增线上面试</el-button>
             <el-button class="lark-btn-ghost" @click="interviewStore.openModal('offline')">新增线下面试</el-button>
           </div>
@@ -106,6 +118,19 @@
               <el-button type="danger" link size="small" @click.stop="handleDelete(item.id)">删除</el-button>
             </div>
           </div>
+        </div>
+
+        <!-- 分页 -->
+        <div class="pagination-wrapper" v-if="totalCount > 0" style="padding: 16px 24px; display: flex; justify-content: flex-end; border-top: 1px solid #DEE0E3;">
+          <el-pagination
+            v-model:current-page="currentPage"
+            v-model:page-size="pageSize"
+            :total="totalCount"
+            layout="total, prev, pager, next"
+            background
+            small
+            @current-change="handlePageChange"
+          />
         </div>
       </div>
     </div>
@@ -224,6 +249,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElLoading, ElMessageBox } from 'element-plus'
+import { Search } from '@element-plus/icons-vue'
 import { getCurrentUser } from '../../services/authService'
 import { interviewApi } from '../../api/interview'
 import { resumeApi } from '../../api/resume'
@@ -241,6 +267,10 @@ const route = useRoute()
 const listLoading = ref(false)
 const knowledgeBases = ref([])
 const positions = ref([])
+const searchKeyword = ref('')
+const currentPage = ref(1)
+const pageSize = ref(10)
+const totalCount = ref(0)
 
 // 批量删除
 const selectedIds = ref([])
@@ -439,15 +469,12 @@ const handleUpdateRound = async (status) => {
 const fetchInterviews = async () => {
   listLoading.value = true
   try {
-    const data = await interviewApi.getUserInterviewSessions(currentUser.value.id)
+    const skip = (currentPage.value - 1) * pageSize.value
+    const params = { skip, limit: pageSize.value }
+    if (searchKeyword.value) params.keyword = searchKeyword.value
+    const data = await interviewApi.getUserInterviewSessions(params)
     let list = Array.isArray(data) ? data : (data.items || data.data || [])
-    
-    // 按创建时间降序排列，最新的在最上面
-    list.sort((a, b) => {
-      const timeA = new Date(a.created_at || 0).getTime()
-      const timeB = new Date(b.created_at || 0).getTime()
-      return timeB - timeA
-    })
+    totalCount.value = data.total || list.length
 
     interviewStore.interviews = list
 
@@ -472,6 +499,16 @@ const fetchInterviews = async () => {
   } finally {
     listLoading.value = false
   }
+}
+
+const handleSearch = () => {
+  currentPage.value = 1
+  fetchInterviews()
+}
+
+const handlePageChange = (page) => {
+  currentPage.value = page
+  fetchInterviews()
 }
 
 const fetchResumesSilent = async () => {

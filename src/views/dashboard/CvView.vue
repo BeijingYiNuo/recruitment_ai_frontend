@@ -7,9 +7,21 @@
         <div class="header-top">
           <div class="title-area">
             <h1>简历管理</h1>
-            <span class="badge">{{ resumeStore.resumes?.length || 0 }}</span>
+            <span class="badge">{{ totalCount }}</span>
           </div>
           <div class="action-btn-group">
+            <el-input
+              v-model="searchKeyword"
+              placeholder="搜索候选人姓名"
+              clearable
+              style="width: 220px; margin-right: 12px;"
+              @keyup.enter="handleSearch"
+              @clear="handleSearch"
+            >
+              <template #prefix>
+                <el-icon><Search /></el-icon>
+              </template>
+            </el-input>
             <el-button type="primary" class="lark-btn-primary" @click="uploadDialogVisible = true">添加简历</el-button>
             <el-button class="lark-btn-ghost" @click="batchDialogVisible = true">批量导入</el-button>
           </div>
@@ -64,6 +76,19 @@
               <el-button type="danger" link @click.stop="handleDelete(resume.id)">删除</el-button>
             </div>
           </div>
+        </div>
+
+        <!-- 分页 -->
+        <div class="pagination-wrapper" v-if="totalCount > 0" style="padding: 16px 24px; display: flex; justify-content: flex-end; border-top: 1px solid #DEE0E3;">
+          <el-pagination
+            v-model:current-page="currentPage"
+            v-model:page-size="pageSize"
+            :total="totalCount"
+            layout="total, prev, pager, next"
+            background
+            small
+            @current-change="handlePageChange"
+          />
         </div>
       </div>
     </div>
@@ -318,7 +343,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
 import { ElMessage, ElLoading, ElMessageBox } from 'element-plus'
-import { UploadFilled, Download, Close, Upload } from '@element-plus/icons-vue'
+import { UploadFilled, Download, Close, Upload, Search } from '@element-plus/icons-vue'
 import { getCurrentUser } from '../../services/authService'
 import { useResumeStore } from '../../stores/resumeStore'
 import { resumeApi } from '../../api/resume'
@@ -327,6 +352,10 @@ import FilePreviewDialog from '../../components/FilePreviewDialog.vue'
 const resumeStore = useResumeStore()
 const currentUser = ref(getCurrentUser() || { id: 1, username: '管理员' })
 const listLoading = ref(false)
+const searchKeyword = ref('')
+const currentPage = ref(1)
+const pageSize = ref(10)
+const totalCount = ref(0)
 
 // List retrieval
 let statusPolling = null
@@ -340,14 +369,14 @@ const stopPolling = () => {
 
 const checkAndStartPolling = () => {
   const needsPolling = resumeStore.resumes.some(r => isAnalyzing(r.status))
-  
+
   if (needsPolling && !statusPolling) {
     statusPolling = setInterval(async () => {
       try {
-        const data = await resumeApi.getResumes()
-        const list = Array.isArray(data) ? data : (data.items || data.data || [])
+        const data = await resumeApi.getResumes(0, 100)
+        let list = Array.isArray(data) ? data : (data.items || data.data || [])
         resumeStore.setResumes(list)
-        
+
         // 如果全部解析完毕，停止轮询
         if (!list.some(r => isAnalyzing(r.status))) {
           stopPolling()
@@ -364,16 +393,10 @@ const checkAndStartPolling = () => {
 const fetchResumes = async () => {
   listLoading.value = true
   try {
-    const data = await resumeApi.getResumes()
+    const skip = (currentPage.value - 1) * pageSize.value
+    const data = await resumeApi.getResumes(skip, pageSize.value, null, searchKeyword.value)
     let list = Array.isArray(data) ? data : (data.items || data.data || [])
-    
-    // 按创建时间降序排列，最新的在最上面
-    list.sort((a, b) => {
-      const timeA = new Date(a.created_at || 0).getTime()
-      const timeB = new Date(b.created_at || 0).getTime()
-      return timeB - timeA
-    })
-
+    totalCount.value = data.total || list.length
     resumeStore.setResumes(list)
     checkAndStartPolling()
   } catch (error) {
@@ -381,6 +404,16 @@ const fetchResumes = async () => {
   } finally {
     listLoading.value = false
   }
+}
+
+const handleSearch = () => {
+  currentPage.value = 1
+  fetchResumes()
+}
+
+const handlePageChange = (page) => {
+  currentPage.value = page
+  fetchResumes()
 }
 
 // 状态处理工具函数
@@ -592,18 +625,42 @@ const submitBatchUpload = async () => {
   batchProgress.value = 0
 
   try {
-    const files = batchFiles.value.map(item => item.file)
     const names = batchFiles.value.map(item => item.candidateName.trim())
-    batchProgress.value = files.length
 
-    const results = await resumeApi.batchUploadResumes(currentUser.value.id, files, names)
-    const list = Array.isArray(results) ? results : []
+    // Step 1: 逐个上传文件到后端，后端代为上传到TOS（同源请求，无CORS问题）
+    const uploadedItems = []
+    for (let i = 0; i < batchFiles.value.length; i++) {
+      const item = batchFiles.value[i]
+      try {
+        const result = await resumeApi.batchUploadFile(item.file)
+        if (result && result.tos_key) {
+          uploadedItems.push({
+            tos_key: result.tos_key,
+            filename: result.filename,
+            candidate_name: names[i]
+          })
+        } else {
+          ElMessage.error(`${item.file.name} 上传到存储失败`)
+        }
+      } catch (e) {
+        ElMessage.error(`${item.file.name} 上传到存储失败: ${e?.detail || e?.message || '未知错误'}`)
+      }
+      batchProgress.value = i + 1
+    }
 
-    const successCount = list.filter(r => r.success !== false).length
-    const failCount = list.filter(r => r.success === false).length
+    if (uploadedItems.length === 0) {
+      ElMessage.error('所有文件上传到存储均失败')
+      return
+    }
 
-    // 显示单个失败详情
-    for (const r of list) {
+    // Step 2: 通知服务器处理已上传到TOS的文件（小JSON请求，不会超时）
+    const importResponse = await resumeApi.importFromTos(uploadedItems)
+    const importResults = Array.isArray(importResponse) ? importResponse : []
+
+    const successCount = importResults.filter(r => r.success !== false).length
+    const failCount = importResults.filter(r => r.success === false).length
+
+    for (const r of importResults) {
       if (r.success === false && r.error) {
         ElMessage.error(`${r.filename} 导入失败: ${r.error}`)
       }
@@ -617,7 +674,7 @@ const submitBatchUpload = async () => {
       ElMessage.error('批量导入全部失败')
     }
   } catch (error) {
-    const msg = error?.detail || error?.message || '未知错误'
+    const msg = error?.detail || error?.message || error?.error || '未知错误'
     ElMessage.error('批量导入失败: ' + (typeof msg === 'string' ? msg : JSON.stringify(msg)))
   } finally {
     batchUploading.value = false

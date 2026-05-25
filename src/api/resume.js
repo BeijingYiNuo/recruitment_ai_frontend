@@ -13,11 +13,14 @@ export const resumeApi = {
     })
   },
 
-  // 获取简历（支持按审核状态筛选）
-  getResumes: (skip = 0, limit = 100, reviewStatus = null) => {
+  // 获取简历（支持按审核状态、搜索关键字筛选和分页）
+  getResumes: (skip = 0, limit = 100, reviewStatus = null, keyword = '') => {
     const params = { skip, limit }
     if (reviewStatus !== null) {
       params.review_status = reviewStatus
+    }
+    if (keyword) {
+      params.keyword = keyword
     }
     return request.get('/resumes', { params })
   },
@@ -60,6 +63,29 @@ export const resumeApi = {
       headers: {
         'Content-Type': 'multipart/form-data'
       }
+    })
+  },
+
+  // 通过TOS直传方式批量导入简历
+  getBatchUploadUrls: (filenames) => {
+    return request.post('/resumes/batch/upload-urls', {
+      files: filenames.map(name => ({ filename: name }))
+    })
+  },
+
+  // 单文件上传到TOS（CORS中转，后端代为上传）
+  batchUploadFile: (file) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return request.post('/resumes/batch/upload-file', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  },
+
+  // 从TOS批量导入简历（文件已上传到TOS）
+  importFromTos: (resumes) => {
+    return request.post('/resumes/batch/import-from-tos', {
+      resumes: resumes
     })
   },
 

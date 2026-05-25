@@ -5,9 +5,21 @@
       <div class="header-top">
         <div class="title-area">
           <h1>岗位管理</h1>
-          <span class="badge" v-if="positions.length > 0">{{ positions.length }}</span>
+          <span class="badge" v-if="totalCount > 0">{{ totalCount }}</span>
         </div>
         <div class="action-btn-group">
+          <el-input
+            v-model="searchKeyword"
+            placeholder="搜索岗位名称"
+            clearable
+            style="width: 220px; margin-right: 12px;"
+            @keyup.enter="handleSearch"
+            @clear="handleSearch"
+          >
+            <template #prefix>
+              <el-icon><Search /></el-icon>
+            </template>
+          </el-input>
           <el-button type="primary" @click="openCreateDialog">
             <el-icon><Plus /></el-icon>
             新建岗位
@@ -61,6 +73,19 @@
           </div>
         </div>
       </el-card>
+
+      <!-- 分页 -->
+      <div class="pagination-wrapper" v-if="totalCount > 0" style="margin-top: 16px; display: flex; justify-content: flex-end;">
+        <el-pagination
+          v-model:current-page="currentPage"
+          v-model:page-size="pageSize"
+          :total="totalCount"
+          layout="total, prev, pager, next"
+          background
+          small
+          @current-change="handlePageChange"
+        />
+      </div>
     </div>
 
     <!-- 岗位编辑弹窗 -->
@@ -261,13 +286,17 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, OfficeBuilding, List, CaretBottom, Clock, Edit, Delete, User, Select } from '@element-plus/icons-vue'
+import { Plus, OfficeBuilding, List, CaretBottom, Clock, Edit, Delete, User, Select, Search } from '@element-plus/icons-vue'
 import { positionApi } from '../../api/position.js'
 
 const loading = ref(false)
 const saving = ref(false)
 const savingRounds = ref(false)
 const positions = ref([])
+const searchKeyword = ref('')
+const currentPage = ref(1)
+const pageSize = ref(10)
+const totalCount = ref(0)
 
 // 岗位表单
 const formRef = ref(null)
@@ -326,8 +355,13 @@ onMounted(() => {
 const loadPositions = async () => {
   loading.value = true
   try {
-    const res = await positionApi.list()
-    positions.value = Array.isArray(res) ? res : res?.data || []
+    const skip = (currentPage.value - 1) * pageSize.value
+    const params = { skip, limit: pageSize.value }
+    if (searchKeyword.value) params.keyword = searchKeyword.value
+    const res = await positionApi.list(params)
+    const list = Array.isArray(res) ? res : res?.items || res?.data || []
+    positions.value = list
+    totalCount.value = res.total || list.length
   } catch (e) {
     console.error('加载岗位列表失败:', e)
     ElMessage.error('加载岗位列表失败')
@@ -335,6 +369,16 @@ const loadPositions = async () => {
   } finally {
     loading.value = false
   }
+}
+
+const handleSearch = () => {
+  currentPage.value = 1
+  loadPositions()
+}
+
+const handlePageChange = (page) => {
+  currentPage.value = page
+  loadPositions()
 }
 
 // ====== 岗位 CRUD ======
