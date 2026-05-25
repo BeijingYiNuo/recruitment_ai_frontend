@@ -646,74 +646,25 @@ const submitBatchUpload = async () => {
   }
 
   batchUploading.value = true
-  batchProgress.value = 0
+  batchProgress.value = 10
   const totalFiles = batchFiles.value.length
   const names = batchFiles.value.map(item => item.candidateName.trim())
 
   try {
-    // Step 1: 并发上传所有文件（并发数 3），每文件失败自动重试 2 次
-    const CONCURRENCY = 3
-    const MAX_RETRIES = 2
-    const queue = batchFiles.value.map((item, i) => ({ ...item, nameIndex: i }))
-    const uploadedItems = []
-    let completedCount = 0
-
-    async function uploadWorker() {
-      while (queue.length > 0) {
-        const item = queue.shift()
-        const result = await uploadSingleFileWithRetry(item.file, names[item.nameIndex], MAX_RETRIES)
-        if (result) {
-          uploadedItems.push(result)
-          batchUploadedCount.value = uploadedItems.length
-        }
-        completedCount++
-        batchProgress.value = Math.round((completedCount / totalFiles) * 50)  // 上传阶段占总进度 0-50%
-      }
-    }
-
-    const workers = Array.from({ length: Math.min(CONCURRENCY, totalFiles) }, () => uploadWorker())
-    await Promise.all(workers)
-
-    if (uploadedItems.length === 0) {
-      ElMessage.error('所有文件上传到存储均失败')
-      return
-    }
-
-    // Step 2: 建库（不分析，快速返回）
-    batchProgress.value = 55
-    const importResponse = await resumeApi.importFromTos(uploadedItems)
-    batchProgress.value = 70
-    const importResults = Array.isArray(importResponse) ? importResponse : []
-
-    const successCount = importResults.filter(r => r.success !== false).length
-    const failCount = importResults.filter(r => r.success === false).length
-
-    for (const r of importResults) {
-      if (r.success === false && r.error) {
-        ElMessage.error(`${r.filename} 导入失败: ${r.error}`)
-      }
-    }
-
-    if (successCount === 0) {
-      ElMessage.error('批量导入全部失败')
-      return
-    }
-
-    // 导入成功，立即关闭弹窗、刷新列表
-    ElMessage.success(`导入 ${successCount} 份成功${failCount > 0 ? `，${failCount} 份失败` : ''}，正在后台解析...`)
+    // 单次调用：后端存本地后立即返回，TOS 上传 + 建库 + 分析全部后台异步执行
+    batchProgress.value = 30
+    const result = await resumeApi.batchImportLocal(totalFiles > 0 ? batchFiles.value.map(f => f.file) : [], names)
     batchProgress.value = 80
-    batchDialogVisible.value = false
-    fetchResumes()
 
-    // Step 3: 触发后台分析（与导入解耦，失败不影响导入）
-    const importedIds = importResults.filter(r => r.success !== false).map(r => r.id).filter(Boolean)
-    if (importedIds.length > 0) {
-      resumeApi.processPending(importedIds).catch(() => {
-        // 分析触发失败不影响导入，稍后系统会自动处理
-        console.warn('后台分析触发失败，简历将在稍后自动解析')
-      })
+    if (result && result.imported > 0) {
+      ElMessage.success(`已接收 ${result.imported} 份简历，后台处理中（几秒后刷新查看）`)
+      batchProgress.value = 100
+      batchDialogVisible.value = false
+      // 延迟刷新，给后台一点时间先完成建库
+      setTimeout(() => fetchResumes(), 2000)
+    } else {
+      ElMessage.error('批量导入失败，请重试')
     }
-    batchProgress.value = 100
   } catch (error) {
     const msg = error?.detail || error?.message || error?.error || '未知错误'
     ElMessage.error('批量导入失败: ' + (typeof msg === 'string' ? msg : JSON.stringify(msg)))

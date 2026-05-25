@@ -98,6 +98,19 @@ export const resumeApi = {
     })
   },
 
+  // 批量导入简历（存本地 → 立即返回 → 后台TOS上传+分析）
+  batchImportLocal: (files, candidateNames) => {
+    const formData = new FormData()
+    for (const file of files) {
+      formData.append('files', file)
+    }
+    formData.append('candidate_names', JSON.stringify(candidateNames))
+    return request.post('/resumes/batch/import-local', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 180000  // 首批文件写入本地，设足够长
+    })
+  },
+
   // 彻底删除单份简历
   deleteResume: (resumeId) => {
     return request.delete(`/resumes/${resumeId}`)
