@@ -9,7 +9,8 @@ export const resumeApi = {
     return request.post(`/resumes/import?user_id=${userId}&candidate_name=${encodeURIComponent(candidateName)}`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
-      }
+      },
+      timeout: 120000
     })
   },
 
@@ -78,7 +79,8 @@ export const resumeApi = {
     const formData = new FormData()
     formData.append('file', file)
     return request.post('/resumes/batch/upload-file', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 120000  // 公网上传单个文件最多等 2 分钟
     })
   },
 
