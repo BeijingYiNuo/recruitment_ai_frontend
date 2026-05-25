@@ -54,51 +54,6 @@ export const resumeApi = {
   },
 
   // 批量导入简历
-  batchUploadResumes: (userId, files, candidateNames) => {
-    const formData = new FormData()
-    for (const file of files) {
-      formData.append('files', file)
-    }
-    formData.append('candidate_names', JSON.stringify(candidateNames))
-    return request.post(`/resumes/import/batch?user_id=${userId}`, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data'
-      }
-    })
-  },
-
-  // 通过TOS直传方式批量导入简历
-  getBatchUploadUrls: (filenames) => {
-    return request.post('/resumes/batch/upload-urls', {
-      files: filenames.map(name => ({ filename: name }))
-    })
-  },
-
-  // 单文件上传到TOS（CORS中转，后端代为上传）
-  batchUploadFile: (file) => {
-    const formData = new FormData()
-    formData.append('file', file)
-    return request.post('/resumes/batch/upload-file', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-      timeout: 120000  // 公网上传单个文件最多等 2 分钟
-    })
-  },
-
-  // 从TOS批量导入简历（文件已上传到TOS）
-  importFromTos: (resumes) => {
-    return request.post('/resumes/batch/import-from-tos', {
-      resumes: resumes
-    })
-  },
-
-  // 批量处理待分析的简历（分析与导入解耦）
-  processPending: (resumeIds = null) => {
-    return request.post('/resumes/batch/process-pending', {
-      resume_ids: resumeIds
-    })
-  },
-
-  // 批量导入简历（存本地 → 立即返回 → 后台TOS上传+分析）
   batchImportLocal: (files, candidateNames) => {
     const formData = new FormData()
     for (const file of files) {

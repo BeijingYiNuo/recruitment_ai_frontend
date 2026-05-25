@@ -615,28 +615,6 @@ const resetBatchForm = () => {
   if (batchUploadRef.value) batchUploadRef.value.clearFiles()
 }
 
-/** 带重试的单文件上传，返回 tos_key 或 null */
-const uploadSingleFileWithRetry = async (file, candidateName, maxRetries = 2) => {
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      const result = await resumeApi.batchUploadFile(file)
-      if (result?.tos_key) {
-        return { tos_key: result.tos_key, filename: result.filename, candidate_name: candidateName }
-      }
-    } catch (e) {
-      const errMsg = e?.detail || e?.message || '未知错误'
-      if (attempt < maxRetries) {
-        // 指数退避: 1s, 2s
-        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)))
-        continue
-      }
-      ElMessage.error(`${file.name} 上传失败（已重试${maxRetries}次）: ${errMsg}`)
-      return null
-    }
-  }
-  return null
-}
-
 const submitBatchUpload = async () => {
   // 校验所有文件是否都有候选人姓名
   const emptyNames = batchFiles.value.filter(f => !f.candidateName?.trim())
