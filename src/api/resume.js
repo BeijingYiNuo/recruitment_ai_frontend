@@ -2,11 +2,11 @@ import request from '../utils/request'
 
 export const resumeApi = {
   // 导入简历
-  uploadResume: (userId, candidateName, file) => {
+  uploadResume: (userId, file) => {
     const formData = new FormData()
     formData.append('file', file)
 
-    return request.post(`/resumes/import?user_id=${userId}&candidate_name=${encodeURIComponent(candidateName)}`, formData, {
+    return request.post(`/resumes/import?user_id=${userId}`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
       },
@@ -14,14 +14,20 @@ export const resumeApi = {
     })
   },
 
-  // 获取简历（支持按审核状态、搜索关键字筛选和分页）
-  getResumes: (skip = 0, limit = 100, reviewStatus = null, keyword = '') => {
+  // 获取简历（支持按审核状态、搜索关键字、时间范围筛选和分页）
+  getResumes: (skip = 0, limit = 100, reviewStatus = null, keyword = '', startTime = '', endTime = '') => {
     const params = { skip, limit }
     if (reviewStatus !== null) {
       params.review_status = reviewStatus
     }
     if (keyword) {
       params.keyword = keyword
+    }
+    if (startTime) {
+      params.start_time = startTime
+    }
+    if (endTime) {
+      params.end_time = endTime
     }
     return request.get('/resumes', { params })
   },
@@ -54,20 +60,29 @@ export const resumeApi = {
   },
 
   // 批量导入简历
-  batchImportLocal: (files, candidateNames) => {
+  batchImportLocal: (files) => {
     const formData = new FormData()
     for (const file of files) {
       formData.append('files', file)
     }
-    formData.append('candidate_names', JSON.stringify(candidateNames))
     return request.post('/resumes/batch/import-local', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
-      timeout: 180000  // 首批文件写入本地，设足够长
+      timeout: 180000
     })
   },
 
   // 彻底删除单份简历
   deleteResume: (resumeId) => {
     return request.delete(`/resumes/${resumeId}`)
+  },
+
+  // 编辑简历详情（候选人姓名 + 教育/工作/技能/项目）
+  updateResumeDetails: (resumeId, data) => {
+    return request.put(`/resumes/${resumeId}/details`, data)
+  },
+
+  // 重新解析简历
+  reparseResume: (resumeId) => {
+    return request.post(`/resumes/${resumeId}/reparse`)
   }
 }

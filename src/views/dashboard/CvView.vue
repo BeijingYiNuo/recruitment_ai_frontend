@@ -73,6 +73,7 @@
             <div class="col-action">
               <el-button type="primary" link @click.stop="handlePreview(resume)">预览</el-button>
               <el-button type="primary" link @click.stop="handleDownload(resume)">下载</el-button>
+              <el-button type="primary" link @click.stop="handleRowReparse(resume)">重新解析</el-button>
               <el-button type="danger" link @click.stop="handleDelete(resume.id)">删除</el-button>
             </div>
           </div>
@@ -104,7 +105,15 @@
           <div class="drawer-header">
             <div class="drawer-title">{{ currentDetail?.candidate_name || '加载中...' }} - 候选人详情</div>
             <div class="drawer-actions">
-              <el-button size="small" class="lark-btn-ghost" @click="handlePreview(currentDetail)">简历预览</el-button>
+              <template v-if="!editMode">
+                <el-button size="small" class="lark-btn-ghost" @click.stop="handleDrawerReparse">重新解析</el-button>
+                <el-button size="small" type="primary" @click.stop="enterEditMode">编辑详情</el-button>
+                <el-button size="small" class="lark-btn-ghost" @click.stop="handlePreview(currentDetail)">简历预览</el-button>
+              </template>
+              <template v-else>
+                <el-button size="small" class="lark-btn-ghost" @click="cancelEdit" :disabled="editSaving">取消</el-button>
+                <el-button size="small" type="primary" @click="saveEdit" :loading="editSaving">保存修改</el-button>
+              </template>
               <el-icon class="close-icon" @click="closeDrawer"><Close /></el-icon>
             </div>
           </div>
@@ -119,7 +128,14 @@
               <div class="detail-card">
                 <h3>基础信息字段</h3>
                 <el-descriptions :column="2" border v-if="currentDetail">
-                  <el-descriptions-item label="候选人姓名">{{ currentDetail.candidate_name }}</el-descriptions-item>
+                  <el-descriptions-item label="候选人姓名">
+                    <template v-if="editMode">
+                      <el-input v-model="editCandidateName" size="small" style="width: 200px" />
+                    </template>
+                    <template v-else>
+                      {{ currentDetail.candidate_name }}
+                    </template>
+                  </el-descriptions-item>
                   <el-descriptions-item label="文件格式">{{ currentDetail.file_type?.toUpperCase() }}</el-descriptions-item>
                   <el-descriptions-item label="解析状态">
                     <el-tag :type="isAnalyzing(currentDetail.status) ? 'primary' : 'success'" size="small">
@@ -134,85 +150,166 @@
               <div class="detail-card">
                 <h3>AI 智能专项解析</h3>
                 <div class="special-actions">
-                  <el-button @click="handleFetchSpecialInDrawer('educations', '教育经历')" size="small">教育经历</el-button>
-                  <el-button @click="handleFetchSpecialInDrawer('work-experiences', '工作经历')" size="small">工作经历</el-button>
-                  <el-button @click="handleFetchSpecialInDrawer('skills', '技能')" size="small">核心技能</el-button>
-                  <el-button @click="handleFetchSpecialInDrawer('projects', '项目经历')" size="small">项目经验</el-button>
+                  <el-button @click="handleSectionClick('educations', '教育经历')" size="small">教育经历</el-button>
+                  <el-button @click="handleSectionClick('work-experiences', '工作经历')" size="small">工作经历</el-button>
+                  <el-button @click="handleSectionClick('skills', '技能')" size="small">核心技能</el-button>
+                  <el-button @click="handleSectionClick('projects', '项目经历')" size="small">项目经验</el-button>
                 </div>
                 <!-- 显示内容区域 -->
                 <div class="special-content" v-if="specialDataStr" v-loading="specialDataLoading" style="margin-top: 16px;">
-                  <!-- 教育经历结构化渲染 -->
-                  <div v-if="activeSpecialType === 'educations' && specialEduList.length > 0" class="special-list edu-list">
-                    <div v-for="edu in specialEduList" :key="edu.id" class="special-item edu-item">
-                      <div class="item-header">
-                        <span class="main-title">{{ edu.school_name }}</span>
-                        <div class="item-tags">
-                          <el-tag v-if="edu.is_985" size="small" type="warning" effect="dark" class="mini-tag">985</el-tag>
-                          <el-tag v-if="edu.is_211" size="small" type="danger" effect="dark" class="mini-tag">211</el-tag>
+
+                  <!-- ========== 教育经历 - 只读模式 ========== -->
+                  <template v-if="!editMode">
+                    <div v-if="activeSpecialType === 'educations' && specialEduList.length > 0" class="special-list edu-list">
+                      <div v-for="edu in specialEduList" :key="edu.id" class="special-item edu-item">
+                        <div class="item-header">
+                          <span class="main-title">{{ edu.school_name }}</span>
+                          <div class="item-tags">
+                            <el-tag v-if="edu.is_985" size="small" type="warning" effect="dark" class="mini-tag">985</el-tag>
+                            <el-tag v-if="edu.is_211" size="small" type="danger" effect="dark" class="mini-tag">211</el-tag>
+                          </div>
                         </div>
-                      </div>
-                      <div class="item-sub">
-                        <span class="info-line">{{ edu.major }}</span>
-                        <span class="divider" v-if="edu.major && edu.degree">|</span>
-                        <span class="info-line">{{ edu.degree || '无学位/大专' }}</span>
-                      </div>
-                      <div class="item-date">
-                        {{ formatSimpleDate(edu.start_date) }} 至 {{ formatSimpleDate(edu.end_date) }}
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- 工作经历结构化渲染 -->
-                  <div v-else-if="activeSpecialType === 'work-experiences' && specialWorkList.length > 0" class="special-list work-list">
-                    <div v-for="work in specialWorkList" :key="work.id" class="special-item work-item">
-                      <div class="item-header">
-                        <span class="main-title">{{ work.company_name }}</span>
-                        <span class="item-date">{{ formatDateRange(work.start_date, work.end_date) }}</span>
-                      </div>
-                      <div class="item-sub">
-                        <span class="position-text">{{ work.position }}</span>
-                      </div>
-                      <div class="item-desc" v-if="work.description">
-                        {{ work.description }}
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- 技能打标结构化渲染 -->
-                  <div v-else-if="activeSpecialType === 'skills' && specialSkillList.length > 0" class="skill-cloud-container">
-                    <div v-for="(skills, level) in groupedSkills" :key="level" class="skill-group">
-                      <div class="skill-group-title">{{ level }}</div>
-                      <div class="skill-cloud">
-                        <div v-for="skill in skills" :key="skill.id" class="skill-chip">
-                          <span class="skill-name">{{ skill.skill_name }}</span>
+                        <div class="item-sub">
+                          <span class="info-line">{{ edu.major }}</span>
+                          <span class="divider" v-if="edu.major && edu.degree">|</span>
+                          <span class="info-line">{{ edu.degree || '无学位/大专' }}</span>
+                        </div>
+                        <div class="item-date">
+                          {{ formatSimpleDate(edu.start_date) }} 至 {{ formatSimpleDate(edu.end_date) }}
                         </div>
                       </div>
                     </div>
-                  </div>
 
-                  <!-- 项目经验结构化渲染 -->
-                  <div v-else-if="activeSpecialType === 'projects' && specialProjectList.length > 0" class="special-list project-list">
-                    <div v-for="proj in specialProjectList" :key="proj.id" class="special-item project-item">
-                      <div class="item-header">
-                        <span class="main-title">{{ proj.project_name }}</span>
-                        <span class="item-date">{{ formatDateRange(proj.start_date, proj.end_date) }}</span>
-                      </div>
-                      <div class="item-sub" v-if="proj.role">
-                        <span class="role-text">{{ proj.role }}</span>
-                      </div>
-                      <div class="item-desc" v-if="proj.description">
-                        {{ proj.description }}
+                    <div v-else-if="activeSpecialType === 'work-experiences' && specialWorkList.length > 0" class="special-list work-list">
+                      <div v-for="work in specialWorkList" :key="work.id" class="special-item work-item">
+                        <div class="item-header">
+                          <span class="main-title">{{ work.company_name }}</span>
+                          <span class="item-date">{{ formatDateRange(work.start_date, work.end_date) }}</span>
+                        </div>
+                        <div class="item-sub">
+                          <span class="position-text">{{ work.position }}</span>
+                        </div>
+                        <div class="item-desc" v-if="work.description">
+                          {{ work.description }}
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <!-- 空状态处理：针对已知的结构化类型，如果列表为空则展示友好提示 -->
-                  <div v-else-if="['educations', 'work-experiences', 'skills', 'projects'].includes(activeSpecialType)" class="empty-special-card">
-                    <el-empty description="本次 AI 解析未提取到相关有效信息" :image-size="80"></el-empty>
-                  </div>
+                    <div v-else-if="activeSpecialType === 'skills' && specialSkillList.length > 0" class="skill-cloud-container">
+                      <div v-for="(skills, level) in groupedSkills" :key="level" class="skill-group">
+                        <div class="skill-group-title">{{ level }}</div>
+                        <div class="skill-cloud">
+                          <div v-for="skill in skills" :key="skill.id" class="skill-chip">
+                            <span class="skill-name">{{ skill.skill_name }}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
 
-                  <!-- 其他默认 JSON 渲染 -->
-                  <pre v-else class="code-block">{{ specialDataStr }}</pre>
+                    <div v-else-if="activeSpecialType === 'projects' && specialProjectList.length > 0" class="special-list project-list">
+                      <div v-for="proj in specialProjectList" :key="proj.id" class="special-item project-item">
+                        <div class="item-header">
+                          <span class="main-title">{{ proj.project_name }}</span>
+                          <span class="item-date">{{ formatDateRange(proj.start_date, proj.end_date) }}</span>
+                        </div>
+                        <div class="item-sub" v-if="proj.role">
+                          <span class="role-text">{{ proj.role }}</span>
+                        </div>
+                        <div class="item-desc" v-if="proj.description">
+                          {{ proj.description }}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div v-else-if="['educations', 'work-experiences', 'skills', 'projects'].includes(activeSpecialType)" class="empty-special-card">
+                      <el-empty description="本次 AI 解析未提取到相关有效信息" :image-size="80"></el-empty>
+                    </div>
+
+                    <pre v-else class="code-block">{{ specialDataStr }}</pre>
+                  </template>
+
+                  <!-- ========== 编辑模式 ========== -->
+                  <template v-if="editMode">
+                    <!-- 教育经历编辑 -->
+                    <div v-if="activeSpecialType === 'educations'" class="special-list edu-list">
+                      <div v-for="(edu, idx) in editEduList" :key="idx" class="special-item edu-item" style="padding: 12px;">
+                        <div class="edit-row">
+                          <el-input v-model="edu.school_name" placeholder="学校名称" size="small" style="width: 200px; margin-right: 8px;" />
+                          <el-input v-model="edu.major" placeholder="专业" size="small" style="width: 160px; margin-right: 8px;" />
+                          <el-input v-model="edu.degree" placeholder="学位" size="small" style="width: 120px;" />
+                        </div>
+                        <div class="edit-row" style="margin-top: 8px;">
+                          <el-date-picker v-model="edu.start_date" type="date" placeholder="开始日期" size="small" style="width: 150px; margin-right: 8px;" value-format="YYYY-MM-DD" />
+                          <el-date-picker v-model="edu.end_date" type="date" placeholder="结束日期" size="small" style="width: 150px; margin-right: 8px;" value-format="YYYY-MM-DD" />
+                          <el-checkbox v-model="edu.is_985" :true-value="1" :false-value="0" size="small">985</el-checkbox>
+                          <el-checkbox v-model="edu.is_211" :true-value="1" :false-value="0" size="small">211</el-checkbox>
+                          <el-button type="danger" link size="small" @click="editEduList.splice(idx, 1)">删除</el-button>
+                        </div>
+                      </div>
+                      <el-button size="small" class="lark-btn-ghost" @click="editEduList.push({school_name:'', major:'', degree:'', start_date: null, end_date: null, is_985: 0, is_211: 0})" style="margin-top: 8px;">
+                        + 添加教育经历
+                      </el-button>
+                    </div>
+
+                    <!-- 工作经历编辑 -->
+                    <div v-if="activeSpecialType === 'work-experiences'" class="special-list work-list">
+                      <div v-for="(work, idx) in editWorkList" :key="idx" class="special-item work-item" style="padding: 12px;">
+                        <div class="edit-row">
+                          <el-input v-model="work.company_name" placeholder="公司名称" size="small" style="width: 200px; margin-right: 8px;" />
+                          <el-input v-model="work.position" placeholder="职位" size="small" style="width: 160px;" />
+                        </div>
+                        <div class="edit-row" style="margin-top: 8px;">
+                          <el-date-picker v-model="work.start_date" type="date" placeholder="开始日期" size="small" style="width: 150px; margin-right: 8px;" value-format="YYYY-MM-DD" />
+                          <el-date-picker v-model="work.end_date" type="date" placeholder="结束日期" size="small" style="width: 150px; margin-right: 8px;" value-format="YYYY-MM-DD" />
+                          <el-button type="danger" link size="small" @click="editWorkList.splice(idx, 1)">删除</el-button>
+                        </div>
+                        <div class="edit-row" style="margin-top: 8px;">
+                          <el-input v-model="work.description" type="textarea" :rows="2" placeholder="工作描述" size="small" />
+                        </div>
+                      </div>
+                      <el-button size="small" class="lark-btn-ghost" @click="editWorkList.push({company_name:'', position:'', start_date: null, end_date: null, description: ''})" style="margin-top: 8px;">
+                        + 添加工作经历
+                      </el-button>
+                    </div>
+
+                    <!-- 技能编辑 -->
+                    <div v-if="activeSpecialType === 'skills'" class="skill-cloud-container">
+                      <div v-for="(skill, idx) in editSkillList" :key="idx" class="edit-row" style="margin-bottom: 8px; display: flex; align-items: center;">
+                        <el-input v-model="skill.skill_name" placeholder="技能名称" size="small" style="width: 180px; margin-right: 8px;" />
+                        <el-select v-model="skill.proficiency_level" placeholder="熟练程度" size="small" style="width: 120px; margin-right: 8px;">
+                          <el-option label="精通" value="精通" />
+                          <el-option label="熟练" value="熟练" />
+                          <el-option label="掌握" value="掌握" />
+                          <el-option label="了解" value="了解" />
+                        </el-select>
+                        <el-button type="danger" link size="small" @click="editSkillList.splice(idx, 1)">删除</el-button>
+                      </div>
+                      <el-button size="small" class="lark-btn-ghost" @click="editSkillList.push({skill_name:'', proficiency_level:''})" style="margin-top: 8px;">
+                        + 添加技能
+                      </el-button>
+                    </div>
+
+                    <!-- 项目经历编辑 -->
+                    <div v-if="activeSpecialType === 'projects'" class="special-list project-list">
+                      <div v-for="(proj, idx) in editProjectList" :key="idx" class="special-item project-item" style="padding: 12px;">
+                        <div class="edit-row">
+                          <el-input v-model="proj.project_name" placeholder="项目名称" size="small" style="width: 240px; margin-right: 8px;" />
+                          <el-input v-model="proj.role" placeholder="担任角色" size="small" style="width: 120px;" />
+                        </div>
+                        <div class="edit-row" style="margin-top: 8px;">
+                          <el-date-picker v-model="proj.start_date" type="date" placeholder="开始日期" size="small" style="width: 150px; margin-right: 8px;" value-format="YYYY-MM-DD" />
+                          <el-date-picker v-model="proj.end_date" type="date" placeholder="结束日期" size="small" style="width: 150px; margin-right: 8px;" value-format="YYYY-MM-DD" />
+                          <el-button type="danger" link size="small" @click="editProjectList.splice(idx, 1)">删除</el-button>
+                        </div>
+                        <div class="edit-row" style="margin-top: 8px;">
+                          <el-input v-model="proj.description" type="textarea" :rows="2" placeholder="项目描述" size="small" />
+                        </div>
+                      </div>
+                      <el-button size="small" class="lark-btn-ghost" @click="editProjectList.push({project_name:'', role:'', start_date: null, end_date: null, description: ''})" style="margin-top: 8px;">
+                        + 添加项目经历
+                      </el-button>
+                    </div>
+                  </template>
                 </div>
               </div>
             </div>
@@ -251,7 +348,7 @@
 
       <div v-if="batchFiles.length > 0" class="batch-file-list">
         <div class="batch-list-header">
-          <span>已选择 {{ batchFiles.length }} 份简历，请填写每位候选人姓名：</span>
+          <span>已选择 {{ batchFiles.length }} 份简历（姓名将由 AI 自动解析）</span>
         </div>
         <div
           v-for="(item, index) in batchFiles"
@@ -259,12 +356,6 @@
           class="batch-file-row"
         >
           <span class="batch-file-index">{{ index + 1 }}.</span>
-          <el-input
-            v-model="item.candidateName"
-            :placeholder="'例如：' + autoFillName(item.file.name)"
-            class="batch-name-input"
-            size="small"
-          />
           <span class="batch-file-name">{{ item.file.name }}</span>
           <span class="batch-file-size">{{ formatSize(item.file.size) }}</span>
           <el-button
@@ -288,7 +379,7 @@
             :disabled="batchFiles.length === 0"
             @click="submitBatchUpload"
           >
-            {{ batchUploading ? `正在导入 ${batchUploadedCount}/${batchFiles.length}` : '确认批量导入' }}
+            {{ batchUploading ? '正在导入...' : '确认批量导入' }}
           </el-button>
         </span>
       </template>
@@ -305,12 +396,9 @@
       @download="handleDownload(previewResumeData)"
     />
 
-    <!-- 简历导入弹窗 (保留原逻辑与布局) -->
+    <!-- 简历导入弹窗 -->
     <el-dialog v-model="uploadDialogVisible" title="导入新简历" width="440px" @close="resetUploadForm">
-      <el-form ref="uploadFormRef" :model="uploadForm" :rules="uploadRules" label-width="95px">
-        <el-form-item label="候选人姓名" prop="candidateName">
-          <el-input v-model="uploadForm.candidateName" placeholder="请填写候选人真实姓名"></el-input>
-        </el-form-item>
+      <el-form ref="uploadFormRef" :model="uploadForm" label-width="95px">
         <el-form-item label="简历文件" prop="file">
           <el-upload
             ref="uploadRef"
@@ -343,7 +431,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
 import { ElMessage, ElLoading, ElMessageBox } from 'element-plus'
-import { UploadFilled, Download, Close, Upload, Search } from '@element-plus/icons-vue'
+import { UploadFilled, Download, Close, Search } from '@element-plus/icons-vue'
 import { getCurrentUser } from '../../services/authService'
 import { useResumeStore } from '../../stores/resumeStore'
 import { resumeApi } from '../../api/resume'
@@ -446,28 +534,8 @@ const uploadFormRef = ref(null)
 const uploadRef = ref(null)
 
 const uploadForm = ref({
-  candidateName: '',
   file: null
 })
-
-const validateCandidateName = (rule, value, callback) => {
-  if (!value) {
-    return callback(new Error('必须输入候选人姓名'))
-  }
-  if (/^\d/.test(value)) {
-    return callback(new Error('候选人姓名不能以数字开头'))
-  }
-  if (/^\d+$/.test(value)) {
-    return callback(new Error('候选人姓名不能是纯数字'))
-  }
-  callback()
-}
-
-const uploadRules = {
-  candidateName: [
-    { required: true, validator: validateCandidateName, trigger: 'blur' }
-  ]
-}
 
 const handleFileChange = (uploadFile) => {
   uploadForm.value.file = uploadFile.raw
@@ -478,75 +546,71 @@ const handleFileRemove = () => {
 }
 
 const resetUploadForm = () => {
-  uploadForm.value = { candidateName: '', file: null }
+  uploadForm.value = { file: null }
   if (uploadRef.value) uploadRef.value.clearFiles()
   if (uploadFormRef.value) uploadFormRef.value.clearValidate()
 }
 
-const submitUpload = () => {
-  uploadFormRef.value.validate(async (valid) => {
-    if (!valid) return
-    if (!uploadForm.value.file) {
-      ElMessage.warning('请选择需要上传的简历文件')
-      return
-    }
-    
-    const file = uploadForm.value.file
-    const allowedTypes = [
-      'application/pdf',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-    ]
+const submitUpload = async () => {
+  if (!uploadForm.value.file) {
+    ElMessage.warning('请选择需要上传的简历文件')
+    return
+  }
 
-    if (!allowedTypes.includes(file.type) && !file.name.match(/\.(pdf|doc|docx)$/i)) {
-      ElMessage.error('只支持 PDF 或 Word 格式的简历文件')
-      return
-    }
+  const file = uploadForm.value.file
+  const allowedTypes = [
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  ]
 
-    if (file.size > 10 * 1024 * 1024) {
-      ElMessage.error('简历文件大小不能超过 10MB')
-      return
-    }
+  if (!allowedTypes.includes(file.type) && !file.name.match(/\.(pdf|doc|docx)$/i)) {
+    ElMessage.error('只支持 PDF 或 Word 格式的简历文件')
+    return
+  }
 
-    listLoading.value = true
-    try {
-      const response = await resumeApi.uploadResume(currentUser.value.id, uploadForm.value.candidateName, file)
-      
-      const blobUrl = URL.createObjectURL(file)
-      const newResume = Object.assign({
-        id: Date.now(),
-        user_id: currentUser.value.id,
-        candidate_name: uploadForm.value.candidateName,
-        file_path: '',
-        file_type: file.name.split('.').pop().toLowerCase(),
-        status: 'uploaded',
-        created_at: new Date().toISOString().slice(0, 19).replace('T', ' ')
-      }, response)
-      
-      newResume.preview_url = blobUrl
-      resumeStore.addResume(newResume)
-      
-      ElMessage.success(`简历 ${file.name} 导入成功！`)
-      uploadDialogVisible.value = false
-      fetchResumes() // 这里会触发 checkAndStartPolling
-    } catch (error) {
-      if (Array.isArray(error?.detail)) {
-        const msgs = error.detail.map(e => e.msg).join('; ')
-        ElMessage.error(`上传失败: ${msgs}`)
-      } else {
-        ElMessage.error('上传失败: ' + (error?.detail || error?.message || '未知错误'))
-      }
-    } finally {
-      listLoading.value = false
+  if (file.size > 10 * 1024 * 1024) {
+    ElMessage.error('简历文件大小不能超过 10MB')
+    return
+  }
+
+  listLoading.value = true
+  try {
+    const response = await resumeApi.uploadResume(currentUser.value.id, file)
+
+    const blobUrl = URL.createObjectURL(file)
+    const newResume = Object.assign({
+      id: Date.now(),
+      user_id: currentUser.value.id,
+      candidate_name: '待解析',
+      file_path: '',
+      file_type: file.name.split('.').pop().toLowerCase(),
+      status: 'uploaded',
+      created_at: new Date().toISOString().slice(0, 19).replace('T', ' ')
+    }, response)
+
+    newResume.preview_url = blobUrl
+    resumeStore.addResume(newResume)
+
+    ElMessage.success(`简历 ${file.name} 导入成功！`)
+    uploadDialogVisible.value = false
+    fetchResumes() // 这里会触发 checkAndStartPolling
+  } catch (error) {
+    if (Array.isArray(error?.detail)) {
+      const msgs = error.detail.map(e => e.msg).join('; ')
+      ElMessage.error(`上传失败: ${msgs}`)
+    } else {
+      ElMessage.error('上传失败: ' + (error?.detail || error?.message || '未知错误'))
     }
-  })
+  } finally {
+    listLoading.value = false
+  }
 }
 
 // ====== 批量导入逻辑 ======
 const batchDialogVisible = ref(false)
 const batchUploading = ref(false)
 const batchProgress = ref(0)
-const batchUploadedCount = ref(0)
 const batchUploadRef = ref(null)
 const batchFiles = ref([])
 
@@ -574,8 +638,7 @@ const handleBatchFileChange = (uploadFile) => {
     return
   }
   batchFiles.value.push({
-    file: uploadFile.raw,
-    candidateName: autoFillName(uploadFile.raw.name)
+    file: uploadFile.raw
   })
 }
 
@@ -594,14 +657,6 @@ const removeBatchFile = (index) => {
   }
 }
 
-const autoFillName = (fileName) => {
-  // 尝试从文件名提取候选人姓名：去掉扩展名和常见后缀
-  let name = fileName.replace(/\.(pdf|doc|docx)$/i, '')
-  // 去掉常见简历相关后缀
-  name = name.replace(/[-_——]*(简历|resume|个人简历|簡歷|CV)$/i, '')
-  return name.trim()
-}
-
 const formatSize = (bytes) => {
   const kb = bytes / 1024
   const mb = kb / 1024
@@ -611,27 +666,18 @@ const formatSize = (bytes) => {
 const resetBatchForm = () => {
   batchFiles.value = []
   batchProgress.value = 0
-  batchUploadedCount.value = 0
   if (batchUploadRef.value) batchUploadRef.value.clearFiles()
 }
 
 const submitBatchUpload = async () => {
-  // 校验所有文件是否都有候选人姓名
-  const emptyNames = batchFiles.value.filter(f => !f.candidateName?.trim())
-  if (emptyNames.length > 0) {
-    ElMessage.warning(`请填写 ${emptyNames[0].file.name} 的候选人姓名`)
-    return
-  }
-
   batchUploading.value = true
   batchProgress.value = 10
-  const totalFiles = batchFiles.value.length
-  const names = batchFiles.value.map(item => item.candidateName.trim())
 
   try {
     // 单次调用：后端存本地后立即返回，TOS 上传 + 建库 + 分析全部后台异步执行
     batchProgress.value = 30
-    const result = await resumeApi.batchImportLocal(totalFiles > 0 ? batchFiles.value.map(f => f.file) : [], names)
+    const files = batchFiles.value.map(f => f.file)
+    const result = await resumeApi.batchImportLocal(files)
     batchProgress.value = 80
 
     if (result && result.imported > 0) {
@@ -700,6 +746,7 @@ const openDrawer = async (id) => {
 }
 
 const closeDrawer = () => {
+  editMode.value = false
   drawerVisible.value = false
   setTimeout(() => {
     currentDetail.value = null
@@ -708,6 +755,15 @@ const closeDrawer = () => {
   }, 300) // matches transition timing
 }
 
+
+const handleSectionClick = (type, titleName) => {
+  if (editMode.value) {
+    activeSpecialType.value = type
+    specialDataStr.value = ' ' // trigger display
+  } else {
+    handleFetchSpecialInDrawer(type, titleName)
+  }
+}
 
 const handleFetchSpecialInDrawer = async (type, titleName) => {
   if (!currentDetail.value?.id) return
@@ -755,6 +811,134 @@ const handleFetchSpecialInDrawer = async (type, titleName) => {
     specialDataStr.value = '提取失败或返回格式解析出错'
   } finally {
     specialDataLoading.value = false
+  }
+}
+
+// ====== 重新解析 ======
+
+const handleRowReparse = async (resume) => {
+  try {
+    await resumeApi.reparseResume(resume.id)
+    ElMessage.success('重新解析已启动，请稍后查看结果')
+    fetchResumes()
+  } catch (error) {
+    ElMessage.error('重新解析失败: ' + (error?.detail || error?.message || '未知错误'))
+  }
+}
+
+const handleDrawerReparse = async () => {
+  const id = currentDetail.value?.id
+  if (!id) return
+
+  try {
+    await resumeApi.reparseResume(id)
+    ElMessage.success('重新解析已启动，请稍后查看结果')
+    closeDrawer()
+    fetchResumes()
+  } catch (error) {
+    ElMessage.error('重新解析失败: ' + (error?.detail || error?.message || '未知错误'))
+  }
+}
+
+// ====== 编辑模式 ======
+const editMode = ref(false)
+const editSaving = ref(false)
+const editCandidateName = ref('')
+const editEduList = ref([])
+const editWorkList = ref([])
+const editSkillList = ref([])
+const editProjectList = ref([])
+
+const enterEditMode = async () => {
+  const id = currentDetail.value?.id
+  if (!id) return
+
+  // 并行加载所有尚未加载的 section
+  const promises = []
+  if (specialEduList.value.length === 0) {
+    promises.push(handleFetchSpecialInDrawer('educations', '教育经历'))
+  }
+  if (specialWorkList.value.length === 0) {
+    promises.push(handleFetchSpecialInDrawer('work-experiences', '工作经历'))
+  }
+  if (specialSkillList.value.length === 0) {
+    promises.push(handleFetchSpecialInDrawer('skills', '技能'))
+  }
+  if (specialProjectList.value.length === 0) {
+    promises.push(handleFetchSpecialInDrawer('projects', '项目经历'))
+  }
+  if (promises.length > 0) {
+    await Promise.all(promises)
+  }
+
+  // 深拷贝当前数据到编辑副本
+  editCandidateName.value = currentDetail.value?.candidate_name || ''
+  editEduList.value = JSON.parse(JSON.stringify(specialEduList.value))
+  editWorkList.value = JSON.parse(JSON.stringify(specialWorkList.value))
+  editSkillList.value = JSON.parse(JSON.stringify(specialSkillList.value))
+  editProjectList.value = JSON.parse(JSON.stringify(specialProjectList.value))
+
+  editMode.value = true
+}
+
+const cancelEdit = () => {
+  editMode.value = false
+  editCandidateName.value = ''
+  editEduList.value = []
+  editWorkList.value = []
+  editSkillList.value = []
+  editProjectList.value = []
+}
+
+const saveEdit = async () => {
+  editSaving.value = true
+  try {
+    const payload = {
+      candidate_name: editCandidateName.value,
+      educations: editEduList.value.map(e => ({
+        school_name: e.school_name || '',
+        degree: e.degree || '',
+        major: e.major || '',
+        start_date: e.start_date ? e.start_date.split('T')[0] : null,
+        end_date: e.end_date ? e.end_date.split('T')[0] : null,
+        is_985: e.is_985 ? 1 : 0,
+        is_211: e.is_211 ? 1 : 0,
+      })),
+      work_experiences: editWorkList.value.map(w => ({
+        company_name: w.company_name || '',
+        position: w.position || '',
+        start_date: w.start_date ? w.start_date.split('T')[0] : null,
+        end_date: w.end_date ? w.end_date.split('T')[0] : null,
+        description: w.description || '',
+      })),
+      skills: editSkillList.value.map(s => ({
+        skill_name: s.skill_name || '',
+        proficiency_level: s.proficiency_level || '',
+      })),
+      projects: editProjectList.value.map(p => ({
+        project_name: p.project_name || '',
+        description: p.description || '',
+        start_date: p.start_date ? p.start_date.split('T')[0] : null,
+        end_date: p.end_date ? p.end_date.split('T')[0] : null,
+        role: p.role || '',
+      })),
+    }
+    await resumeApi.updateResumeDetails(currentDetail.value.id, payload)
+    ElMessage.success('简历详情更新成功')
+
+    // 同步更新本地数据
+    currentDetail.value.candidate_name = editCandidateName.value
+    specialEduList.value = editEduList.value
+    specialWorkList.value = editWorkList.value
+    specialSkillList.value = editSkillList.value
+    specialProjectList.value = editProjectList.value
+
+    editMode.value = false
+    fetchResumes()
+  } catch (error) {
+    ElMessage.error('保存失败: ' + (error?.detail || error?.message || '未知错误'))
+  } finally {
+    editSaving.value = false
   }
 }
 

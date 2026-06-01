@@ -40,5 +40,13 @@ export const interviewApi = {
   updateSessionRound: (sessionId, roundId, data) => request.patch(`/reserve/sessions/${sessionId}/rounds/${roundId}`, data),
 
   // 同步面试轮次（与岗位最新设置对齐）
-  syncSessionRounds: (sessionId) => request.post(`/reserve/sessions/${sessionId}/sync-rounds`)
+  syncSessionRounds: (sessionId) => request.post(`/reserve/sessions/${sessionId}/sync-rounds`),
+
+  // ====== 面试阶段控制 ======
+
+  // 手动切换当前面试阶段
+  manualStageTransition: (sessionId, roundId, data) => request.post(`/asr/stage/transition/${sessionId}/${roundId}`, data),
+
+  // 手动触发 AI 分析（对最近对话生成追问建议和评价）
+  manualTriggerAnalysis: (sessionId, roundId) => request.post(`/asr/analyze/manual/${sessionId}/${roundId}`, {}),
 }

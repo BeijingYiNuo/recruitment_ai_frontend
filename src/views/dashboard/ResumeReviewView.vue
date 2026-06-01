@@ -35,6 +35,16 @@
                 <el-icon><Search /></el-icon>
               </template>
             </el-input>
+            <el-date-picker
+              v-model="timeRange"
+              type="datetimerange"
+              range-separator="至"
+              start-placeholder="上传起始"
+              end-placeholder="上传截止"
+              format="YYYY-MM-DD HH:mm"
+              style="width: 300px; margin-left: 12px;"
+              @change="handleSearch"
+            />
           </div>
 
           <!-- View Mode Toggle -->
@@ -90,21 +100,16 @@
               <div class="col-status">
                 <span class="lark-tag" :class="statusTagClass(r.review_status)">{{ statusLabel(r.review_status) }}</span>
               </div>
-              <div class="col-time">{{ fmtDate(r.created_at) }}</div>
+              <div class="col-time">{{ fmtDateTime(r.created_at) }}</div>
               <div class="col-action">
                 <div class="row-actions">
-                  <template v-if="activeFilter === 'PASS'">
-                    <el-button size="small" type="primary" plain @click.stop="createInterview(r)">
-                      <el-icon style="margin-right:2px"><Plus /></el-icon> 创建面试
-                    </el-button>
-                    <el-button size="small" text type="primary" @click.stop="enterDetail(i)">详情</el-button>
-                  </template>
-                  <template v-else>
-                    <el-button size="small" class="row-action-btn pass" :disabled="reviewingId === r.id" @click.stop="quickReview(r, 'PASS')">通过</el-button>
-                    <el-button size="small" class="row-action-btn pending" :disabled="reviewingId === r.id" @click.stop="quickReview(r, 'PENDING')">待定</el-button>
-                    <el-button size="small" class="row-action-btn fail" :disabled="reviewingId === r.id" @click.stop="quickReview(r, 'FAIL')">淘汰</el-button>
-                    <el-button size="small" text type="primary" @click.stop="enterDetail(i)">详情</el-button>
-                  </template>
+                  <el-button size="small" class="row-action-btn pass" :disabled="reviewingId === r.id" @click.stop="quickReview(r, 'PASS')">通过</el-button>
+                  <el-button size="small" class="row-action-btn pending" :disabled="reviewingId === r.id" @click.stop="quickReview(r, 'PENDING')">待定</el-button>
+                  <el-button size="small" class="row-action-btn fail" :disabled="reviewingId === r.id" @click.stop="quickReview(r, 'FAIL')">淘汰</el-button>
+                  <el-button v-if="r.review_status === 'PASS'" size="small" type="primary" plain @click.stop="createInterview(r)">
+                    <el-icon style="margin-right:2px"><Plus /></el-icon> 创建面试
+                  </el-button>
+                  <el-button size="small" text type="primary" @click.stop="enterDetail(i)">详情</el-button>
                 </div>
               </div>
             </div>
@@ -203,16 +208,12 @@
                 </div>
               </div>
               <div class="action-bar">
-                <template v-if="currentResume?.review_status === 'PASS'">
-                  <el-button class="action-btn" type="primary" @click="createInterview(currentResume)">
-                    <el-icon><Plus /></el-icon> 创建面试
-                  </el-button>
-                </template>
-                <template v-else>
-                  <el-button class="action-btn fail" :disabled="reviewing" @click="openReviewDialog('FAIL')"><el-icon><Close /></el-icon> 淘汰</el-button>
-                  <el-button class="action-btn pending" :disabled="reviewing" @click="openReviewDialog('PENDING')"><el-icon><QuestionFilled /></el-icon> 待定</el-button>
-                  <el-button class="action-btn pass" :disabled="reviewing" @click="openReviewDialog('PASS')"><el-icon><Check /></el-icon> 通过</el-button>
-                </template>
+                <el-button class="action-btn" plain :disabled="reviewing" @click="openRemark">
+                  <el-icon><EditPen /></el-icon> 备注
+                </el-button>
+                <el-button class="action-btn fail" :disabled="reviewing" @click="detailQuickReview('FAIL')"><el-icon><Close /></el-icon> 淘汰</el-button>
+                <el-button class="action-btn pending" :disabled="reviewing" @click="detailQuickReview('PENDING')"><el-icon><QuestionFilled /></el-icon> 待定</el-button>
+                <el-button class="action-btn pass" :disabled="reviewing" @click="detailQuickReview('PASS')"><el-icon><Check /></el-icon> 通过</el-button>
               </div>
             </div>
           </div>
@@ -220,15 +221,11 @@
       </div>
     </div>
 
-    <!-- Review Comment Dialog -->
-    <el-dialog v-model="reviewDialogVisible" :title="reviewDialogTitle" width="420px" destroy-on-close>
-      <div class="review-dialog-body">
-        <p class="review-dialog-hint">{{ reviewDialogHint }}</p>
-        <el-input v-model="reviewComment" type="textarea" :rows="4" placeholder="审核意见（可选）" maxlength="500" show-word-limit />
-      </div>
+    <!-- 备注弹窗 -->
+    <el-dialog v-model="remarkVisible" title="备注" width="420px" destroy-on-close @close="saveCurrentRemark">
+      <el-input v-model="remarkText" type="textarea" :rows="8" placeholder="在此写下备注信息，边看简历边记录..." maxlength="1000" show-word-limit />
       <template #footer>
-        <el-button @click="reviewDialogVisible = false">取消</el-button>
-        <el-button type="primary" class="lark-btn-primary" :loading="reviewing" @click="confirmReview">确认</el-button>
+        <el-button type="primary" class="lark-btn-primary" @click="remarkVisible = false">关闭</el-button>
       </template>
     </el-dialog>
   </div>
@@ -240,7 +237,7 @@ import { useRouter } from 'vue-router'
 import { resumeApi } from '../../api/resume'
 import { ElMessage } from 'element-plus'
 import {
-  ArrowLeft, ArrowRight, Close, QuestionFilled, Check, Document,
+  ArrowLeft, ArrowRight, Close, QuestionFilled, Check, Document, EditPen,
   Reading, Briefcase, Coin, Collection, List, Grid, Plus, Search
 } from '@element-plus/icons-vue'
 
@@ -251,9 +248,9 @@ const currentIndex = ref(0)
 const fileUrl = ref('')
 const reviewing = ref(false)
 const reviewingId = ref(null)
-const reviewDialogVisible = ref(false)
-const reviewDecision = ref('')
-const reviewComment = ref('')
+const remarkVisible = ref(false)
+const remarkText = ref('')
+const remarkMap = reactive({})
 const activeFilter = ref('null')
 const detailLoading = ref(false)
 const viewMode = ref('list')
@@ -261,6 +258,7 @@ const searchKeyword = ref('')
 const currentPage = ref(1)
 const pageSize = ref(10)
 const totalCount = ref(0)
+const timeRange = ref([])
 
 const parsedData = reactive({
   educations: [],
@@ -269,13 +267,15 @@ const parsedData = reactive({
   projects: []
 })
 
-const filterTabs = [
-  { key: 'all', label: '全部' },
-  { key: 'null', label: '待审核' },
-  { key: 'PASS', label: '已通过' },
-  { key: 'PENDING', label: '待定' },
-  { key: 'FAIL', label: '已淘汰' }
-]
+const filterTabs = computed(() => [
+  { key: 'all', label: `全部 ${tabCounts.all}` },
+  { key: 'null', label: `待审核 ${tabCounts.null}` },
+  { key: 'PASS', label: `已通过 ${tabCounts.PASS}` },
+  { key: 'PENDING', label: `待定 ${tabCounts.PENDING}` },
+  { key: 'FAIL', label: `已淘汰 ${tabCounts.FAIL}` }
+])
+
+const tabCounts = reactive({ all: 0, null: 0, PASS: 0, PENDING: 0, FAIL: 0 })
 
 const currentResume = computed(() => resumes.value[currentIndex.value] || null)
 const fileType = computed(() => (currentResume.value?.file_type || '').toLowerCase())
@@ -284,13 +284,6 @@ const emptyDetail = computed(() =>
   !parsedData.educations.length && !parsedData.workExperiences.length &&
   !parsedData.skills.length && !parsedData.projects.length
 )
-
-const reviewDialogTitle = computed(() => ({ PASS: '确认通过', PENDING: '确认待定', FAIL: '确认淘汰' })[reviewDecision.value] || '确认审核')
-const reviewDialogHint = computed(() => ({
-  PASS: '确认通过该候选人简历，该候选人将进入下一面试环节。',
-  PENDING: '暂时无法决定，将该候选人标记为待定状态。',
-  FAIL: '确认淘汰该候选人简历。'
-})[reviewDecision.value] || '')
 
 function statusLabel(status) {
   return ({ PASS: '已通过', PENDING: '待定', FAIL: '已淘汰' })[status] || '待审核'
@@ -307,6 +300,13 @@ function fmtDate(d) {
   return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`
 }
 
+function fmtDateTime(d) {
+  if (!d) return '—'
+  const dt = new Date(d)
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())} ${pad(dt.getHours())}:${pad(dt.getMinutes())}`
+}
+
 function buildPreviewUrl(resumeId) {
   const baseURL = import.meta.env.VITE_API_BASE_URL || '/api'
   return `${baseURL}/resumes/preview/${resumeId}?token=${localStorage.getItem('token')}`
@@ -319,16 +319,27 @@ function getFilterParam() {
 }
 
 function enterDetail(index) {
+  saveCurrentRemark()
   currentIndex.value = index
   viewMode.value = 'detail'
   loadCurrent()
+}
+
+function formatTimeRange() {
+  if (!timeRange.value || timeRange.value.length !== 2) return { startTime: '', endTime: '' }
+  const fmt = (d) => {
+    const pad = (n) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+  }
+  return { startTime: fmt(timeRange.value[0]), endTime: fmt(timeRange.value[1]) }
 }
 
 async function fetchResumes() {
   loading.value = true
   try {
     const skip = (currentPage.value - 1) * pageSize.value
-    const res = await resumeApi.getResumes(skip, pageSize.value, getFilterParam(), searchKeyword.value)
+    const { startTime, endTime } = formatTimeRange()
+    const res = await resumeApi.getResumes(skip, pageSize.value, getFilterParam(), searchKeyword.value, startTime, endTime)
     const list = Array.isArray(res) ? res : (res?.items || res?.data || [])
     totalCount.value = res.total || list.length
 
@@ -360,6 +371,7 @@ async function fetchResumes() {
     resumes.value = list
     currentIndex.value = 0
     await loadCurrent()
+    fetchTabCounts()
   } catch (e) {
     ElMessage.error('获取简历列表失败')
   } finally {
@@ -378,6 +390,7 @@ function handlePageChange(page) {
 }
 
 async function loadCurrent() {
+  saveCurrentRemark()
   const resume = currentResume.value
   if (!resume) {
     fileUrl.value = ''
@@ -390,6 +403,24 @@ async function loadCurrent() {
 
 function clearParsed() {
   Object.assign(parsedData, { educations: [], workExperiences: [], skills: [], projects: [] })
+}
+
+async function fetchTabCounts() {
+  try {
+    const { startTime, endTime } = formatTimeRange()
+    const [all, nul, pass, pending, fail] = await Promise.all([
+      resumeApi.getResumes(0, 1, null, '', startTime, endTime),
+      resumeApi.getResumes(0, 1, 'null', '', startTime, endTime),
+      resumeApi.getResumes(0, 1, 'PASS', '', startTime, endTime),
+      resumeApi.getResumes(0, 1, 'PENDING', '', startTime, endTime),
+      resumeApi.getResumes(0, 1, 'FAIL', '', startTime, endTime),
+    ])
+    tabCounts.all = all.total || (Array.isArray(all) ? all.length : 0)
+    tabCounts.null = nul.total || (Array.isArray(nul) ? nul.length : 0)
+    tabCounts.PASS = pass.total || (Array.isArray(pass) ? pass.length : 0)
+    tabCounts.PENDING = pending.total || (Array.isArray(pending) ? pending.length : 0)
+    tabCounts.FAIL = fail.total || (Array.isArray(fail) ? fail.length : 0)
+  } catch (_) {}
 }
 
 async function fetchParsedData(resumeId) {
@@ -419,14 +450,15 @@ function switchFilter(key) {
 }
 
 function prev() {
-  if (currentIndex.value > 0) { currentIndex.value--; loadCurrent() }
+  if (currentIndex.value > 0) { saveCurrentRemark(); currentIndex.value--; loadCurrent() }
 }
 
 function next() {
-  if (currentIndex.value < resumes.value.length - 1) { currentIndex.value++; loadCurrent() }
+  if (currentIndex.value < resumes.value.length - 1) { saveCurrentRemark(); currentIndex.value++; loadCurrent() }
 }
 
 function goTo(index) {
+  saveCurrentRemark()
   currentIndex.value = index
   loadCurrent()
 }
@@ -440,21 +472,48 @@ function createInterview(resume) {
   window.location.href = `/dashboard/interview-manage?${params.toString()}`
 }
 
-function openReviewDialog(decision) {
-  reviewDecision.value = decision
-  reviewComment.value = ''
-  reviewDialogVisible.value = true
+function openRemark() {
+  const resume = currentResume.value
+  if (resume) {
+    remarkText.value = remarkMap[resume.id] || ''
+  }
+  remarkVisible.value = true
 }
 
-async function confirmReview() {
+function saveCurrentRemark() {
+  const resume = currentResume.value
+  if (resume && remarkText.value) {
+    remarkMap[resume.id] = remarkText.value
+  }
+}
+
+async function detailQuickReview(decision) {
   const resume = currentResume.value
   if (!resume) return
   reviewing.value = true
   try {
-    await resumeApi.reviewResume(resume.id, { decision: reviewDecision.value, comment: reviewComment.value })
-    ElMessage.success({ PASS: '已通过', PENDING: '已标记为待定', FAIL: '已淘汰' }[reviewDecision.value])
-    reviewDialogVisible.value = false
-    removeCurrent()
+    const comment = (remarkMap[resume.id] || '')
+    await resumeApi.reviewResume(resume.id, { decision, comment })
+    ElMessage.success({ PASS: '已通过', PENDING: '已标记为待定', FAIL: '已淘汰' }[decision])
+    // 清空已审核简历的备注
+    delete remarkMap[resume.id]
+    resume.review_status = decision
+    const idx = resumes.value.findIndex(r => r.id === resume.id)
+    if (idx !== -1) {
+      resumes.value[idx].review_status = decision
+    }
+    // 不再匹配当前筛选条件时，从列表中移出
+    if (activeFilter.value !== 'all') {
+      const filterParam = getFilterParam()
+      const matches = filterParam === 'null'
+        ? (!resume.review_status || resume.review_status === 'null')
+        : resume.review_status === filterParam
+      if (!matches) {
+        saveCurrentRemark()
+        removeCurrent()
+      }
+    }
+    fetchTabCounts()
   } catch (e) {
     ElMessage.error('审核操作失败，请重试')
   } finally {
@@ -467,7 +526,18 @@ async function quickReview(resume, decision) {
   try {
     await resumeApi.reviewResume(resume.id, { decision, comment: '' })
     ElMessage.success({ PASS: '已通过', PENDING: '已标记为待定', FAIL: '已淘汰' }[decision])
-    resumes.value = resumes.value.filter(r => r.id !== resume.id)
+    resume.review_status = decision
+    // 不再匹配当前筛选条件时，从列表中移出
+    if (activeFilter.value !== 'all') {
+      const filterParam = getFilterParam()
+      const matches = filterParam === 'null'
+        ? (!resume.review_status || resume.review_status === 'null')
+        : resume.review_status === filterParam
+      if (!matches) {
+        resumes.value = resumes.value.filter(r => r.id !== resume.id)
+      }
+    }
+    fetchTabCounts()
   } catch (e) {
     ElMessage.error('审核操作失败，请重试')
   } finally {

@@ -22,13 +22,35 @@
           v-for="(s, i) in stageInfo.stages"
           :key="s.key"
           class="stage-step"
-          :class="{ done: i < stageInfo.currentIndex, current: i === stageInfo.currentIndex }"
+          :class="{
+            done: i < stageInfo.currentIndex,
+            current: i === stageInfo.currentIndex,
+            clickable: isAsrActive
+          }"
+          @click="isAsrActive && $emit('stageChange', s.key)"
         >
           <div class="connector" v-if="i > 0"></div>
           <div class="stage-dot">{{ i < stageInfo.currentIndex ? '✓' : i === stageInfo.currentIndex ? '●' : '○' }}</div>
           <div class="stage-name">{{ s.name }}</div>
         </div>
       </div>
+    </div>
+    <!-- 阶段导航按钮 -->
+    <div class="stage-nav" v-if="stageInfo && stageInfo.currentIndex >= 0 && isAsrActive">
+      <el-button
+        size="small"
+        circle
+        @click="$emit('stageChange', 'prev')"
+        :disabled="stageInfo.currentIndex <= 0"
+        title="上一阶段"
+      >&larr;</el-button>
+      <el-button
+        size="small"
+        circle
+        @click="$emit('stageChange', 'next')"
+        :disabled="stageInfo.currentIndex >= stageInfo.stages.length - 1"
+        title="下一阶段"
+      >&rarr;</el-button>
     </div>
 
     <div class="actions">
@@ -71,7 +93,10 @@
 
       <el-button size="medium" type="danger" @click="$emit('endInterview')" :disabled="!isAsrActive">结束面试</el-button>
 
-      <!-- <el-button size="medium" type="default" class="manual-btn" @click="$emit('manualFollowUp')">手动追问</el-button> -->
+      <el-button size="medium" type="default" class="manual-btn" @click="$emit('manualFollowUp')" :disabled="!isAsrActive || manualAnalysisLoading">
+        <span v-if="manualAnalysisLoading" class="loading-spinner"></span>
+        AI 分析
+      </el-button>
     </div>
   </div>
 </template>
@@ -104,10 +129,12 @@ const props = defineProps<{
   isPaused?: boolean
   stageInfo?: StageInfo
   meetingMode?: boolean
+  manualAnalysisLoading?: boolean
 }>()
 
 defineEmits<{
   (e: 'update:meetingMode', val: boolean): void
+  (e: 'stageChange', stageKey: string): void
 }>()
 </script>
 
@@ -301,6 +328,19 @@ defineEmits<{
   background: #10b981;
 }
 
+.stage-step.clickable {
+  cursor: pointer;
+}
+
+.stage-step.clickable:hover .stage-dot {
+  transform: scale(1.2);
+  box-shadow: 0 0 0 4px rgba(29, 78, 216, 0.15);
+}
+
+.stage-step.clickable:hover .stage-name {
+  color: #1d4ed8;
+}
+
 .stage-step:first-child .connector {
   display: none;
 }
@@ -319,5 +359,28 @@ defineEmits<{
 
 .stage-step.done .stage-name {
   color: #10b981;
+}
+
+.stage-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 4px;
+}
+
+.loading-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid #dbeafe;
+  border-top-color: #1d4ed8;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 </style>

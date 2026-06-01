@@ -2,6 +2,7 @@
   <div class="interview-assistant-page">
     <InterviewHeader
       :info="interviewInfo"
+      :stageInfo="stageInfo"
       :isAsrActive="isAsrActive"
       :isRecording="isRecording"
       :isPaused="isPaused"
@@ -14,6 +15,8 @@
       @resumeInterview="onResumeInterview"
       @manualFollowUp="onManualFollowUp"
       @endInterview="onEndInterview"
+      @stageChange="onStageChange"
+      :manualAnalysisLoading="manualAnalysisLoading"
     />
 
 
@@ -108,6 +111,24 @@ const USE_MOCK = false// 设为 true 启用 Mock 模式，后端可用时改为 
 const resumePreviewUrl = ref<string | null>(null)
 const isResumeLoading = ref(false)
 const resumeId = ref<number | null>(null)
+
+// ========== 面试阶段数据 ==========
+const ALL_STAGES = [
+  { key: 'welcome', name: '开场介绍' },
+  { key: 'self_intro', name: '自我介绍' },
+  { key: 'project', name: '项目深挖' },
+  { key: 'theory', name: '技术理论' },
+  { key: 'culture', name: '文化匹配' },
+  { key: 'candidate_qa', name: '候选人提问' },
+  { key: 'closing', name: '结束总结' },
+]
+
+const stageInfo = ref({
+  stages: ALL_STAGES,
+  currentIndex: -1,
+  displayName: '',
+  description: '',
+})
 
 // ========== LLM streaming 流式输出缓冲 ==========
 // 按 index 组织，每个 index 代表一次 LLM 输出
@@ -358,6 +379,8 @@ const evaluationSummary = ref({
   metrics: []
 })
 
+const manualAnalysisLoading = ref(false)
+
 // ========== 麦克风权限申请 ==========
 const requestMicPermission = async (): Promise<boolean> => {
   // 检查浏览器 API 可用性（非 HTTPS 或老旧浏览器会缺失）
@@ -545,6 +568,14 @@ const handleWsMessage = (event: MessageEvent | { data: string }) => {
         streamingEvaluationMap.value = { ...streamingEvaluationMap.value }
       } else if (response_type === 'done') {
         console.log(`[LLM Done] 本轮输出完成, index: ${index}`)
+      } else if (response_type === 'stage_info') {
+        console.log('[Stage Info]', payload)
+        stageInfo.value = {
+          stages: ALL_STAGES,
+          currentIndex: payload.stage_index,
+          displayName: payload.display_name,
+          description: payload.description || '',
+        }
       }
     } else {
       console.warn('[WS Unknown Type] 收到未知类型的消息:', msg.type, msg)
@@ -769,8 +800,43 @@ const onResumeInterview = async () => {
   await resumeAsrConnection()
 }
 
-function onManualFollowUp() {
-  // TODO: 接入真正的大模型追问请求
+async function onManualFollowUp() {
+  if (manualAnalysisLoading.value) return
+  manualAnalysisLoading.value = true
+  try {
+    await interviewApi.manualTriggerAnalysis(sessionId, roundId)
+    ElMessage.success('AI 分析已触发，结果将通过 WebSocket 推送')
+  } catch (err: any) {
+    console.error('[Manual Analysis] Failed:', err)
+    ElMessage.error('AI 分析触发失败: ' + (err.message || '请求异常'))
+  } finally {
+    // 延迟重置加载状态，给后端充分的处理时间
+    setTimeout(() => { manualAnalysisLoading.value = false }, 3000)
+  }
+}
+
+async function onStageChange(stageKey: string) {
+  console.log('[Stage Change] Requested:', stageKey)
+
+  if (!isAsrActive.value) {
+    ElMessage.warning('请先开始面试')
+    return
+  }
+
+  try {
+    const payload: Record<string, string> = {}
+
+    if (stageKey === 'next' || stageKey === 'prev') {
+      payload.direction = stageKey
+    } else {
+      payload.target_stage = stageKey
+    }
+
+    await interviewApi.manualStageTransition(sessionId, roundId, payload)
+  } catch (err: any) {
+    console.error('[Stage Change] Failed:', err)
+    ElMessage.error('阶段切换失败: ' + (err.message || '请求异常'))
+  }
 }
 
 async function onEndInterview() {
