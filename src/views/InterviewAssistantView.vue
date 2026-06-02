@@ -44,6 +44,11 @@
         <EvaluationPanel :evaluation="computedEvaluation" />
       </section>
     </div>
+
+    <InterviewQuestionsFloat
+      :resume-id="resumeId"
+      :candidate-name="interviewInfo.candidateName"
+    />
   </div>
 </template>
 
@@ -56,6 +61,7 @@ import TranscriptPanel from '../components/interview/TranscriptPanel.vue'
 import ResumePreviewPanel from '../components/interview/ResumePreviewPanel.vue'
 import FollowUpPanel from '../components/interview/FollowUpPanel.vue'
 import EvaluationPanel from '../components/interview/EvaluationPanel.vue'
+import InterviewQuestionsFloat from '../components/InterviewQuestionsFloat.vue'
 import { interviewApi } from '../api/interview'
 import { fileApi } from '../api/file'
 import { resumeApi } from '../api/resume'
@@ -125,8 +131,8 @@ const ALL_STAGES = [
 
 const stageInfo = ref({
   stages: ALL_STAGES,
-  currentIndex: -1,
-  displayName: '',
+  currentIndex: 0,
+  displayName: ALL_STAGES[0].name,
   description: '',
 })
 
@@ -348,7 +354,6 @@ const onStartRecording = () => {
 
     mediaRecorder.start()
     isRecording.value = true
-    ElMessage.success('本地录音已开始')
   } catch (err) {
     console.error('Failed to start recording:', err)
     ElMessage.error('启动录音失败')
@@ -623,6 +628,7 @@ const onStartAsr = async () => {
       interviewInfo.value.statusColor = '#67c23a'
       startTimer()
       mockHandle = startMockAsr(handleWsMessage)
+      onStartRecording()
       ElMessage.success('Mock ASR 已启动')
       return
     }
@@ -650,6 +656,7 @@ const onStartAsr = async () => {
       // 连接成功后启动音频采集并发送
       startAudioCapture()
       startTimer()
+      onStartRecording()
       ElMessage.success('ASR 识别通道已打通')
     }
 

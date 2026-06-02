@@ -39,6 +39,9 @@ export const interviewApi = {
   // 更新面试轮次状态
   updateSessionRound: (sessionId, roundId, data) => request.patch(`/reserve/sessions/${sessionId}/rounds/${roundId}`, data),
 
+  // 更新面试备注
+  updateSessionNotes: (sessionId, data) => request.patch(`/reserve/sessions/${sessionId}/notes`, data),
+
   // 同步面试轮次（与岗位最新设置对齐）
   syncSessionRounds: (sessionId) => request.post(`/reserve/sessions/${sessionId}/sync-rounds`),
 

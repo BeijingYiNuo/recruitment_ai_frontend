@@ -174,7 +174,24 @@
             {{ sessionDetail.ended_at ? interviewStore.formatTime(sessionDetail.ended_at) : '尚未结束' }}
           </span>
         </el-descriptions-item>
-        <el-descriptions-item label="面试备注">{{ sessionDetail.notes || '无' }}</el-descriptions-item>
+        <el-descriptions-item label="面试备注">
+          <div style="display: flex; gap: 8px; align-items: flex-start; width: 100%;">
+            <el-input
+              v-model="editableNotes"
+              type="textarea"
+              :rows="3"
+              placeholder="请输入面试备注..."
+              style="flex: 1;"
+            />
+            <el-button
+              type="primary"
+              size="small"
+              :loading="notesSaving"
+              :disabled="editableNotes === sessionDetail?.notes"
+              @click="handleSaveNotes"
+            >保存</el-button>
+          </div>
+        </el-descriptions-item>
         <el-descriptions-item label="招聘官 ID">{{ sessionDetail.recruiter_id }}</el-descriptions-item>
         <el-descriptions-item label="关联简历 ID">{{ sessionDetail.resume_id || '无' }}</el-descriptions-item>
         <el-descriptions-item label="创建时间">{{ interviewStore.formatTime(sessionDetail.created_at) }}</el-descriptions-item>
@@ -636,12 +653,30 @@ const handleSave = async () => {
 
 const detailDialogVisible = ref(false)
 const sessionDetail = ref(null)
+const editableNotes = ref('')
+const notesSaving = ref(false)
+
+const handleSaveNotes = async () => {
+  if (!sessionDetail.value) return
+  notesSaving.value = true
+  try {
+    const updated = await interviewApi.updateSessionNotes(sessionDetail.value.id, { notes: editableNotes.value })
+    sessionDetail.value = updated
+    ElMessage.success('备注保存成功')
+    fetchInterviews()
+  } catch (error) {
+    ElMessage.error('备注保存失败: ' + (error?.detail || error?.message || '未知错误'))
+  } finally {
+    notesSaving.value = false
+  }
+}
 
 const handleViewDetail = async (id) => {
   const loading = ElLoading.service({ lock: true, text: '正在拉取预约详情...' })
   try {
     const res = await interviewApi.getReserveSession(id)
     sessionDetail.value = res
+    editableNotes.value = res.notes || ''
     detailDialogVisible.value = true
   } catch (err) {
     ElMessage.error('获取详情失败: ' + (err?.detail || err?.message || '网络错误'))

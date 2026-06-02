@@ -72,17 +72,7 @@
       >恢复面试</el-button>
 
       <el-button
-        v-if="!isRecording"
-        size="medium"
-        type="warning"
-        @click="$emit('startRecording')"
-        :disabled="!isAsrActive"
-        class="record-btn"
-      >
-        <i class="el-icon-video-camera"></i> 开始录音
-      </el-button>
-      <el-button
-        v-else
+        v-if="isRecording"
         size="medium"
         type="danger"
         @click="$emit('stopRecording')"

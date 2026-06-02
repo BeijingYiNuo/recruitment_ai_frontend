@@ -59,6 +59,16 @@ export const resumeApi = {
     return request.post(`/resumes/${resumeId}/review`, data)
   },
 
+  // 重置为待审核
+  unreviewResume: (resumeId) => {
+    return request.post(`/resumes/${resumeId}/unreview`)
+  },
+
+  // 设置简历关联岗位
+  setResumePosition: (resumeId, positionId) => {
+    return request.put(`/resumes/${resumeId}/position`, { position_id: positionId })
+  },
+
   // 批量导入简历
   batchImportLocal: (files) => {
     const formData = new FormData()
@@ -84,5 +94,43 @@ export const resumeApi = {
   // 重新解析简历
   reparseResume: (resumeId) => {
     return request.post(`/resumes/${resumeId}/reparse`)
-  }
+  },
+
+  // AI 辅助审核简历
+  aiReviewResume: (resumeId, data) => {
+    return request.post(`/resumes/${resumeId}/ai-review`, data)
+  },
+
+  // 批量 AI 审核简历
+  batchAiReviewResume: (data) => {
+    return request.post('/resumes/ai-review/batch', data, {
+      timeout: 300000
+    })
+  },
+
+  // 生成/获取面试提问问题
+  generateInterviewQuestions: (resumeId, instruction = '') => {
+    return request.post(`/resumes/${resumeId}/interview-questions`, { instruction }, {
+      timeout: 60000
+    })
+  },
+
+  // 流式生成面试提问问题 - 启动
+  startInterviewQuestionsStream: (resumeId, instruction = '') => {
+    return request.post(`/resumes/${resumeId}/interview-questions/stream`, { instruction })
+  },
+
+  // 读取缓存的面试问题（不触发生成）
+  getCachedInterviewQuestions: (resumeId) => {
+    return request.get(`/resumes/${resumeId}/interview-questions/cache`)
+  },
+
+  // 流式控制 - 暂停
+  pauseStream: (streamId) => request.post(`/stream/${streamId}/pause`),
+
+  // 流式控制 - 继续
+  resumeStream: (streamId) => request.post(`/stream/${streamId}/resume`),
+
+  // 流式控制 - 取消
+  cancelStream: (streamId) => request.post(`/stream/${streamId}/cancel`)
 }

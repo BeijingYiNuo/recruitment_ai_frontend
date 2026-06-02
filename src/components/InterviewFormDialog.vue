@@ -31,7 +31,7 @@
           </el-form-item>
 
           <el-form-item label="关联简历材料">
-            <el-select v-model="form.resume_id" placeholder="-- 不关联或暂无简历 --" style="width: 100%" clearable @change="handleResumeChange">
+            <el-select v-model="form.resume_id" placeholder="-- 不关联或暂无简历 --" style="width: 100%" clearable filterable @change="handleResumeChange">
               <el-option v-for="r in resumes" :key="r.id" :value="r.id" :label="`${r.candidate_name} - ${r.created_at?.slice(0, 16).replace('T', ' ') || ''}`">
                 <span style="flex: 1">{{ r.candidate_name }} - {{ r.created_at?.slice(0, 16).replace('T', ' ') || '' }}</span>
                 <span style="color: #13a248; font-size: 12px; margin-left: auto;">通过</span>

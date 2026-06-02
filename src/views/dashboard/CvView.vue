@@ -34,6 +34,7 @@
           <div class="col-name">候选人</div>
           <div class="col-type">格式</div>
           <div class="col-status">解析状态</div>
+          <div class="col-review">审核状态</div>
           <div class="col-time">上传时间</div>
           <div class="col-action">操作</div>
         </div>
@@ -55,23 +56,28 @@
             <div class="col-name">
               <el-avatar :size="32" class="lark-avatar">{{ resume.candidate_name?.charAt(0) || 'U' }}</el-avatar>
               <span class="name-text">{{ resume.candidate_name }}</span>
+              <el-button v-if="resume.review_status === 'PASS'" type="success" link size="small" @click.stop="createInterview(resume)">创建面试</el-button>
+              <el-button type="primary" link size="small" @click.stop="handlePreview(resume)">预览</el-button>
             </div>
-            
+
             <div class="col-type">
               <span class="lark-tag tag-gray">{{ resume.file_type?.toUpperCase() }}</span>
             </div>
-            
+
             <div class="col-status">
               <div class="status-indicator">
                 <span class="dot" :class="isAnalyzing(resume.status) ? 'dot-loading' : 'dot-success'"></span>
                 <span>{{ getStatusLabel(resume.status) }}</span>
               </div>
             </div>
+
+            <div class="col-review">
+              <span class="lark-tag" :class="reviewTagClass(resume.review_status)">{{ reviewLabel(resume.review_status) }}</span>
+            </div>
             
             <div class="col-time">{{ formatFullTime(resume.created_at) || '刚刚' }}</div>
             
             <div class="col-action">
-              <el-button type="primary" link @click.stop="handlePreview(resume)">预览</el-button>
               <el-button type="primary" link @click.stop="handleDownload(resume)">下载</el-button>
               <el-button type="primary" link @click.stop="handleRowReparse(resume)">重新解析</el-button>
               <el-button type="danger" link @click.stop="handleDelete(resume.id)">删除</el-button>
@@ -518,6 +524,14 @@ const getStatusLabel = (status) => {
   if (s === 'uploaded' || s === 'analyzing' || s === 'parsing') return '解析中...'
   if (s === 'failed' || s === 'error') return '解析失败'
   return status
+}
+
+const reviewLabel = (status) => {
+  return ({ PASS: '已通过', PENDING: '待定', FAIL: '已淘汰' })[status] || '待审核'
+}
+
+const reviewTagClass = (status) => {
+  return ({ PASS: 'tag-green', PENDING: 'tag-orange', FAIL: 'tag-red' })[status] || 'tag-gray'
 }
 
 onMounted(() => {
@@ -1018,6 +1032,16 @@ const handleDelete = (id) => {
   }).catch(() => {})
 }
 
+// === 创建面试 ===
+const createInterview = (resume) => {
+  const params = new URLSearchParams({
+    createInterview: '1',
+    resumeId: resume.id,
+    candidateName: resume.candidate_name || ''
+  })
+  window.location.href = `/dashboard/interview-manage?${params.toString()}`
+}
+
 // === 预览相关 ===
 const previewDialogVisible = ref(false)
 const previewLoading = ref(false)
@@ -1083,6 +1107,7 @@ const onPreviewClose = () => {
 .col-name { flex: 2.5; min-width: 240px; display: flex; align-items: center; }
 .col-type { flex: 0.8; min-width: 100px; display: flex; align-items: center; }
 .col-status { flex: 1.2; min-width: 140px; display: flex; align-items: center; }
+.col-review { flex: 0.8; min-width: 90px; display: flex; align-items: center; }
 .col-time { flex: 1.5; min-width: 160px; display: flex; align-items: center; color: #646A73; font-size: 14px; }
 .col-action { flex: 1; min-width: 120px; display: flex; gap: 8px; justify-content: flex-end; align-items: center; }
 
@@ -1434,5 +1459,10 @@ const onPreviewClose = () => {
   min-width: 50px;
   text-align: right;
 }
+
+/* 审核状态标签颜色 */
+.lark-tag.tag-green { background: #E4F7EB; color: #13A248; }
+.lark-tag.tag-orange { background: #FFF4E5; color: #FF8800; }
+.lark-tag.tag-red { background: #FFE4E2; color: #F53F3F; }
 
 </style>

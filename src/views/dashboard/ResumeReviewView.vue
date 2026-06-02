@@ -45,6 +45,9 @@
               style="width: 300px; margin-left: 12px;"
               @change="handleSearch"
             />
+            <el-button style="margin-left: 12px;" size="small" type="primary" plain @click="openBatchAiReview" :disabled="batchAiReviewRunning">
+              <el-icon><MagicStick /></el-icon> 批量 AI 审核
+            </el-button>
           </div>
 
           <!-- View Mode Toggle -->
@@ -96,6 +99,9 @@
               <div class="col-name">
                 <el-avatar :size="32" class="row-avatar">{{ r.candidate_name?.charAt(0) || '?' }}</el-avatar>
                 <span class="row-name">{{ r.candidate_name }}</span>
+                <el-tooltip v-if="r.ai_review_data" content="AI 已出具审核意见" placement="top">
+                  <el-icon style="color:#3370ff;margin-left:4px;font-size:14px;" @click.stop><MagicStick /></el-icon>
+                </el-tooltip>
               </div>
               <div class="col-status">
                 <span class="lark-tag" :class="statusTagClass(r.review_status)">{{ statusLabel(r.review_status) }}</span>
@@ -168,6 +174,36 @@
             <div class="right-panel">
               <div class="panel-header">
                 <span class="panel-title">简历详情</span>
+                <el-button size="small" plain :disabled="reviewing || aiReviewLoading" @click="openAiReview">
+                  <el-icon><MagicStick /></el-icon> AI审核
+                </el-button>
+              </div>
+              <div class="position-bar">
+                <span class="position-label">应聘岗位</span>
+                <el-select
+                  :model-value="currentResume?.position_id ?? null"
+                  placeholder="选择岗位（选填）"
+                  size="small"
+                  clearable
+                  filterable
+                  :loading="positionLoading"
+                  style="flex: 1; min-width: 0;"
+                  @change="handlePositionChange"
+                >
+                  <el-option
+                    v-for="pos in positions"
+                    :key="pos.id"
+                    :label="pos.name + (pos.department ? ' · ' + pos.department : '')"
+                    :value="pos.id"
+                  />
+                </el-select>
+              </div>
+              <div v-if="currentResumeAiReview" class="ai-review-summary">
+                <div class="ai-review-summary-header">
+                  <el-icon><MagicStick /></el-icon> AI 审核意见
+                  <span class="lark-tag" :class="resultTagClass(currentResumeAiReview.suggestion)" style="margin-left: 6px;">{{ statusLabel(currentResumeAiReview.suggestion) }}</span>
+                </div>
+                <div class="ai-review-summary-body">{{ currentResumeAiReview.reason }}</div>
               </div>
               <div class="parsed-content" v-loading="detailLoading">
                 <div class="detail-section" v-if="parsedData.educations.length">
@@ -211,9 +247,19 @@
                 <el-button class="action-btn" plain :disabled="reviewing" @click="openRemark">
                   <el-icon><EditPen /></el-icon> 备注
                 </el-button>
-                <el-button class="action-btn fail" :disabled="reviewing" @click="detailQuickReview('FAIL')"><el-icon><Close /></el-icon> 淘汰</el-button>
-                <el-button class="action-btn pending" :disabled="reviewing" @click="detailQuickReview('PENDING')"><el-icon><QuestionFilled /></el-icon> 待定</el-button>
-                <el-button class="action-btn pass" :disabled="reviewing" @click="detailQuickReview('PASS')"><el-icon><Check /></el-icon> 通过</el-button>
+                <template v-if="currentResume?.review_status !== 'PASS'">
+                  <el-button class="action-btn fail" :disabled="reviewing" @click="detailQuickReview('FAIL')"><el-icon><Close /></el-icon> 淘汰</el-button>
+                  <el-button class="action-btn pending" :disabled="reviewing" @click="detailQuickReview('PENDING')"><el-icon><QuestionFilled /></el-icon> 待定</el-button>
+                  <el-button class="action-btn pass" :disabled="reviewing" @click="detailQuickReview('PASS')"><el-icon><Check /></el-icon> 通过</el-button>
+                  <el-button v-if="currentResume?.review_status" class="action-btn" plain :disabled="reviewing" @click="resetToUnreviewed">
+                    重置为待审核
+                  </el-button>
+                </template>
+                <template v-else>
+                  <el-button class="action-btn" plain :disabled="reviewing" @click="resetToUnreviewed">
+                    重置为待审核
+                  </el-button>
+                </template>
               </div>
             </div>
           </div>
@@ -228,16 +274,136 @@
         <el-button type="primary" class="lark-btn-primary" @click="remarkVisible = false">关闭</el-button>
       </template>
     </el-dialog>
+
+    <!-- AI 辅助审核弹窗 -->
+    <el-dialog v-model="aiReviewVisible" title="AI 辅助审核" width="520px" destroy-on-close @close="aiReviewResult = null">
+      <template v-if="!aiReviewResult">
+        <el-form label-width="100px" label-position="top" style="padding: 0 4px;">
+          <el-form-item label="岗位名称">
+            <el-input v-model="aiReviewForm.position" placeholder="例：Java后端开发" />
+          </el-form-item>
+          <el-form-item label="岗位描述（JD）">
+            <el-input v-model="aiReviewForm.jd" type="textarea" :rows="4" placeholder="粘贴 JD 内容..." />
+          </el-form-item>
+          <el-form-item label="自定义要求">
+            <el-input v-model="aiReviewForm.custom_requirements" type="textarea" :rows="3" placeholder="其他筛选要求..." />
+          </el-form-item>
+          <el-form-item label="需求人数">
+            <el-input-number v-model="aiReviewForm.headcount" :min="1" :max="100" />
+          </el-form-item>
+        </el-form>
+      </template>
+      <template v-else>
+        <div class="ai-review-result">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+            <span class="lark-tag" :class="statusTagClass(aiReviewResult.suggestion)">
+              {{ statusLabel(aiReviewResult.suggestion) }}
+            </span>
+            <span style="font-size:13px;color:#646a73;">AI 建议</span>
+          </div>
+          <div style="margin-bottom:12px;font-size:14px;line-height:1.6;color:#1f2329;white-space:pre-wrap;">{{ aiReviewResult.reason }}</div>
+          <div v-if="aiReviewResult.matched_points?.length" style="margin-bottom:8px;">
+            <div style="font-size:13px;font-weight:600;color:#52c41a;margin-bottom:4px;">匹配点</div>
+            <div v-for="(pt, i) in aiReviewResult.matched_points" :key="i" style="font-size:13px;color:#646a73;padding:2px 0;">● {{ pt }}</div>
+          </div>
+          <div v-if="aiReviewResult.gaps?.length">
+            <div style="font-size:13px;font-weight:600;color:#ff4d4f;margin-bottom:4px;">不足点</div>
+            <div v-for="(pt, i) in aiReviewResult.gaps" :key="i" style="font-size:13px;color:#646a73;padding:2px 0;">● {{ pt }}</div>
+          </div>
+        </div>
+      </template>
+      <template #footer>
+        <el-button v-if="aiReviewResult" @click="aiReviewResult = null; aiReviewForm.position = ''">重新填写</el-button>
+        <el-button @click="aiReviewVisible = false">取消</el-button>
+        <el-button v-if="!aiReviewResult" type="primary" class="lark-btn-primary" :loading="aiReviewLoading" @click="submitAiReview">生成建议</el-button>
+        <el-button v-else type="primary" class="lark-btn-primary" @click="acceptAiReview">采纳建议</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 批量 AI 审核弹窗 -->
+    <el-dialog v-model="batchAiReviewVisible" title="批量 AI 审核" width="600px" destroy-on-close @close="batchAiReviewResults = []; batchAiReviewRunning = false">
+      <template v-if="!batchAiReviewRunning && batchAiReviewResults.length === 0">
+        <div style="margin-bottom: 12px; font-size: 14px; color: #1f2329; display: flex; align-items: center; justify-content: space-between;">
+          <span>待审核简历 <strong>{{ pendingReviewResumes.length }}</strong> 份，已选 <strong>{{ batchSelectedResumeIds.length }}</strong> 份</span>
+          <el-checkbox
+            :indeterminate="batchSelectedResumeIds.length > 0 && batchSelectedResumeIds.length < pendingReviewResumes.length"
+            :model-value="batchSelectedResumeIds.length === pendingReviewResumes.length"
+            @change="toggleBatchSelectAll"
+          >全选</el-checkbox>
+        </div>
+        <el-form label-width="100px" label-position="top" style="padding: 0 4px;">
+          <el-form-item label="岗位名称">
+            <el-select v-model="batchSelectedPositionId" placeholder="请选择岗位" style="width: 100%" clearable filterable @change="handleBatchPositionChange">
+              <el-option v-for="p in positions" :key="p.id" :label="p.name" :value="p.id" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="岗位描述（JD）">
+            <el-input v-model="batchAiReviewForm.jd" type="textarea" :rows="3" placeholder="粘贴 JD 内容..." />
+          </el-form-item>
+          <el-form-item label="自定义要求">
+            <el-input v-model="batchAiReviewForm.custom_requirements" type="textarea" :rows="2" placeholder="其他筛选要求..." />
+          </el-form-item>
+          <el-form-item label="需求人数">
+            <el-input-number v-model="batchAiReviewForm.headcount" :min="1" :max="100" />
+          </el-form-item>
+        </el-form>
+        <div style="max-height: 250px; overflow-y: auto; border: 1px solid #dee0e3; border-radius: 6px; margin-top: 8px;">
+          <div v-for="(r, i) in pendingReviewResumes" :key="r.id" class="batch-review-row" :class="{ even: i % 2 === 0 }" @click="toggleBatchSelect(r.id)" style="cursor: pointer;">
+            <el-checkbox :model-value="batchSelectedResumeIds.includes(r.id)" style="margin-right: 8px; pointer-events: none;" />
+            <el-avatar :size="24" class="batch-review-avatar">{{ r.candidate_name?.charAt(0) || '?' }}</el-avatar>
+            <span class="batch-review-name">{{ r.candidate_name }}</span>
+            <span class="lark-tag" :class="statusTagClass(r.review_status)">{{ statusLabel(r.review_status) }}</span>
+          </div>
+        </div>
+      </template>
+      <template v-else>
+        <div style="margin-bottom: 16px;">
+          <el-progress :percentage="batchReviewProgress" :stroke-width="12" :text-inside="true" />
+        </div>
+        <div style="max-height: 350px; overflow-y: auto; border: 1px solid #dee0e3; border-radius: 6px;">
+          <div v-for="(item, i) in batchAiReviewResults" :key="item.resume_id" class="batch-review-row batch-review-result-row" :class="{ even: i % 2 === 0 }">
+            <div class="batch-review-result-left">
+              <span class="batch-review-index">{{ i + 1 }}.</span>
+              <span class="batch-review-name">{{ item.candidate_name || ('简历 ' + item.resume_id) }}</span>
+              <span v-if="item.error" class="lark-tag tag-red">失败</span>
+              <span v-else class="lark-tag" :class="resultTagClass(item.result?.suggestion)">{{ statusLabel(item.result?.suggestion) }}</span>
+              <span v-if="item.result?.reason" class="batch-review-reason" :title="item.result.reason">{{ item.result.reason.slice(0, 50) }}{{ item.result.reason.length > 50 ? '...' : '' }}</span>
+            </div>
+            <div v-if="!item.error && !item._reviewed" class="batch-review-result-actions">
+              <el-button size="small" class="row-action-btn pass" @click="batchApplyReview(item, 'PASS')">通过</el-button>
+              <el-button size="small" class="row-action-btn pending" @click="batchApplyReview(item, 'PENDING')">待定</el-button>
+              <el-button size="small" class="row-action-btn fail" @click="batchApplyReview(item, 'FAIL')">淘汰</el-button>
+            </div>
+            <div v-else-if="item._reviewed" style="font-size:12px;color:#8f959e;flex-shrink:0;">
+              已{{ { PASS: '通过', PENDING: '待定', FAIL: '淘汰' }[item._decision] || '处理' }}
+            </div>
+          </div>
+        </div>
+      </template>
+      <template #footer>
+        <el-button @click="batchAiReviewVisible = false">关闭</el-button>
+        <el-button v-if="!batchAiReviewRunning && batchAiReviewResults.length === 0" type="primary" class="lark-btn-primary" :loading="batchAiReviewRunning" @click="startBatchAiReview">开始审核</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 面试提问建议 - 浮窗组件 -->
+    <InterviewQuestionsFloat
+      :key="currentResume?.id"
+      :resume-id="currentResume?.id"
+      :candidate-name="currentResume?.candidate_name"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { resumeApi } from '../../api/resume'
+import { positionApi } from '../../api/position'
 import { ElMessage } from 'element-plus'
+import InterviewQuestionsFloat from '../../components/InterviewQuestionsFloat.vue'
 import {
-  ArrowLeft, ArrowRight, Close, QuestionFilled, Check, Document, EditPen,
+  ArrowLeft, ArrowRight, Close, QuestionFilled, Check, Document, EditPen, MagicStick,
   Reading, Briefcase, Coin, Collection, List, Grid, Plus, Search
 } from '@element-plus/icons-vue'
 
@@ -260,11 +426,44 @@ const pageSize = ref(10)
 const totalCount = ref(0)
 const timeRange = ref([])
 
+// AI 审核
+const aiReviewVisible = ref(false)
+const aiReviewLoading = ref(false)
+const aiReviewForm = reactive({ position: '', jd: '', custom_requirements: '', headcount: 1 })
+const aiReviewResult = ref(null)
+
+// 批量 AI 审核
+const batchAiReviewVisible = ref(false)
+const batchAiReviewRunning = ref(false)
+const batchAiReviewForm = reactive({ position: '', jd: '', custom_requirements: '', headcount: 1 })
+const batchSelectedPositionId = ref(null)
+const batchSelectedResumeIds = ref([])
+const batchAiReviewResults = ref([])
+const batchReviewProgress = ref(0)
+
+const pendingReviewResumes = computed(() =>
+  resumes.value.filter(r => !r.review_status || r.review_status === 'null')
+)
+
+// 岗位选择
+const positions = ref([])
+const positionLoading = ref(false)
+
+
 const parsedData = reactive({
   educations: [],
   workExperiences: [],
   skills: [],
   projects: []
+})
+
+const currentResumeAiReview = computed(() => {
+  const data = currentResume.value?.ai_review_data
+  if (!data) return null
+  try {
+    const parsed = typeof data === 'string' ? JSON.parse(data) : data
+    return parsed
+  } catch { return null }
 })
 
 const filterTabs = computed(() => [
@@ -323,6 +522,7 @@ function enterDetail(index) {
   currentIndex.value = index
   viewMode.value = 'detail'
   loadCurrent()
+  fetchPositions()
 }
 
 function formatTimeRange() {
@@ -463,6 +663,206 @@ function goTo(index) {
   loadCurrent()
 }
 
+// ---- 岗位选择 ----
+async function fetchPositions() {
+  positionLoading.value = true
+  try {
+    const res = await positionApi.list({ skip: 0, limit: 200 })
+    positions.value = Array.isArray(res) ? res : (res?.items || res?.data || [])
+  } catch (e) {
+    console.error('获取岗位列表失败:', e)
+  } finally {
+    positionLoading.value = false
+  }
+}
+
+async function handlePositionChange(positionId) {
+  const resume = currentResume.value
+  if (!resume) return
+  try {
+    await resumeApi.setResumePosition(resume.id, positionId || null)
+    resume.position_id = positionId || null
+    ElMessage.success(positionId ? '岗位设置成功' : '已清除岗位选择')
+  } catch (e) {
+    ElMessage.error('岗位设置失败')
+  }
+}
+
+// ---- AI 审核 ----
+function openAiReview() {
+  const resume = currentResume.value
+  if (!resume) return
+
+  // 如有关联岗位，自动填充
+  if (resume.position_id) {
+    const pos = positions.value.find(p => p.id === resume.position_id)
+    if (pos) {
+      aiReviewForm.position = pos.name || ''
+      const parts = []
+      if (pos.description) parts.push(pos.description)
+      if (pos.requirements) parts.push(pos.requirements)
+      aiReviewForm.jd = parts.join('\n\n')
+    } else {
+      aiReviewForm.position = ''
+      aiReviewForm.jd = ''
+    }
+  } else {
+    aiReviewForm.position = ''
+    aiReviewForm.jd = ''
+  }
+  aiReviewForm.custom_requirements = ''
+  aiReviewForm.headcount = 1
+  aiReviewResult.value = null
+  aiReviewVisible.value = true
+}
+
+async function submitAiReview() {
+  const resume = currentResume.value
+  if (!resume) return
+  aiReviewLoading.value = true
+  try {
+    const res = await resumeApi.aiReviewResume(resume.id, {
+      position: aiReviewForm.position,
+      jd: aiReviewForm.jd,
+      custom_requirements: aiReviewForm.custom_requirements,
+      headcount: aiReviewForm.headcount
+    })
+    aiReviewResult.value = res
+  } catch (e) {
+    ElMessage.error('AI 审核失败')
+  } finally {
+    aiReviewLoading.value = false
+  }
+}
+
+function acceptAiReview() {
+  const result = aiReviewResult.value
+  if (!result?.suggestion) return
+  // 将 AI 审核结果存入备注，提交审核时作为 comment
+  remarkMap[currentResume.value.id] = JSON.stringify({
+    type: 'ai_review',
+    reason: result.reason || '',
+    matched_points: result.matched_points || [],
+    gaps: result.gaps || [],
+    ai_generated_at: new Date().toISOString()
+  })
+  aiReviewVisible.value = false
+  detailQuickReview(result.suggestion)
+}
+
+function resultTagClass(suggestion) {
+  return ({ PASS: 'tag-green', PENDING: 'tag-orange', FAIL: 'tag-red' })[suggestion] || 'tag-gray'
+}
+
+function handleBatchPositionChange(positionId) {
+  if (!positionId) {
+    batchAiReviewForm.position = ''
+    batchAiReviewForm.jd = ''
+    return
+  }
+  const pos = positions.value.find(p => p.id === positionId)
+  if (pos) {
+    batchAiReviewForm.position = pos.name || ''
+    const parts = []
+    if (pos.description) parts.push(pos.description)
+    if (pos.requirements) parts.push(pos.requirements)
+    batchAiReviewForm.jd = parts.join('\n\n')
+  }
+}
+
+function openBatchAiReview() {
+  if (pendingReviewResumes.value.length === 0) {
+    ElMessage.warning('当前没有待审核的简历')
+    return
+  }
+  batchAiReviewForm.position = ''
+  batchAiReviewForm.jd = ''
+  batchAiReviewForm.custom_requirements = ''
+  batchAiReviewForm.headcount = 1
+  batchSelectedPositionId.value = null
+  batchSelectedResumeIds.value = []
+  batchAiReviewResults.value = []
+  batchReviewProgress.value = 0
+  batchAiReviewVisible.value = true
+  fetchPositions()
+}
+
+function toggleBatchSelectAll(checked) {
+  batchSelectedResumeIds.value = checked
+    ? pendingReviewResumes.value.map(r => r.id)
+    : []
+}
+
+function toggleBatchSelect(id) {
+  const idx = batchSelectedResumeIds.value.indexOf(id)
+  if (idx === -1) {
+    batchSelectedResumeIds.value.push(id)
+  } else {
+    batchSelectedResumeIds.value.splice(idx, 1)
+  }
+}
+
+async function startBatchAiReview() {
+  if (batchSelectedResumeIds.value.length === 0) {
+    ElMessage.warning('请先选择至少一份简历')
+    return
+  }
+  batchAiReviewRunning.value = true
+  batchAiReviewResults.value = []
+  batchReviewProgress.value = 0
+
+  const ids = [...batchSelectedResumeIds.value]
+  const total = ids.length
+  const results = []
+
+  for (let idx = 0; idx < total; idx++) {
+    const resumeId = ids[idx]
+    try {
+      const extra = batchAiReviewForm.custom_requirements || ''
+      const res = await resumeApi.aiReviewResume(resumeId, {
+        position: batchAiReviewForm.position || '',
+        jd: batchAiReviewForm.jd || '',
+        custom_requirements: extra,
+        headcount: batchAiReviewForm.headcount || 1,
+      })
+      const resumeObj = pendingReviewResumes.value.find(r => r.id === resumeId)
+      results.push({
+        resume_id: resumeId,
+        candidate_name: resumeObj?.candidate_name || '',
+        result: res,
+      })
+    } catch (e) {
+      results.push({
+        resume_id: resumeId,
+        candidate_name: pendingReviewResumes.value.find(r => r.id === resumeId)?.candidate_name || '',
+        error: e?.detail || e?.message || '审核失败',
+      })
+    }
+    batchAiReviewResults.value = [...results]
+    batchReviewProgress.value = Math.round(((idx + 1) / total) * 100)
+  }
+
+  batchAiReviewRunning.value = false
+  ElMessage.success(`批量 AI 审核完成，共处理 ${total} 份简历`)
+  fetchResumes()
+}
+
+async function batchApplyReview(item, decision) {
+  try {
+    await resumeApi.reviewResume(item.resume_id, { decision, comment: '' })
+    item._reviewed = true
+    item._decision = decision
+    // 更新本地 resumes 中的审核状态
+    const idx = resumes.value.findIndex(r => r.id === item.resume_id)
+    if (idx !== -1) {
+      resumes.value[idx].review_status = decision
+    }
+    ElMessage.success({ PASS: '已通过', PENDING: '已标记为待定', FAIL: '已淘汰' }[decision])
+  } catch (e) {
+    ElMessage.error('审核操作失败，请重试')
+  }
+}
+
 function createInterview(resume) {
   const params = new URLSearchParams({
     createInterview: '1',
@@ -542,6 +942,31 @@ async function quickReview(resume, decision) {
     ElMessage.error('审核操作失败，请重试')
   } finally {
     reviewingId.value = null
+  }
+}
+
+async function resetToUnreviewed() {
+  const resume = currentResume.value
+  if (!resume) return
+  reviewing.value = true
+  try {
+    await resumeApi.unreviewResume(resume.id)
+    ElMessage.success('已重置为待审核')
+    resume.review_status = null
+    const idx = resumes.value.findIndex(r => r.id === resume.id)
+    if (idx !== -1) {
+      resumes.value[idx].review_status = null
+    }
+    // 不在"全部"或"待审核"筛选下时移出列表
+    if (activeFilter.value !== 'all' && activeFilter.value !== 'null') {
+      saveCurrentRemark()
+      removeCurrent()
+    }
+    fetchTabCounts()
+  } catch (e) {
+    ElMessage.error('重置失败，请重试')
+  } finally {
+    reviewing.value = false
   }
 }
 
@@ -702,6 +1127,22 @@ onMounted(() => fetchResumes())
   }
 }
 
+/* 岗位选择栏 */
+.position-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  border-bottom: 1px solid #f0f0f0;
+  background: #fafafa;
+}
+.position-label {
+  font-size: 13px;
+  color: #646a73;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 /* ====== Detail Mode ====== */
 .split-panel {
   display: flex;
@@ -760,7 +1201,13 @@ onMounted(() => fetchResumes())
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  .panel-header { padding: 12px 16px; border-bottom: 1px solid #f0f0f0; }
+  .panel-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid #f0f0f0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
   .panel-title { font-size: 14px; font-weight: 600; color: #1f2329; }
 }
 
@@ -822,14 +1269,15 @@ onMounted(() => fetchResumes())
 .action-bar {
   display: flex;
   justify-content: center;
-  gap: 12px;
-  padding: 12px 16px;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 12px;
   border-top: 1px solid #f0f0f0;
 }
 
 .action-btn {
-  min-width: 100px;
-  height: 40px;
+  min-width: 80px;
+  height: 36px;
   font-size: 14px;
   font-weight: 500;
   border-radius: 20px !important;
@@ -870,4 +1318,90 @@ onMounted(() => fetchResumes())
 
 .lark-btn-primary { background-color: #3370FF; border-color: #3370FF; color: white; border-radius: 6px; }
 .lark-btn-primary:hover { background-color: #2458D9; }
+
+/* AI 审核结果 */
+.ai-review-result {
+  padding: 0 4px;
+}
+
+/* 批量 AI 审核 */
+.batch-review-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  font-size: 13px;
+}
+.batch-review-row.even {
+  background: #f8f9fa;
+}
+.batch-review-index {
+  color: #8f959e;
+  font-weight: 500;
+  min-width: 24px;
+}
+.batch-review-avatar {
+  flex-shrink: 0;
+}
+.batch-review-name {
+  flex: 1;
+  color: #1f2329;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.batch-review-reason {
+  color: #646a73;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 200px;
+}
+.batch-review-result-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 12px;
+  font-size: 13px;
+}
+.batch-review-result-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+.batch-review-result-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* AI 审核意见摘要 */
+.ai-review-summary {
+  background: #f7f8fa;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+.ai-review-summary-header {
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1f2329;
+  margin-bottom: 6px;
+  gap: 4px;
+}
+.ai-review-summary-body {
+  font-size: 13px;
+  color: #646a73;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
 </style>
+
