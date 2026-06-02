@@ -34,15 +34,8 @@
         </div>
 
         <template v-else>
-          <!-- 批量删除工具栏 -->
-          <div class="toolbar-row" v-if="selectedIds.length > 0">
-            <span class="selected-count">已选择 {{ selectedIds.length }} 项</span>
-            <el-button type="danger" size="small" @click="handleBatchDelete">批量删除</el-button>
-          </div>
-
           <!-- 表头 -->
           <div class="list-header-row">
-            <div class="col-check"><el-checkbox v-model="selectAllChecked" @change="handleSelectAll" /></div>
             <div class="col-name">文件名</div>
             <div class="col-type">类型</div>
             <div class="col-owner">所有者</div>
@@ -62,7 +55,6 @@
                 class="list-row folder-row"
                 @click="enterSession(folder.sessionId)"
               >
-                <div class="col-check"></div>
                 <div class="col-name">
                   <div class="file-icon-wrapper" style="color: #3370FF;">
                     <el-icon><Folder /></el-icon>
@@ -90,7 +82,6 @@
                 :key="file.id"
                 class="list-row file-row"
               >
-                <div class="col-check" @click.stop><el-checkbox :value="file.id" v-model="selectedIds" /></div>
                 <div class="col-name">
                   <div class="file-icon-wrapper" :style="{ color: file.iconColor }">
                     <el-icon><component :is="file.icon" /></el-icon>
@@ -125,7 +116,6 @@
                 :key="file.id"
                 class="list-row file-row"
               >
-                <div class="col-check" @click.stop><el-checkbox :value="file.id" v-model="selectedIds" /></div>
                 <div class="col-name">
                   <div class="file-icon-wrapper" :style="{ color: file.iconColor }">
                     <el-icon><component :is="file.icon" /></el-icon>
@@ -234,38 +224,6 @@ const enterSession = (sessionId) => {
 
 const goBackToRoot = () => {
   currentSessionId.value = null
-}
-
-// --- 批量删除 ---
-const selectedIds = ref([])
-const currentFileList = computed(() => currentSessionId.value ? sessionFiles.value : independentFiles.value)
-const selectAllChecked = computed({
-  get: () => currentFileList.value.length > 0 && selectedIds.value.length === currentFileList.value.length,
-  set: () => {}
-})
-const handleSelectAll = (checked) => {
-  selectedIds.value = checked ? currentFileList.value.map(f => f.id) : []
-}
-const handleBatchDelete = () => {
-  if (selectedIds.value.length === 0) return
-  ElMessageBox.confirm(
-    `确定要批量删除选中的 ${selectedIds.value.length} 个文件吗？删除后将无法恢复。`,
-    '批量删除确认',
-    {
-      confirmButtonText: '确定删除',
-      cancelButtonText: '取消',
-      type: 'warning'
-    }
-  ).then(async () => {
-    try {
-      await Promise.all(selectedIds.value.map(id => fileApi.deleteFile(id)))
-      ElMessage.success(`成功删除 ${selectedIds.value.length} 个文件`)
-      selectedIds.value = []
-      fetchFileList()
-    } catch (err) {
-      ElMessage.error('批量删除失败: ' + (err?.detail || err?.message || '网络连接异常'))
-    }
-  }).catch(() => {})
 }
 
 // --- 文件列表数据 ---
@@ -539,27 +497,11 @@ const onPreviewClose = () => {
 
 <style scoped lang="scss">
 /* 列定义（仅负责布局） */
-.col-check { width: 40px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .col-name { flex: 2; min-width: 200px; display: flex; align-items: center; padding-right: 16px; }
 .col-type { flex: 0.6; min-width: 80px; display: flex; align-items: center; }
 .col-owner { flex: 1; min-width: 100px; display: flex; align-items: center; }
 .col-time { flex: 1.5; min-width: 140px; display: flex; align-items: center; }
 .col-size { flex: 1; min-width: 120px; position: relative; display: flex; align-items: center; justify-content: space-between; }
-
-/* 批量删除工具栏 */
-.toolbar-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 24px;
-  background: #FFF4E5;
-  border-bottom: 1px solid #FFE0B2;
-}
-.selected-count {
-  font-size: 13px;
-  color: #FF8800;
-  font-weight: 500;
-}
 
 /* 返回按钮 */
 .back-btn {

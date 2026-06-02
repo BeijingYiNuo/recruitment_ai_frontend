@@ -584,6 +584,10 @@ const handleSave = async () => {
     ElMessage.warning('请填写候选人姓名')
     return
   }
+  if (!form.position_id) {
+    ElMessage.warning('未选择岗位无法约面')
+    return
+  }
   if (!form.scheduled_start_at || !form.scheduled_end_at) {
     ElMessage.warning('请选择完整的面试起止时间')
     return

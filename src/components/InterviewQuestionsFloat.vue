@@ -1,6 +1,6 @@
 <template>
   <div class="iq-float-container"
-    :style="{ left: posX + 'px', top: posY + 'px' }"
+    :style="containerStyle"
   >
     <!-- 可拖拽浮动按钮 -->
     <div
@@ -11,11 +11,14 @@
       @click="togglePanel"
     >
       <el-icon v-if="interviewQuestionsLoading || isStreamActive" class="is-loading"><Loading /></el-icon>
-      <el-icon v-else><ChatDotSquare /></el-icon>
+      <template v-else>
+        <el-icon><ChatDotSquare /></el-icon>
+        <span class="iq-float-text">AI问题生成</span>
+      </template>
     </div>
     <!-- 浮动面板 -->
     <transition name="iq-slide">
-      <div v-if="panelOpen" class="iq-float-panel" @click.stop @mousedown.stop>
+      <div v-if="panelOpen" class="iq-float-panel" :class="{ above: panelAbove }" @click.stop @mousedown.stop>
         <div class="iq-panel-header">
           <span class="iq-panel-title">面试提问建议 - {{ candidateName }}</span>
           <div class="iq-panel-actions">
@@ -72,7 +75,7 @@
 </template>
 
 <script setup>
-import { ref, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { fetchEventSource } from '@microsoft/fetch-event-source'
 import { resumeApi } from '../api/resume'
@@ -84,6 +87,19 @@ const props = defineProps({
 })
 
 const panelOpen = ref(false)
+const panelAbove = ref(false)
+
+// 容器样式：动态计算水平对齐和垂直位置
+const containerStyle = computed(() => {
+  const style = {
+    left: posX.value + 'px',
+    top: posY.value + 'px',
+  }
+  // 如果按钮靠近屏幕左侧，面板右对齐（默认）；否则面板左对齐，避免右侧溢出
+  const btnWidth = 130
+  style.alignItems = (posX.value + btnWidth + 420 > window.innerWidth) ? 'flex-start' : 'flex-end'
+  return style
+})
 const interviewQuestionsLoading = ref(false)
 const isStreamActive = ref(false)
 const isStreamPaused = ref(false)
@@ -96,7 +112,15 @@ let abortController = null
 
 // ========== 拖拽逻辑 ==========
 const posX = ref(24)
-const posY = ref(24)
+const posY = ref(80)
+
+onMounted(async () => {
+  await nextTick()
+  const btn = document.querySelector('.iq-float-btn')
+  if (btn) {
+    posX.value = Math.max(0, (window.innerWidth - btn.offsetWidth) / 2)
+  }
+})
 let dragging = false
 let dragStartX = 0
 let dragStartY = 0
@@ -173,6 +197,13 @@ async function togglePanel() {
       ElMessage.warning('未关联简历，无法生成面试题')
       return
     }
+    // 计算面板展开方向：上方空间不足则向下展开，反之亦然
+    const vh = window.innerHeight
+    const btnH = 48
+    const panelH = Math.min(500, vh - 160)
+    const spaceBelow = vh - posY.value - btnH - 70
+    const spaceAbove = posY.value - 70
+    panelAbove.value = spaceBelow < panelH && spaceAbove >= spaceBelow
     if (!questionsData.value.length && !streamingDone.value) {
       const cached = await loadCachedQuestions()
       if (cached) {
@@ -366,19 +397,24 @@ onBeforeUnmount(() => {
   pointer-events: auto;
 }
 .iq-float-btn {
-  width: 48px;
   height: 48px;
-  border-radius: 50%;
+  border-radius: 24px;
+  padding: 0 20px;
   background: #3370ff;
   color: #fff;
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 6px;
   cursor: grab;
   box-shadow: 0 4px 14px rgba(51,112,255,.35);
   transition: all .25s ease;
   position: relative;
   user-select: none;
+}
+.iq-float-text {
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
 }
 .iq-float-btn:hover {
   transform: scale(1.08);
@@ -410,8 +446,6 @@ onBeforeUnmount(() => {
 
 .iq-float-panel {
   position: absolute;
-  bottom: 60px;
-  right: 0;
   width: 420px;
   max-height: 500px;
   background: #fff;
@@ -420,6 +454,14 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  /* 默认：在按钮下方展开 */
+  top: 60px;
+  bottom: auto;
+}
+.iq-float-panel.above {
+  /* 在按钮上方展开 */
+  top: auto;
+  bottom: 60px;
 }
 .iq-slide-enter-active,
 .iq-slide-leave-active {
@@ -429,6 +471,10 @@ onBeforeUnmount(() => {
 .iq-slide-leave-to {
   opacity: 0;
   transform: translateY(12px) scale(.96);
+}
+.iq-float-panel.above.iq-slide-enter-from,
+.iq-float-panel.above.iq-slide-leave-to {
+  transform: translateY(-12px) scale(.96);
 }
 
 .iq-panel-header {

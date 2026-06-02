@@ -386,8 +386,9 @@
       </template>
     </el-dialog>
 
-    <!-- 面试提问建议 - 浮窗组件 -->
+    <!-- 面试提问建议 - 浮窗组件（仅详情模式显示） -->
     <InterviewQuestionsFloat
+      v-if="viewMode === 'detail'"
       :key="currentResume?.id"
       :resume-id="currentResume?.id"
       :candidate-name="currentResume?.candidate_name"
