@@ -1062,7 +1062,7 @@ const handlePreview = async (resume) => {
   if (previewType.value === 'pdf') {
     previewLoading.value = true
     try {
-      const blob = await resumeApi.downloadResume(resume.id)
+      const blob = await resumeApi.previewResume(resume.id)
       const pdfBlob = new Blob([blob], { type: 'application/pdf' })
       previewUrl.value = URL.createObjectURL(pdfBlob)
     } catch (error) {

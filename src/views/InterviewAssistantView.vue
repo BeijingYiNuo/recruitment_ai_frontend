@@ -455,7 +455,7 @@ const fetchInterviewDetails = async () => {
 const fetchResumePreview = async (id: number) => {
   isResumeLoading.value = true
   try {
-    const blob = await resumeApi.downloadResume(id)
+    const blob = await resumeApi.previewResume(id)
     const pdfBlob = new Blob([blob], { type: 'application/pdf' })
     if (resumePreviewUrl.value) {
       URL.revokeObjectURL(resumePreviewUrl.value)

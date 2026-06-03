@@ -54,6 +54,15 @@ export const resumeApi = {
     })
   },
 
+  // 预览简历（走浏览器缓存，第二次访问秒开）
+  previewResume: (resumeId) => {
+    const token = localStorage.getItem('token')
+    return request.get(`/resumes/preview/${resumeId}`, {
+      params: { token },
+      responseType: 'blob'
+    })
+  },
+
   // 审核简历
   reviewResume: (resumeId, data) => {
     return request.post(`/resumes/${resumeId}/review`, data)
