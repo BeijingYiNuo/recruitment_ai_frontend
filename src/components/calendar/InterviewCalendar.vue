@@ -105,10 +105,12 @@
                   ]"
                   :style="getEventStyle(evt)"
                   :title="getEventTitle(evt)"
+                  @click="handleEventClick(evt)"
+                  @contextmenu.prevent="handleEventContextMenu($event, evt)"
                 >
                   <div class="cal-event-title-row">
                     <div class="cal-event-title">{{ evt.candidate_name || '未命名面试' }}</div>
-                    <div v-if="evt.status === 'completed' && (!evt._height || evt._height >= 18)" class="cal-event-status-tag">已完成</div>
+                    <div v-if="(!evt._height || evt._height >= 18)" class="cal-event-status-tag" :class="'status-' + (evt.status || 'scheduled')">{{ getStatusLabel(evt) }}</div>
                   </div>
                   <div v-if="!evt._height || evt._height >= 40" class="cal-event-time">{{ formatEventTime(evt) }}</div>
                 </div>
@@ -155,7 +157,7 @@ const props = defineProps({
   hourHeight: { type: Number, default: 80 }
 })
 
-const emit = defineEmits(['select-slot'])
+const emit = defineEmits(['select-slot', 'interview-click', 'interview-contextmenu'])
 
 const startHour = 8
 const endHour = 23
@@ -398,6 +400,21 @@ function getEventStyle(evt) {
     left: `${left}%`,
     width: `${width}%`
   }
+}
+
+function handleEventClick(evt) {
+  if (!props.readOnly) return
+  emit('interview-click', evt)
+}
+
+function handleEventContextMenu(event, evt) {
+  if (!props.readOnly) return
+  emit('interview-contextmenu', { event, interview: evt })
+}
+
+function getStatusLabel(evt) {
+  const map = { scheduled: '已预约', ongoing: '进行中', completed: '已完成', cancelled: '已取消', expired: '已过期', passed: '已通过', failed: '不通过', pending: '待定' }
+  return map[evt.status] || evt.status
 }
 
 function formatEventTime(evt) {
@@ -993,28 +1010,24 @@ defineExpose({ clearSelection, goToday })
     pointer-events: none;
   }
 
+  &.is-scheduled {
+    background: #fff4e5 !important;
+    border-left-color: #ff8800 !important;
+    color: #b85c00 !important;
+
+    .cal-event-title {
+      opacity: 1;
+    }
+
+    .cal-event-time {
+      opacity: 0.8;
+    }
+  }
+
   &.is-completed {
     background: #e8fff0 !important;
     border-left-color: #00b42a !important;
     color: #007d24 !important;
-
-    .cal-event-title-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 4px;
-    }
-
-    .cal-event-status-tag {
-      font-size: 10px;
-      background: #00b42a;
-      color: #fff;
-      padding: 0 4px;
-      border-radius: 2px;
-      flex-shrink: 0;
-      font-weight: 500;
-      line-height: 1.4;
-    }
 
     .cal-event-title {
       text-decoration: none;
@@ -1025,11 +1038,61 @@ defineExpose({ clearSelection, goToday })
       opacity: 0.8;
     }
   }
+
+  &.is-cancelled {
+    background: #fce8e6 !important;
+    border-left-color: #f53f3f !important;
+    color: #b82727 !important;
+  }
+
+  &.is-passed {
+    background: #e8fff0 !important;
+    border-left-color: #00b42a !important;
+    color: #007d24 !important;
+  }
+
+  &.is-failed {
+    background: #fce8e6 !important;
+    border-left-color: #f53f3f !important;
+    color: #b82727 !important;
+  }
+
+  &.is-pending {
+    background: #fff4e5 !important;
+    border-left-color: #ff8800 !important;
+    color: #b85c00 !important;
+  }
+
+  &.is-expired {
+    background: #f0f1f5 !important;
+    border-left-color: #8f959e !important;
+    color: #8f959e !important;
+  }
+
+  .cal-event-status-tag {
+    font-size: 10px;
+    padding: 0 4px;
+    border-radius: 2px;
+    flex-shrink: 0;
+    font-weight: 500;
+    line-height: 1.4;
+
+    &.status-scheduled { background: #ff8800; color: #fff; }
+    &.status-ongoing  { background: #3370ff; color: #fff; }
+    &.status-completed { background: #00b42a; color: #fff; }
+    &.status-cancelled { background: #f53f3f; color: #fff; }
+    &.status-expired  { background: #8f959e; color: #fff; }
+    &.status-passed   { background: #00b42a; color: #fff; }
+    &.status-failed   { background: #f53f3f; color: #fff; }
+    &.status-pending  { background: #ff8800; color: #fff; }
+  }
 }
 
 .cal-event-title-row {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 4px;
   min-width: 0;
 }
 

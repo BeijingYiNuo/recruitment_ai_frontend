@@ -60,7 +60,7 @@
     <el-card class="calendar-card" shadow="never">
       <div class="calendar-header">
         <h3>约见安排</h3>
-        <span class="header-tip">仅预览已预约的面试时间段</span>
+        <span class="header-tip">点击面试安排可跳转详情 · 右键可取消面试</span>
       </div>
       <div v-loading="calendarLoading" class="calendar-body">
         <el-empty v-if="!calendarLoading && interviewList.length === 0" description="暂无已预约面试安排" style="padding: 40px 0" />
@@ -70,28 +70,126 @@
             :read-only="true"
             :disable-past-selection="false"
             :hour-height="45"
+            @interview-click="handleInterviewClick"
+            @interview-contextmenu="handleInterviewContextMenu"
           />
         </div>
       </div>
     </el-card>
+
+    <!-- 右键菜单 -->
+    <div
+      v-if="contextMenuVisible"
+      class="context-menu"
+      :style="{ left: contextMenuX + 'px', top: contextMenuY + 'px' }"
+    >
+      <div v-if="contextMenuInterview?.status === 'scheduled' || contextMenuInterview?.status === 'ongoing'" class="context-menu-item" @click="handleCancelInterview">
+        <el-icon><CircleClose /></el-icon>
+        <span>取消面试</span>
+      </div>
+      <div v-else-if="contextMenuInterview?.status === 'cancelled'" class="context-menu-item context-menu-item-restore" @click="handleRestoreInterview">
+        <el-icon><CircleCheck /></el-icon>
+        <span>恢复预约</span>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, onBeforeUnmount } from 'vue'
+import { useRouter } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { resumeApi } from '../../api/resume'
 import { interviewApi } from '../../api/interview'
 import { getCurrentUser } from '../../services/authService'
 import InterviewCalendar from '../../components/calendar/InterviewCalendar.vue'
 import {
-  Document, Edit, Timer, QuestionFilled, Calendar, CircleCheck
+  Document, Edit, Timer, QuestionFilled, Calendar, CircleCheck, CircleClose
 } from '@element-plus/icons-vue'
 
+const router = useRouter()
 const currentUser = ref(getCurrentUser() || { id: 1, username: '管理员' })
 const statsLoading = ref(false)
 const calendarLoading = ref(false)
 const interviewList = ref([])
 const todayStr = ref('')
+
+// 右键菜单状态
+const contextMenuVisible = ref(false)
+const contextMenuX = ref(0)
+const contextMenuY = ref(0)
+const contextMenuInterview = ref(null)
+
+// 关闭右键菜单
+function closeContextMenu() {
+  contextMenuVisible.value = false
+  contextMenuInterview.value = null
+}
+
+function handleInterviewClick(evt) {
+  closeContextMenu()
+  router.push('/dashboard/interview-manage?highlight=' + evt.id)
+}
+
+function handleInterviewContextMenu({ event, interview }) {
+  contextMenuX.value = event.clientX
+  contextMenuY.value = event.clientY
+  contextMenuInterview.value = interview
+  contextMenuVisible.value = true
+}
+
+async function handleCancelInterview() {
+  const interview = contextMenuInterview.value
+  if (!interview) return
+  closeContextMenu()
+  if (interview.status === 'cancelled') {
+    ElMessage.info('该面试已取消')
+    return
+  }
+  try {
+    await ElMessageBox.confirm(
+      `确定要取消「${interview.candidate_name}」的面试安排吗？`,
+      '取消面试确认',
+      { confirmButtonText: '确定取消', cancelButtonText: '暂不', type: 'warning' }
+    )
+    await interviewApi.updateReserveSession(interview.id, { status: 'cancelled' })
+    ElMessage.success('已取消面试安排')
+    // 刷新数据
+    fetchInterviewSchedules()
+    fetchStats()
+  } catch (e) {
+    if (e !== 'cancel') {
+      ElMessage.error('取消失败: ' + (e?.detail || e?.message || '网络连接异常'))
+    }
+  }
+}
+
+async function handleRestoreInterview() {
+  const interview = contextMenuInterview.value
+  if (!interview) return
+  closeContextMenu()
+  try {
+    await ElMessageBox.confirm(
+      `确定要将「${interview.candidate_name}」恢复为已预约状态吗？`,
+      '恢复预约确认',
+      { confirmButtonText: '确定恢复', cancelButtonText: '暂不', type: 'info' }
+    )
+    await interviewApi.updateReserveSession(interview.id, { status: 'scheduled' })
+    ElMessage.success('已恢复预约')
+    // 刷新数据
+    fetchInterviewSchedules()
+    fetchStats()
+  } catch (e) {
+    if (e !== 'cancel') {
+      ElMessage.error('恢复失败: ' + (e?.detail || e?.message || '网络连接异常'))
+    }
+  }
+}
+
+// 点击页面空白处关闭右键菜单
+function onDocumentClick() {
+  closeContextMenu()
+}
 
 const stats = reactive({
   totalResumes: 0,
@@ -177,6 +275,11 @@ async function fetchInterviewSchedules() {
 onMounted(async () => {
   todayStr.value = formatDate(new Date())
   await Promise.all([fetchStats(), fetchInterviewSchedules()])
+  document.addEventListener('click', onDocumentClick)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', onDocumentClick)
 })
 </script>
 
@@ -314,5 +417,36 @@ onMounted(async () => {
 // Responsive: 3-col on smaller screens
 @media (max-width: 1200px) {
   .stats-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* 右键菜单 */
+.context-menu {
+  position: fixed;
+  z-index: 9999;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.15);
+  padding: 4px 0;
+  min-width: 140px;
+}
+.context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  font-size: 13px;
+  color: #1f2329;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.context-menu-item:hover {
+  background: #f5f6f8;
+}
+.context-menu-item .el-icon {
+  font-size: 16px;
+  color: #f56c6c;
+}
+.context-menu-item-restore .el-icon {
+  color: #13a248;
 }
 </style>

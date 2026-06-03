@@ -8,7 +8,7 @@
           <div class="title-area">
             <!-- 子页面时显示返回按钮 -->
             <el-button v-if="currentSessionId" class="back-btn" @click="goBackToRoot" :icon="ArrowLeft" circle size="small" />
-            <h1>{{ currentSessionId ? '会话 ' + currentSessionId : '文件管理' }}</h1>
+            <h1>{{ currentSessionId ? currentSessionName : '文件管理' }}</h1>
             <span class="badge" v-if="displayFiles.length > 0">{{ displayFiles.length }}</span>
           </div>
           <div class="action-btn-group">
@@ -19,7 +19,7 @@
         <div v-if="currentSessionId" class="breadcrumb-bar">
           <span class="breadcrumb-item clickable" @click="goBackToRoot">文件管理</span>
           <span class="breadcrumb-sep">/</span>
-          <span class="breadcrumb-item current">会话 {{ currentSessionId }}</span>
+          <span class="breadcrumb-item current">{{ currentSessionName }}</span>
         </div>
       </div>
 
@@ -59,7 +59,7 @@
                   <div class="file-icon-wrapper" style="color: #3370FF;">
                     <el-icon><Folder /></el-icon>
                   </div>
-                  <span class="file-name-text">会话 {{ folder.sessionId }}</span>
+                  <span class="file-name-text">{{ folder.sessionName }}</span>
                 </div>
                 <div class="col-type">
                   <span class="folder-file-count">{{ folder.fileCount }} 个文件</span>
@@ -71,8 +71,11 @@
                   </div>
                 </div>
                 <div class="col-time">{{ folder.latestTime }}</div>
-                <div class="col-size">
+                <div class="col-size has-actions">
                   <span class="size-text">{{ folder.totalSize }}</span>
+                  <div class="quick-actions">
+                    <button class="action-btn delete-btn" title="删除文件夹" @click.stop="deleteFolder(folder.sessionId)"><el-icon><Delete /></el-icon></button>
+                  </div>
                 </div>
               </div>
 
@@ -282,6 +285,7 @@ const fetchFileList = async () => {
         id: item.id,
         name: item.file_name,
         sessionId: item.session_id,
+        sessionName: item.session_name,
         sizeBytes: sizeBytes,
         fileType: ft,
         fileTypeLabel: fileTypeMap[ft] || ft || '未知',
@@ -310,6 +314,13 @@ const independentFiles = computed(() => {
   return files.value.filter(f => isIndependent(f))
 })
 
+// 当前会话名称（用于页面标题和面包屑）
+const currentSessionName = computed(() => {
+  if (!currentSessionId.value) return ''
+  const folder = sessionFolders.value.find(f => f.sessionId === currentSessionId.value)
+  return folder ? folder.sessionName : `会话 ${currentSessionId.value}`
+})
+
 // 会话目录列表
 const sessionFolders = computed(() => {
   const map = {}
@@ -319,6 +330,7 @@ const sessionFolders = computed(() => {
     if (!map[sid]) {
       map[sid] = {
         sessionId: sid,
+        sessionName: file.sessionName || `会话 ${sid}`,
         fileCount: 0,
         totalSizeBytes: 0,
         latestTime: file.updateTime,
@@ -427,6 +439,31 @@ const deleteFile = async (fileId) => {
     }
   }
 }
+
+  // --- 删除文件夹逻辑 ---
+  const deleteFolder = async (sessionId) => {
+    try {
+      await ElMessageBox.confirm(
+        '确定要删除该文件夹及其所有文件吗？删除后将无法恢复。',
+        '删除文件夹确认',
+        {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'warning',
+        }
+      )
+
+      await fileApi.deleteBySession(sessionId)
+      ElMessage.success('文件夹删除成功')
+
+      fetchFileList()
+    } catch (error) {
+      if (error !== 'cancel') {
+        console.error('删除文件夹失败:', error)
+        ElMessage.error(error.message || '删除文件夹失败，请稍后重试')
+      }
+    }
+  }
 
 const handleDownload = async (file) => {
   try {
@@ -583,6 +620,8 @@ const onPreviewClose = () => {
   &:hover {
     background-color: #EDF4FF;
     .file-name-text { color: #3370FF; }
+    .size-text { opacity: 0; }
+    .quick-actions { opacity: 1; pointer-events: auto; }
   }
 }
 
@@ -679,6 +718,30 @@ const onPreviewClose = () => {
 .list-row.folder-row .col-time,
 .list-row.folder-row .size-text {
   font-size: 14px; color: #646a73; white-space: nowrap;
+}
+.list-row.folder-row .size-text {
+  transition: opacity 0.2s;
+}
+.list-row.folder-row .quick-actions {
+  position: absolute;
+  right: 24px; top: 50%; transform: translateY(-50%);
+  display: flex; gap: 4px;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.2s;
+  background-color: #F0F4FF;
+  padding: 0; border-radius: 6px;
+
+  .action-btn {
+    display: flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px;
+    border: none; background: transparent;
+    border-radius: 4px; color: #3370ff;
+    cursor: pointer; transition: all 0.2s; font-size: 16px;
+
+    &:hover { background-color: #e1eaff; }
+    &.delete-btn { color: #f56c6c; }
+    &.delete-btn:hover { background-color: #fef0f0; }
+  }
 }
 
 /* 空状态 */

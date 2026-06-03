@@ -55,8 +55,10 @@
           <div
             v-else
             class="list-row"
+            :class="{ 'row-highlight': highlightId === item.id }"
             v-for="item in interviewStore.interviews"
             :key="item.id"
+            :ref="el => { if (item.id === highlightId) highlightedEl = el }"
             @click="handleViewDetail(item.id)"
           >
             <div class="col-check" @click.stop><el-checkbox :value="item.id" v-model="selectedIds" /></div>
@@ -75,10 +77,26 @@
               </div>
             </div>
             
-            <div class="col-status">
-              <span class="lark-tag" :class="'tag-' + getStatusType(item.status)">
-                {{ getStatusLabel(item.status) }}
-              </span>
+            <div class="col-status" @click.stop>
+              <el-dropdown
+                @command="(val) => handleStatusChange(item, val)"
+                trigger="click"
+              >
+                <span class="lark-tag pointer" :class="'tag-' + getStatusType(item.status)">
+                  {{ getStatusLabel(item.status) }}
+                  <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+                </span>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item command="scheduled" :disabled="item.status === 'scheduled'">已预约</el-dropdown-item>
+                    <el-dropdown-item command="ongoing" :disabled="item.status === 'ongoing'">进行中</el-dropdown-item>
+                    <el-dropdown-item command="passed" divided :disabled="item.status === 'passed'">已通过</el-dropdown-item>
+                    <el-dropdown-item command="failed" :disabled="item.status === 'failed'">不通过</el-dropdown-item>
+                    <el-dropdown-item command="pending" :disabled="item.status === 'pending'">待定</el-dropdown-item>
+                    <el-dropdown-item command="cancelled" divided :disabled="item.status === 'cancelled'">已取消</el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
             </div>
 
             <div class="col-type">
@@ -88,7 +106,8 @@
             </div>
 
             <div class="col-rounds">
-              <div v-if="roundsMap[item.id]?.length" class="round-flow">
+              <span v-if="item.status === 'cancelled'" class="text-placeholder" style="font-size: 12px;">已取消</span>
+              <div v-else-if="roundsMap[item.id]?.length" class="round-flow">
                 <template v-for="(rd, rIdx) in visibleRounds(item.id)" :key="rd.id">
                   <div
                     class="round-node"
@@ -221,7 +240,7 @@
       </el-descriptions>
       <template #footer>
         <div class="dialog-footer" style="gap: 8px;">
-          <el-button type="primary" v-if="canStartCurrentRound()" @click="handleCreateSession(currentSessionForRound)">
+          <el-button type="primary" v-if="canStartCurrentRound() && currentSessionForRound?.status !== 'cancelled'" @click="handleCreateSession(currentSessionForRound)">
             开始面试
           </el-button>
           <el-button type="success" v-if="!canStartCurrentRound() && currentSessionForRound && currentSessionForRound.session_id && currentSessionForRound.status !== 'completed' && currentSessionForRound.status !== 'cancelled'" @click="handleStartASR(currentSessionForRound)">
@@ -262,11 +281,11 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElLoading, ElMessageBox } from 'element-plus'
-import { Search } from '@element-plus/icons-vue'
+import { Search, ArrowDown } from '@element-plus/icons-vue'
 import { getCurrentUser } from '../../services/authService'
 import { interviewApi } from '../../api/interview'
 import { resumeApi } from '../../api/resume'
@@ -288,6 +307,8 @@ const searchKeyword = ref('')
 const currentPage = ref(1)
 const pageSize = ref(10)
 const totalCount = ref(0)
+const highlightId = ref(null)
+const highlightedEl = ref(null)
 
 // 批量删除
 const selectedIds = ref([])
@@ -382,7 +403,11 @@ const getStatusLabel = (status) => {
     'scheduled': '已预约',
     'ongoing': '进行中',
     'completed': '已完成',
-    'cancelled': '已取消'
+    'cancelled': '已取消',
+    'expired': '已过期',
+    'passed': '已通过',
+    'failed': '不通过',
+    'pending': '待定'
   }
   return map[status] || status
 }
@@ -392,7 +417,11 @@ const getStatusType = (status) => {
     'scheduled': 'warning',
     'ongoing': 'success',
     'completed': 'info',
-    'cancelled': 'danger'
+    'cancelled': 'danger',
+    'expired': 'danger',
+    'passed': 'success',
+    'failed': 'danger',
+    'pending': 'warning'
   }
   return map[status] || 'info'
 }
@@ -561,7 +590,7 @@ const fetchPositionsSilent = async () => {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   fetchInterviews()
   fetchResumesSilent()
   fetchKnowledgeBasesSilent()
@@ -574,6 +603,18 @@ onMounted(() => {
     interviewStore.interviewForm.resume_id = parseInt(route.query.resumeId)
     if (route.query.candidateName) {
       interviewStore.interviewForm.candidate_name = route.query.candidateName
+    }
+  }
+
+  // 从首页点击跳转时，高亮对应行
+  if (route.query.highlight) {
+    highlightId.value = Number(route.query.highlight)
+    await nextTick()
+    await nextTick() // 确保列表已渲染
+    if (highlightedEl.value) {
+      highlightedEl.value.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      // 3 秒后移除高亮
+      setTimeout(() => { highlightId.value = null }, 3000)
     }
   }
 })
@@ -621,6 +662,10 @@ const handleSave = async () => {
         scheduled_start_at: form.scheduled_start_at,
         scheduled_end_at: form.scheduled_end_at,
         notes: form.notes || ''
+      }
+      // 已过期的面试更新预约时间后自动恢复为已预约
+      if (form.status === 'expired') {
+        editPayload.status = 'scheduled'
       }
       await interviewApi.updateReserveSession(form.id, editPayload)
       ElMessage.success('面试安排修改成功！')
@@ -710,6 +755,37 @@ const handleDelete = (id) => {
       loading.close()
     }
   }).catch(() => {})
+}
+
+const handleCancel = (item) => {
+  ElMessageBox.confirm(
+    `确定要取消「${item.candidate_name}」的面试安排吗？`,
+    '取消面试确认',
+    {
+      confirmButtonText: '确定取消',
+      cancelButtonText: '暂不',
+      type: 'warning'
+    }
+  ).then(async () => {
+    try {
+      await interviewApi.updateReserveSession(item.id, { status: 'cancelled' })
+      ElMessage.success('已取消面试安排')
+      fetchInterviews()
+    } catch (err) {
+      ElMessage.error('取消失败: ' + (err?.detail || err?.message || '网络连接异常'))
+    }
+  }).catch(() => {})
+}
+
+const handleStatusChange = async (item, newStatus) => {
+  if (item.status === newStatus) return
+  try {
+    await interviewApi.updateReserveSession(item.id, { status: newStatus })
+    ElMessage.success('状态已更新')
+    fetchInterviews()
+  } catch (err) {
+    ElMessage.error('状态更新失败: ' + (err?.detail || err?.message || '网络连接异常'))
+  }
 }
 
 const handleCreateSession = (session) => {
@@ -889,7 +965,13 @@ const handleSyncRounds = async (sessionId) => {
   transition: background-color 0.2s;
   position: relative;
   &:hover { background-color: #F0F4FF; }
+  &.row-highlight {
+    background-color: #E8F4FF;
+    box-shadow: inset 3px 0 0 #3370FF;
+  }
 }
+
+.pointer { cursor: pointer; }
 
 /* 列定义 */
 .col-check { width: 40px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }

@@ -49,6 +49,18 @@
       :resume-id="resumeId"
       :candidate-name="interviewInfo.candidateName"
     />
+
+    <!-- 面试结束结果选择弹窗 -->
+    <el-dialog v-model="resultDialogVisible" title="面试结束" width="400px" :close-on-click-modal="false" :show-close="false">
+      <div style="text-align: center; padding: 20px 0;">
+        <p style="font-size: 15px; color: #1f2329; margin: 0 0 20px;">请选择该轮次面试结果</p>
+        <div style="display: flex; justify-content: center; gap: 16px;">
+          <el-button type="success" size="large" style="width: 100px;" @click="handleResultConfirm('pass')">通过</el-button>
+          <el-button type="danger" size="large" style="width: 100px;" @click="handleResultConfirm('fail')">不通过</el-button>
+          <el-button size="large" style="width: 100px;" @click="handleResultConfirm('pending')">待定</el-button>
+        </div>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -322,31 +334,23 @@ const onStartRecording = () => {
 
     mediaRecorder.onstop = async () => {
       const blob = new Blob(recordedChunks, { type: mediaRecorder?.mimeType || 'audio/webm' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
       const timestamp = new Date().toLocaleString().replace(/[\/\\:\*\?\"<>\|]/g, '-')
       const fileName = `面试录音_${interviewInfo.value.candidateName}_${timestamp}.webm`
-      
-      // 1. 发起本地下载
-      a.href = url
-      a.download = fileName
-      a.click()
-      URL.revokeObjectURL(url)
-      ElMessage.success('录音文件已生成并开始本地下载')
 
-      // 2. 自动上传至 TOS 文件系统
+      // 自动上传至 TOS 文件系统，关联到当前面试会话
       isUploadingRecording.value = true
       const formData = new FormData()
       formData.append('file', blob, fileName)
-      formData.append('file_type', 'voice') // 明确标注为音频文件
+      formData.append('file_type', 'voice')
+      formData.append('session_id', String(sessionId))
 
       try {
         console.log('[Upload] Starting automatic upload for:', fileName)
         await fileApi.uploadFile(formData)
-        ElMessage.success('录音已同步保存至云端文件系统')
+        ElMessage.success('录音已保存至文件管理')
       } catch (err: any) {
         console.error('[Upload] Automatic upload failed:', err)
-        ElMessage.error(`录音云端同步失败: ${err.message || '网络异常'}`)
+        ElMessage.error(`录音保存失败: ${err.message || '网络异常'}`)
       } finally {
         isUploadingRecording.value = false
       }
@@ -385,6 +389,7 @@ const evaluationSummary = ref({
 })
 
 const manualAnalysisLoading = ref(false)
+const resultDialogVisible = ref(false)
 
 // ========== 麦克风权限申请 ==========
 const requestMicPermission = async (): Promise<boolean> => {
@@ -854,34 +859,25 @@ async function onEndInterview() {
   interviewInfo.value.status = '通话已结束'
   interviewInfo.value.statusColor = '#909399'
 
-  // 弹出通过/未通过确认框
-  try {
-    await ElMessageBox.confirm(
-      '该轮次面试是否通过？',
-      '面试结束',
-      {
-        confirmButtonText: '通过',
-        cancelButtonText: '未通过',
-        type: 'question',
-        distinguishCancelAndClose: true
-      }
-    )
-    // 点击"通过"
-    await interviewApi.updateSessionRound(sessionId, roundId, { status: 'pass' })
-    ElMessage.success('已标记为通过')
-  } catch (action: any) {
-    if (action === 'cancel') {
-      // 点击"未通过"
-      await interviewApi.updateSessionRound(sessionId, roundId, { status: 'fail' })
-      ElMessage.success('已标记为未通过')
-    } else {
-      // 关闭弹窗，不更新状态，也不跳转
-      return
-    }
-  }
+  // 弹出面试结果选择框
+  resultDialogVisible.value = true
+}
 
-  // 跳转回面试管理页面
-  router.push('/dashboard/interview-manage')
+async function handleResultConfirm(result: string) {
+  resultDialogVisible.value = false
+  try {
+    // 更新轮次状态
+    await interviewApi.updateSessionRound(sessionId, roundId, { status: result })
+    // 同步更新面试计划状态
+    const statusMap: Record<string, string> = { pass: 'passed', fail: 'failed', pending: 'pending' }
+    await interviewApi.updateReserveSession(Number(sessionId), { status: statusMap[result] })
+    const labelMap: Record<string, string> = { pass: '通过', fail: '不通过', pending: '待定' }
+    ElMessage.success('面试结果: ' + labelMap[result])
+    // 跳转回面试管理页面
+    router.push('/dashboard/interview-manage')
+  } catch (err: any) {
+    ElMessage.error('操作失败: ' + (err?.detail || err?.message || '网络连接异常'))
+  }
 }
 
 function onGenerateMoreSuggestions() {

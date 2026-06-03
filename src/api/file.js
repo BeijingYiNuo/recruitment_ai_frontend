@@ -20,5 +20,8 @@ export const fileApi = {
   },
 
   // 删除文件
-  deleteFile: (fileId) => request.delete(`/file/delete?file_id=${fileId}`)
+  deleteFile: (fileId) => request.delete(`/file/delete?file_id=${fileId}`),
+
+  // 删除会话文件夹下的所有文件
+  deleteBySession: (sessionId) => request.delete(`/file/delete-by-session?session_id=${sessionId}`)
 }
