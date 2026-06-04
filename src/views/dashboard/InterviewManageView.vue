@@ -66,6 +66,16 @@
               <el-avatar :size="32" class="lark-avatar">{{ item.candidate_name?.charAt(0) || 'U' }}</el-avatar>
               <div class="candidate-detail">
                 <span class="name-text">{{ item.candidate_name }}</span>
+                <el-button
+                  v-if="item.resume_id"
+                  link
+                  type="primary"
+                  size="small"
+                  class="preview-btn"
+                  @click.stop="handlePreviewResume(item)"
+                >
+                  <el-icon><View /></el-icon>
+                </el-button>
               </div>
             </div>
             
@@ -277,6 +287,18 @@
         </div>
       </template>
     </el-dialog>
+
+    <!-- 简历预览弹窗 -->
+    <el-dialog v-model="previewDialogVisible" title="简历预览" width="800px" class="lark-dialog">
+      <div v-loading="previewLoading" style="min-height: 400px;">
+        <iframe
+          v-if="previewUrl"
+          :src="previewUrl"
+          style="width: 100%; height: 70vh; border: none; border-radius: 4px;"
+        />
+        <el-empty v-else-if="!previewLoading" description="暂无简历" />
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -285,7 +307,7 @@ import { ref, reactive, computed, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElLoading, ElMessageBox } from 'element-plus'
-import { Search, ArrowDown } from '@element-plus/icons-vue'
+import { Search, ArrowDown, View } from '@element-plus/icons-vue'
 import { getCurrentUser } from '../../services/authService'
 import { interviewApi } from '../../api/interview'
 import { resumeApi } from '../../api/resume'
@@ -734,6 +756,27 @@ const handleViewDetail = async (id) => {
   }
 }
 
+// 简历预览
+const previewDialogVisible = ref(false)
+const previewLoading = ref(false)
+const previewUrl = ref('')
+
+const handlePreviewResume = async (item) => {
+  if (!item.resume_id) return
+  previewDialogVisible.value = true
+  previewLoading.value = true
+  previewUrl.value = ''
+  try {
+    const blob = await resumeApi.previewResume(item.resume_id)
+    previewUrl.value = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }))
+  } catch (error) {
+    ElMessage.error('简历预览加载失败')
+    previewDialogVisible.value = false
+  } finally {
+    previewLoading.value = false
+  }
+}
+
 const handleDelete = (id) => {
   ElMessageBox.confirm(
     '是否确定要永久删除该面试记录？删除后将无法恢复。',
@@ -999,6 +1042,12 @@ const handleSyncRounds = async (sessionId) => {
   font-size: 12px;
   color: #8F959E;
   margin-top: 2px;
+}
+
+.preview-btn {
+  margin-left: 4px;
+  padding: 0 4px;
+  font-size: 14px;
 }
 
 .lark-avatar {
