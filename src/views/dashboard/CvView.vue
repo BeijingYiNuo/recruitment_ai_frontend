@@ -23,7 +23,25 @@
               </template>
             </el-input>
             <el-button type="primary" class="lark-btn-primary" @click="uploadDialogVisible = true">添加简历</el-button>
-            <el-button class="lark-btn-ghost" @click="batchDialogVisible = true">批量导入</el-button>
+            <el-button class="lark-btn-ghost" @click="triggerBatchCache">批量导入</el-button>
+            <el-button
+              class="lark-btn-ghost"
+              :disabled="cachedCount === 0 || cacheUploading"
+              :loading="cacheUploading"
+              @click="uploadCachedFiles"
+            >
+              上传缓存
+              <span v-if="cachedCount > 0" class="cache-badge">{{ cachedCount }}</span>
+            </el-button>
+            <!-- 隐藏的文件选择器，用于批量选择后直接缓存 -->
+            <input
+              ref="batchFileInputRef"
+              type="file"
+              multiple
+              accept=".pdf,.doc,.docx"
+              style="display: none"
+              @change="handleBatchFileSelect"
+            />
           </div>
         </div>
       </div>
@@ -328,36 +346,15 @@
       </transition>
     </Teleport>
 
-    <!-- 批量导入弹窗（两步式：先缓存浏览器 → 确认后上传） -->
-    <el-dialog v-model="batchDialogVisible" title="批量导入简历" width="580px" @opened="loadCachedFiles" @close="resetBatchForm">
-      <el-upload
-        ref="batchUploadRef"
-        class="batch-upload-area"
-        drag
-        multiple
-        :auto-upload="false"
-        :on-change="handleBatchFileChange"
-        :on-remove="handleBatchFileRemove"
-        accept=".pdf,.doc,.docx"
-        style="width: 100%;"
-      >
-        <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
-        <div class="el-upload__text">
-          拖拽多个文件到此处或 <em>点击选取</em>
-        </div>
-        <template #tip>
-          <div class="el-upload__tip">
-            支持 PDF / DOC / DOCX 格式，每份简历不超过 10MB
-          </div>
-        </template>
-      </el-upload>
-
-      <div v-if="batchFiles.length > 0" class="batch-file-list">
+    <!-- 缓存管理弹窗（仅查看和管理本地缓存文件） -->
+    <el-dialog v-model="batchDialogVisible" title="本地缓存文件管理" width="520px" @opened="loadCachedFiles">
+      <div v-if="batchFiles.length === 0" style="text-align: center; padding: 40px 0; color: #999;">
+        暂无已缓存的文件，点击"批量导入"选择文件自动缓存
+      </div>
+      <div v-else class="batch-file-list">
         <div class="batch-list-header">
-          <span>已缓存 {{ batchFiles.length }} 份简历（姓名将由 AI 自动解析）</span>
-          <el-button link type="warning" size="small" @click="clearAllCache">
-            清除全部缓存
-          </el-button>
+          <span>已缓存 {{ batchFiles.length }} 份简历</span>
+          <el-button link type="warning" size="small" @click="clearAllCache">清除全部</el-button>
         </div>
         <div
           v-for="(item, index) in batchFiles"
@@ -368,28 +365,20 @@
           <span class="batch-file-name">{{ item.name }}</span>
           <span class="batch-file-size">{{ formatSize(item.size) }}</span>
           <el-tag size="small" type="success" effect="plain" style="margin-right: 8px;">已缓存</el-tag>
-          <el-button
-            link
-            type="danger"
-            size="small"
-            @click="removeBatchFile(index)"
-          >
-            移除
-          </el-button>
+          <el-button link type="danger" size="small" @click="removeBatchFile(index)">移除</el-button>
         </div>
       </div>
-
       <template #footer>
         <span class="dialog-footer">
-          <el-button @click="batchDialogVisible = false">取消</el-button>
+          <el-button @click="batchDialogVisible = false">关闭</el-button>
           <el-button
+            v-if="batchFiles.length > 0"
             type="primary"
             class="lark-btn-primary"
-            :loading="batchUploading"
-            :disabled="batchFiles.length === 0"
-            @click="submitBatchUpload"
+            :loading="cacheUploading"
+            @click="uploadCachedFiles"
           >
-            {{ batchUploading ? `正在导入 ${batchProgress}%...` : '确认批量导入' }}
+            {{ cacheUploading ? '上传中...' : '一键上传至服务器' }}
           </el-button>
         </span>
       </template>
@@ -541,6 +530,7 @@ const reviewTagClass = (status) => {
 
 onMounted(() => {
   fetchResumes()
+  loadCachedFiles()
 })
 
 onUnmounted(() => {
@@ -626,11 +616,11 @@ const submitUpload = async () => {
   }
 }
 
-// ====== 批量导入逻辑（两步式：先缓存浏览器 → 确认后上传） ======
+// ====== 批量导入逻辑（两步式：先缓存浏览器 → 随后上传后端） ======
 const batchDialogVisible = ref(false)
-const batchUploading = ref(false)
-const batchProgress = ref(0)
-const batchUploadRef = ref(null)
+const cacheUploading = ref(false)
+const cachedCount = ref(0)
+const batchFileInputRef = ref(null)
 // batchFiles 存储从 IndexedDB 读取的文件元数据 { id, name, size, cachedAt }
 const batchFiles = ref([])
 
@@ -651,63 +641,64 @@ const validateBatchFile = (file) => {
 const loadCachedFiles = async () => {
   try {
     batchFiles.value = await fileCacheDB.getFileList()
+    cachedCount.value = batchFiles.value.length
   } catch (error) {
     console.error('加载缓存文件列表失败:', error)
     batchFiles.value = []
+    cachedCount.value = 0
   }
 }
 
-/** 一键清空所有缓存并清空 el-upload 组件 */
+/** 点击"批量导入" → 直接弹出文件选择器 */
+const triggerBatchCache = () => {
+  batchFileInputRef.value?.click()
+}
+
+/** 文件选择后立即缓存到 IndexedDB，不上传后端 */
+const handleBatchFileSelect = async (event) => {
+  const files = event.target.files
+  if (!files || files.length === 0) return
+
+  const validFiles = []
+  for (const file of files) {
+    if (validateBatchFile(file)) {
+      validFiles.push(file)
+    }
+  }
+
+  if (validFiles.length === 0) {
+    ElMessage.warning('没有符合格式要求的文件')
+    return
+  }
+
+  try {
+    await fileCacheDB.saveFiles(validFiles)
+    await loadCachedFiles()
+    ElMessage.success(`已缓存 ${validFiles.length} 份简历，即将自动上传至服务器`)
+  } catch (error) {
+    ElMessage.error('缓存文件失败: ' + (error?.message || '未知错误'))
+    event.target.value = ''
+    return
+  }
+
+  // 重置 input
+  event.target.value = ''
+  // 缓存完成后自动触发上传
+  await uploadCachedFiles()
+}
+
+/** 一键清空所有缓存 */
 const clearAllCache = async () => {
   await fileCacheDB.clearAll()
   batchFiles.value = []
-  if (batchUploadRef.value) batchUploadRef.value.clearFiles()
+  cachedCount.value = 0
   ElMessage.success('已清除全部缓存')
-}
-
-const handleBatchFileChange = async (uploadFile) => {
-  const file = uploadFile.raw
-  if (!validateBatchFile(file)) {
-    batchUploadRef.value?.handleRemove(uploadFile)
-    return
-  }
-  // 检查是否已添加同名文件
-  const existing = batchFiles.value.find(f => f.name === file.name)
-  if (existing) {
-    ElMessage.warning(`${file.name} 已存在列表中`)
-    batchUploadRef.value?.handleRemove(uploadFile)
-    return
-  }
-  try {
-    // 保存到 IndexedDB（浏览器缓存）
-    await fileCacheDB.saveFiles([file])
-    await loadCachedFiles()
-    ElMessage.success(`${file.name} 已缓存至本地`)
-  } catch (error) {
-    ElMessage.error(`${file.name} 缓存失败: ${error?.message || '未知错误'}`)
-    batchUploadRef.value?.handleRemove(uploadFile)
-  }
-}
-
-const handleBatchFileRemove = async (uploadFile) => {
-  // 从 IndexedDB 删除
-  const removed = batchFiles.value.find(f => f.name === uploadFile.name)
-  if (removed) {
-    await fileCacheDB.removeFile(removed.id)
-  }
-  await loadCachedFiles()
 }
 
 const removeBatchFile = async (index) => {
   const removed = batchFiles.value[index]
   if (removed) {
     await fileCacheDB.removeFile(removed.id)
-  }
-  // 同步清除 el-upload 中的对应文件
-  if (batchUploadRef.value) {
-    const uploadFiles = batchUploadRef.value.uploadFiles
-    const target = uploadFiles.find(f => f.name === removed?.name)
-    if (target) batchUploadRef.value.handleRemove(target)
   }
   await loadCachedFiles()
 }
@@ -718,56 +709,36 @@ const formatSize = (bytes) => {
   return mb > 1 ? mb.toFixed(1) + ' MB' : kb.toFixed(0) + ' KB'
 }
 
-const resetBatchForm = async () => {
-  try {
-    await fileCacheDB.clearAll()
-  } catch (e) {
-    // ignore
+/** 上传所有已缓存文件到后端 */
+const uploadCachedFiles = async () => {
+  const items = await fileCacheDB.getAllFiles()
+  if (items.length === 0) {
+    ElMessage.warning('没有待上传的缓存文件')
+    return
   }
-  batchFiles.value = []
-  batchProgress.value = 0
-  if (batchUploadRef.value) batchUploadRef.value.clearFiles()
-}
 
-const submitBatchUpload = async () => {
-  batchUploading.value = true
-  batchProgress.value = 10
-
+  cacheUploading.value = true
   try {
-    batchProgress.value = 20
-    // 从 IndexedDB 读取所有缓存的文件 blob
-    const cachedItems = await fileCacheDB.getAllFiles()
-    if (cachedItems.length === 0) {
-      ElMessage.warning('没有待上传的文件')
-      return
-    }
-
-    batchProgress.value = 30
-    // 从 blob 重建 File 对象
-    const files = cachedItems.map(item => {
-      return new File([item.blob], item.name, { type: item.type })
-    })
+    const files = items.map(item => new File([item.blob], item.name, { type: item.type }))
     const result = await resumeApi.batchImportLocal(files)
-    batchProgress.value = 80
 
     if (result && result.imported > 0) {
-      ElMessage.success(`已接收 ${result.imported} 份简历，后台处理中（几秒后刷新查看）`)
-      batchProgress.value = 100
-      batchDialogVisible.value = false
-      // 上传成功后清除 IndexedDB 缓存
+      ElMessage.success(`已上传 ${result.imported} 份简历到服务器，后台处理中（几秒后刷新查看）`)
+      // 上传成功：先保存到预览缓存（供后续直接预览），再清除暂存区
+      await fileCacheDB.savePreviewFiles(items)
       await fileCacheDB.clearAll()
       batchFiles.value = []
-      // 延迟刷新，给后台一点时间先完成建库
+      cachedCount.value = 0
+      batchDialogVisible.value = false
       setTimeout(() => fetchResumes(), 2000)
     } else {
-      ElMessage.error('批量导入失败，请重试')
+      ElMessage.error('批量上传失败，请重试')
     }
   } catch (error) {
     const msg = error?.detail || error?.message || error?.error || '未知错误'
-    ElMessage.error('批量导入失败: ' + (typeof msg === 'string' ? msg : JSON.stringify(msg)))
+    ElMessage.error('批量上传失败: ' + (typeof msg === 'string' ? msg : JSON.stringify(msg)))
   } finally {
-    batchUploading.value = false
-    batchProgress.value = 0
+    cacheUploading.value = false
   }
 }
 
@@ -1118,11 +1089,19 @@ const handlePreview = async (resume) => {
   previewType.value = (resume.file_type || '').toLowerCase()
   previewDialogVisible.value = true
 
-  // PDF 文件使用 iframe 预览（HTTP 缓存全程在后端处理，前端零改动）
+  // PDF 文件使用 iframe 预览：先查本地预览缓存，命中则直接展示
   if (previewType.value === 'pdf') {
     previewLoading.value = true
     try {
-      const blob = await resumeApi.previewResume(resume.id)
+      // 尝试从预览缓存读取（批量导入的文件上传后会缓存至此）
+      const cached = resume.file_name ? await fileCacheDB.getPreviewFile(resume.file_name) : null
+      let blob
+      if (cached?.blob) {
+        blob = cached.blob
+      } else {
+        // 缓存未命中，从后端下载
+        blob = await resumeApi.previewResume(resume.id)
+      }
       const pdfBlob = new Blob([blob], { type: 'application/pdf' })
       previewUrl.value = URL.createObjectURL(pdfBlob)
     } catch (error) {
@@ -1524,5 +1503,22 @@ const onPreviewClose = () => {
 .lark-tag.tag-green { background: #E4F7EB; color: #13A248; }
 .lark-tag.tag-orange { background: #FFF4E5; color: #FF8800; }
 .lark-tag.tag-red { background: #FFE4E2; color: #F53F3F; }
+
+/* 缓存数量徽标 */
+.cache-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  margin-left: 6px;
+  border-radius: 10px;
+  background-color: #F53F3F;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+}
 
 </style>

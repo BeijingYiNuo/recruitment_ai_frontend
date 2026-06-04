@@ -4,18 +4,23 @@
  */
 
 const DB_NAME = 'ResumeFileCache'
-const DB_VERSION = 1
-const STORE_NAME = 'files'
+const DB_VERSION = 2
+const STAGING_STORE = 'files'
+const PREVIEW_STORE = 'previewCache'
 
 function openDB() {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION)
     request.onupgradeneeded = (event) => {
       const db = event.target.result
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        const store = db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true })
+      if (!db.objectStoreNames.contains(STAGING_STORE)) {
+        const store = db.createObjectStore(STAGING_STORE, { keyPath: 'id', autoIncrement: true })
         store.createIndex('name', 'name', { unique: false })
         store.createIndex('cachedAt', 'cachedAt', { unique: false })
+      }
+      if (!db.objectStoreNames.contains(PREVIEW_STORE)) {
+        // name 作为主键（同一文件名唯一），避免重复缓存
+        db.createObjectStore(PREVIEW_STORE, { keyPath: 'name' })
       }
     }
     request.onsuccess = (event) => resolve(event.target.result)
@@ -24,11 +29,13 @@ function openDB() {
 }
 
 export const fileCacheDB = {
+  // ====== 批量上传前的暂存区（staging） ======
+
   /** 保存文件列表到 IndexedDB，返回新记录的 id 列表 */
   async saveFiles(files) {
     const db = await openDB()
-    const tx = db.transaction(STORE_NAME, 'readwrite')
-    const store = tx.objectStore(STORE_NAME)
+    const tx = db.transaction(STAGING_STORE, 'readwrite')
+    const store = tx.objectStore(STAGING_STORE)
     const ids = []
     for (const file of files) {
       const result = await new Promise((resolve, reject) => {
@@ -55,8 +62,8 @@ export const fileCacheDB = {
   /** 获取所有已缓存文件列表（不含 blob 数据） */
   async getFileList() {
     const db = await openDB()
-    const tx = db.transaction(STORE_NAME, 'readonly')
-    const store = tx.objectStore(STORE_NAME)
+    const tx = db.transaction(STAGING_STORE, 'readonly')
+    const store = tx.objectStore(STAGING_STORE)
     const all = await new Promise((resolve, reject) => {
       const req = store.getAll()
       req.onsuccess = () => resolve(req.result)
@@ -75,8 +82,8 @@ export const fileCacheDB = {
   /** 获取单个文件的完整数据（含 blob） */
   async getFile(id) {
     const db = await openDB()
-    const tx = db.transaction(STORE_NAME, 'readonly')
-    const store = tx.objectStore(STORE_NAME)
+    const tx = db.transaction(STAGING_STORE, 'readonly')
+    const store = tx.objectStore(STAGING_STORE)
     const item = await new Promise((resolve, reject) => {
       const req = store.get(id)
       req.onsuccess = () => resolve(req.result)
@@ -89,8 +96,8 @@ export const fileCacheDB = {
   /** 获取所有文件的完整数据（含 blob） */
   async getAllFiles() {
     const db = await openDB()
-    const tx = db.transaction(STORE_NAME, 'readonly')
-    const store = tx.objectStore(STORE_NAME)
+    const tx = db.transaction(STAGING_STORE, 'readonly')
+    const store = tx.objectStore(STAGING_STORE)
     const all = await new Promise((resolve, reject) => {
       const req = store.getAll()
       req.onsuccess = () => resolve(req.result)
@@ -103,8 +110,8 @@ export const fileCacheDB = {
   /** 删除单个缓存文件 */
   async removeFile(id) {
     const db = await openDB()
-    const tx = db.transaction(STORE_NAME, 'readwrite')
-    const store = tx.objectStore(STORE_NAME)
+    const tx = db.transaction(STAGING_STORE, 'readwrite')
+    const store = tx.objectStore(STAGING_STORE)
     await new Promise((resolve, reject) => {
       const req = store.delete(id)
       req.onsuccess = () => resolve()
@@ -113,11 +120,11 @@ export const fileCacheDB = {
     db.close()
   },
 
-  /** 清空所有缓存 */
+  /** 清空所有暂存区缓存 */
   async clearAll() {
     const db = await openDB()
-    const tx = db.transaction(STORE_NAME, 'readwrite')
-    const store = tx.objectStore(STORE_NAME)
+    const tx = db.transaction(STAGING_STORE, 'readwrite')
+    const store = tx.objectStore(STAGING_STORE)
     await new Promise((resolve, reject) => {
       const req = store.clear()
       req.onsuccess = () => resolve()
@@ -126,11 +133,11 @@ export const fileCacheDB = {
     db.close()
   },
 
-  /** 获取缓存的文件数量 */
+  /** 获取暂存区缓存的文件数量 */
   async count() {
     const db = await openDB()
-    const tx = db.transaction(STORE_NAME, 'readonly')
-    const store = tx.objectStore(STORE_NAME)
+    const tx = db.transaction(STAGING_STORE, 'readonly')
+    const store = tx.objectStore(STAGING_STORE)
     const count = await new Promise((resolve, reject) => {
       const req = store.count()
       req.onsuccess = () => resolve(req.result)
@@ -138,5 +145,58 @@ export const fileCacheDB = {
     })
     db.close()
     return count
+  },
+
+  // ====== 预览缓存区（上传后保留，供直接预览） ======
+
+  /** 上传成功后保存到预览缓存，key 为文件名 */
+  async savePreviewFiles(files) {
+    const db = await openDB()
+    const tx = db.transaction(PREVIEW_STORE, 'readwrite')
+    const store = tx.objectStore(PREVIEW_STORE)
+    for (const file of files) {
+      await new Promise((resolve, reject) => {
+        const req = store.put({
+          name: file.name,
+          blob: file.blob || file,
+          type: file.type,
+          cachedAt: Date.now()
+        })
+        req.onsuccess = () => resolve()
+        req.onerror = () => reject(req.error)
+      })
+    }
+    await new Promise((resolve, reject) => {
+      tx.oncomplete = resolve
+      tx.onerror = reject
+    })
+    db.close()
+  },
+
+  /** 按文件名从预览缓存读取文件 blob */
+  async getPreviewFile(name) {
+    const db = await openDB()
+    const tx = db.transaction(PREVIEW_STORE, 'readonly')
+    const store = tx.objectStore(PREVIEW_STORE)
+    const item = await new Promise((resolve, reject) => {
+      const req = store.get(name)
+      req.onsuccess = () => resolve(req.result)
+      req.onerror = () => reject(req.error)
+    })
+    db.close()
+    return item
+  },
+
+  /** 清空预览缓存 */
+  async clearPreviewCache() {
+    const db = await openDB()
+    const tx = db.transaction(PREVIEW_STORE, 'readwrite')
+    const store = tx.objectStore(PREVIEW_STORE)
+    await new Promise((resolve, reject) => {
+      const req = store.clear()
+      req.onsuccess = () => resolve()
+      req.onerror = () => reject(req.error)
+    })
+    db.close()
   }
 }
