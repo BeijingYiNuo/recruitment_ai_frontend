@@ -117,6 +117,11 @@ export const resumeApi = {
     return request.delete(`/resumes/${resumeId}`)
   },
 
+  // 批量删除简历
+  batchDeleteResumes: (ids) => {
+    return request.post('/resumes/batch/delete', { ids })
+  },
+
   // 编辑简历详情（候选人姓名 + 教育/工作/技能/项目）
   updateResumeDetails: (resumeId, data) => {
     return request.put(`/resumes/${resumeId}/details`, data)

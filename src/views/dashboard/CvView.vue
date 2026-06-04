@@ -48,7 +48,20 @@
 
       <!-- Main List Area -->
       <div class="list-area" v-loading="listLoading">
+        <!-- 批量操作栏 -->
+        <div v-if="selectedIds.length > 0" class="batch-action-bar">
+          <span class="batch-action-info">已选择 {{ selectedIds.length }} 项</span>
+          <el-button type="danger" size="small" @click="handleBatchDelete">批量删除</el-button>
+          <el-button size="small" @click="selectedIds = []">取消选择</el-button>
+        </div>
         <div class="list-header-row">
+          <div class="col-check">
+            <el-checkbox
+              :indeterminate="isIndeterminate"
+              :model-value="isAllSelected"
+              @change="toggleSelectAll"
+            />
+          </div>
           <div class="col-name">候选人</div>
           <div class="col-type">格式</div>
           <div class="col-status">解析状态</div>
@@ -56,22 +69,28 @@
           <div class="col-time">上传时间</div>
           <div class="col-action">操作</div>
         </div>
-        
+
         <div class="list-body">
-          <el-empty 
-            v-if="(!resumeStore.resumes || resumeStore.resumes.length === 0) && !listLoading" 
-            description="暂无简历，请点击上方按钮添加导入" 
+          <el-empty
+            v-if="(!resumeStore.resumes || resumeStore.resumes.length === 0) && !listLoading"
+            description="暂无简历，请点击上方按钮添加导入"
             style="padding: 60px 0"
           />
-          
-          <div 
+
+          <div
             v-else
             class="list-row"
-            v-for="resume in resumeStore.resumes" 
+            :class="{ 'row-selected': selectedIds.includes(resume.id) }"
+            v-for="resume in resumeStore.resumes"
             :key="resume.id"
-            @click="openDrawer(resume.id)"
           >
-            <div class="col-name">
+            <div class="col-check" @click.stop>
+              <el-checkbox
+                :model-value="selectedIds.includes(resume.id)"
+                @change="(val) => toggleSelectOne(resume.id, val)"
+              />
+            </div>
+            <div class="col-name" @click="openDrawer(resume.id)">
               <el-avatar :size="32" class="lark-avatar">{{ resume.candidate_name?.charAt(0) || 'U' }}</el-avatar>
               <span class="name-text">{{ resume.candidate_name }}</span>
               <el-button v-if="resume.review_status === 'PASS'" type="success" link size="small" @click.stop="createInterview(resume)">创建面试</el-button>
@@ -1022,7 +1041,7 @@ const handleDownload = async (row) => {
   const loading = ElLoading.service({ lock: true, text: '正在下载源文件...' })
   try {
     const blob = await resumeApi.downloadResume(row.id)
-    const fileName = row.file_name || `${row.candidate_name || '简历'}.${row.file_type || 'pdf'}`
+    const fileName = row.original_file_name || `${row.candidate_name || '简历'}.${row.file_type || 'pdf'}`
     const url = window.URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
@@ -1063,6 +1082,66 @@ const handleDelete = (id) => {
   }).catch(() => {})
 }
 
+// ====== 批量选择与删除 ======
+const selectedIds = ref([])
+
+const isAllSelected = computed(() => {
+  const list = resumeStore.resumes || []
+  return list.length > 0 && selectedIds.value.length === list.length
+})
+
+const isIndeterminate = computed(() => {
+  const list = resumeStore.resumes || []
+  return selectedIds.value.length > 0 && selectedIds.value.length < list.length
+})
+
+const toggleSelectAll = (checked) => {
+  if (checked) {
+    selectedIds.value = (resumeStore.resumes || []).map(r => r.id)
+  } else {
+    selectedIds.value = []
+  }
+}
+
+const toggleSelectOne = (id, checked) => {
+  if (checked) {
+    selectedIds.value.push(id)
+  } else {
+    selectedIds.value = selectedIds.value.filter(v => v !== id)
+  }
+}
+
+const handleBatchDelete = () => {
+  if (selectedIds.value.length === 0) return
+  ElMessageBox.confirm(
+    `此操作将永久删除 ${selectedIds.value.length} 份简历以及相关解析数据，确定要继续吗？`,
+    '高危操作警告',
+    {
+      confirmButtonText: '确定删除',
+      cancelButtonText: '取消',
+      type: 'warning'
+    }
+  ).then(async () => {
+    const loading = ElLoading.service({ lock: true, text: '正在批量删除...' })
+    try {
+      const result = await resumeApi.batchDeleteResumes(selectedIds.value)
+      if (result.deleted > 0) {
+        ElMessage.success(`已删除 ${result.deleted} 份简历`)
+      }
+      if (result.errors?.length > 0) {
+        console.error('删除部分简历失败:', result.errors)
+        ElMessage.warning(`${result.errors.length} 份简历删除失败`)
+      }
+      selectedIds.value = []
+      fetchResumes()
+    } catch (error) {
+      ElMessage.error('批量删除失败: ' + (error?.detail || error?.message || '未知错误'))
+    } finally {
+      loading.close()
+    }
+  }).catch(() => {})
+}
+
 // === 创建面试 ===
 const createInterview = (resume) => {
   const params = new URLSearchParams({
@@ -1094,7 +1173,7 @@ const handlePreview = async (resume) => {
     previewLoading.value = true
     try {
       // 尝试从预览缓存读取（批量导入的文件上传后会缓存至此）
-      const cached = resume.file_name ? await fileCacheDB.getPreviewFile(resume.file_name) : null
+      const cached = resume.original_file_name ? await fileCacheDB.getPreviewFile(resume.original_file_name) : null
       let blob
       if (cached?.blob) {
         blob = cached.blob
@@ -1137,13 +1216,32 @@ const onPreviewClose = () => {
   background-color: #FFFFFF;
 }
 
+/* 批量操作栏 */
+.batch-action-bar {
+  display: flex;
+  align-items: center;
+  padding: 8px 24px;
+  background: #FFF4E5;
+  border-bottom: 1px solid #FFE0B2;
+  gap: 12px;
+}
+.batch-action-info {
+  font-size: 13px;
+  color: #E6A23C;
+  font-weight: 500;
+}
+.row-selected {
+  background-color: #F5F7FA;
+}
+
 .list-body {
   flex: 1;
 }
 
 
 
-.col-name { flex: 2.5; min-width: 240px; display: flex; align-items: center; }
+.col-check { flex: 0 0 40px; min-width: 40px; display: flex; align-items: center; justify-content: center; }
+.col-name { flex: 2.5; min-width: 240px; display: flex; align-items: center; cursor: pointer; }
 .col-type { flex: 0.8; min-width: 100px; display: flex; align-items: center; }
 .col-status { flex: 1.2; min-width: 140px; display: flex; align-items: center; }
 .col-review { flex: 0.8; min-width: 90px; display: flex; align-items: center; }
