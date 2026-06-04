@@ -606,27 +606,30 @@ async function loadCurrent() {
     return
   }
 
-  // 通过 Axios 获取预览（走 Vite proxy，避免 HTTPS 自签名证书报错）
-  previewLoading.value = true
-  const currentId = resume.id
-  try {
-    const blob = await resumeApi.previewResume(resume.id)
-    // 防止快速切换简历时旧请求覆盖新内容
-    if (currentResume.value?.id !== currentId) return
-    if (fileType.value === 'pdf') {
-      fileUrl.value = URL.createObjectURL(
-        new Blob([blob], { type: 'application/pdf' })
-      )
-    } else if (isImageType.value) {
-      fileUrl.value = URL.createObjectURL(blob)
-    }
-  } catch (error) {
-    if (currentResume.value?.id !== currentId) return
-    console.error('预览加载失败:', error)
-    fileUrl.value = ''
-  } finally {
-    if (currentResume.value?.id === currentId) {
-      previewLoading.value = false
+  // 列表模式不需要 PDF 预览
+  if (viewMode.value === 'detail') {
+    // 通过 Axios 获取预览（走 Vite proxy，避免 HTTPS 自签名证书报错）
+    previewLoading.value = true
+    const currentId = resume.id
+    try {
+      const blob = await resumeApi.previewResume(resume.id)
+      // 防止快速切换简历时旧请求覆盖新内容
+      if (currentResume.value?.id !== currentId) return
+      if (fileType.value === 'pdf') {
+        fileUrl.value = URL.createObjectURL(
+          new Blob([blob], { type: 'application/pdf' })
+        )
+      } else if (isImageType.value) {
+        fileUrl.value = URL.createObjectURL(blob)
+      }
+    } catch (error) {
+      if (currentResume.value?.id !== currentId) return
+      console.error('预览加载失败:', error)
+      fileUrl.value = ''
+    } finally {
+      if (currentResume.value?.id === currentId) {
+        previewLoading.value = false
+      }
     }
   }
 

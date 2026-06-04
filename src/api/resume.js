@@ -68,7 +68,8 @@ export const resumeApi = {
     const token = localStorage.getItem('token')
     return request.get(`/resumes/preview/${resumeId}`, {
       params: { token },
-      responseType: 'blob'
+      responseType: 'blob',
+      timeout: 60000 // 大 PDF 传输慢，给够 60s
     }).then(blob => {
       previewCache.set(resumeId, blob)
       return blob
