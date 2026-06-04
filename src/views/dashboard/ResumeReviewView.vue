@@ -570,8 +570,10 @@ async function fetchResumes() {
     await loadCurrent()
     fetchTabCounts()
 
-    // 后台预热简历缓存，下次预览直接走本地磁盘
+    // 后台预热简历缓存（服务器磁盘 + 浏览器内存）
     resumeApi.precacheResumes().catch(() => {})
+    // 逐个后台下载第一页简历的 PDF 到浏览器内存缓存，点开详情时秒开
+    precacheBrowserCache(list.slice(0, pageSize.value))
   } catch (e) {
     ElMessage.error('获取简历列表失败')
   } finally {
@@ -582,6 +584,18 @@ async function fetchResumes() {
 function handleSearch() {
   currentPage.value = 1
   fetchResumes()
+}
+
+// 逐个后台下载 PDF 到浏览器内存缓存，不阻塞页面
+function precacheBrowserCache(resumes) {
+  let i = 0
+  const next = () => {
+    if (i >= resumes.length) return
+    const r = resumes[i++]
+    if (resumeApi.previewCache?.has(r.id)) { next(); return }
+    resumeApi.previewResume(r.id).then(next).catch(next)
+  }
+  next()
 }
 
 function handlePageChange(page) {
