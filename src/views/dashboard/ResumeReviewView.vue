@@ -156,7 +156,7 @@
                   </div>
                 </div>
               </div>
-              <div class="file-preview">
+              <div class="file-preview" v-loading="previewLoading" element-loading-text="加载预览中...">
                 <iframe v-if="fileType === 'pdf' && fileUrl" :src="fileUrl" class="file-iframe" />
                 <img v-else-if="isImageType && fileUrl" :src="fileUrl" class="file-image" alt="简历预览" />
                 <div v-else class="file-fallback">
@@ -397,7 +397,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch, onMounted } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { resumeApi } from '../../api/resume'
 import { positionApi } from '../../api/position'
@@ -413,6 +413,7 @@ const loading = ref(false)
 const resumes = ref([])
 const currentIndex = ref(0)
 const fileUrl = ref('')
+const previewLoading = ref(false)
 const reviewing = ref(false)
 const reviewingId = ref(null)
 const remarkVisible = ref(false)
@@ -507,11 +508,6 @@ function fmtDateTime(d) {
   return `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())} ${pad(dt.getHours())}:${pad(dt.getMinutes())}`
 }
 
-function buildPreviewUrl(resumeId) {
-  const baseURL = import.meta.env.VITE_API_BASE_URL || '/api'
-  return `${baseURL}/resumes/preview/${resumeId}?token=${localStorage.getItem('token')}`
-}
-
 function getFilterParam() {
   if (activeFilter.value === 'all') return null
   if (activeFilter.value === 'null') return 'null'
@@ -590,15 +586,47 @@ function handlePageChange(page) {
   fetchResumes()
 }
 
+function revokeFileUrl() {
+  if (fileUrl.value && fileUrl.value.startsWith('blob:')) {
+    URL.revokeObjectURL(fileUrl.value)
+  }
+  fileUrl.value = ''
+}
+
 async function loadCurrent() {
   saveCurrentRemark()
+  revokeFileUrl()
+
   const resume = currentResume.value
   if (!resume) {
-    fileUrl.value = ''
     clearParsed()
     return
   }
-  fileUrl.value = buildPreviewUrl(resume.id)
+
+  // 通过 Axios 获取预览（走 Vite proxy，避免 HTTPS 自签名证书报错）
+  previewLoading.value = true
+  const currentId = resume.id
+  try {
+    const blob = await resumeApi.previewResume(resume.id)
+    // 防止快速切换简历时旧请求覆盖新内容
+    if (currentResume.value?.id !== currentId) return
+    if (fileType.value === 'pdf') {
+      fileUrl.value = URL.createObjectURL(
+        new Blob([blob], { type: 'application/pdf' })
+      )
+    } else if (isImageType.value) {
+      fileUrl.value = URL.createObjectURL(blob)
+    }
+  } catch (error) {
+    if (currentResume.value?.id !== currentId) return
+    console.error('预览加载失败:', error)
+    fileUrl.value = ''
+  } finally {
+    if (currentResume.value?.id === currentId) {
+      previewLoading.value = false
+    }
+  }
+
   await fetchParsedData(resume.id)
 }
 
@@ -976,7 +1004,7 @@ function removeCurrent() {
   resumes.value = resumes.value.filter((_, i) => i !== removedIndex)
   if (resumes.value.length === 0) {
     currentIndex.value = 0
-    fileUrl.value = ''
+    revokeFileUrl()
     clearParsed()
   } else if (removedIndex >= resumes.value.length) {
     currentIndex.value = resumes.value.length - 1
@@ -987,6 +1015,7 @@ function removeCurrent() {
 }
 
 onMounted(() => fetchResumes())
+onUnmounted(() => revokeFileUrl())
 </script>
 
 <style scoped lang="scss">

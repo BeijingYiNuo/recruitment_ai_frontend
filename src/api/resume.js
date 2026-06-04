@@ -1,5 +1,10 @@
 import request from '../utils/request'
 
+// ── 简历预览内存缓存 ──
+// Chrome XHR + responseType: 'blob' 不参与 HTTP 缓存，无法使用 304 协商缓存
+// 此处用 Map 做模块级内存缓存，相同 resumeId 第二次调用直接返回缓存的 Blob
+const previewCache = new Map()
+
 export const resumeApi = {
   // 导入简历
   uploadResume: (userId, file) => {
@@ -54,13 +59,29 @@ export const resumeApi = {
     })
   },
 
-  // 预览简历（走浏览器缓存，第二次访问秒开）
+  // 预览简历（走内存缓存，第二次访问秒开）
   previewResume: (resumeId) => {
+    // 命中缓存 → 直接返回
+    const cached = previewCache.get(resumeId)
+    if (cached) return Promise.resolve(cached)
+
     const token = localStorage.getItem('token')
     return request.get(`/resumes/preview/${resumeId}`, {
       params: { token },
       responseType: 'blob'
+    }).then(blob => {
+      previewCache.set(resumeId, blob)
+      return blob
     })
+  },
+
+  // 清除指定简历的预览缓存
+  clearPreviewCache: (resumeId) => {
+    if (resumeId !== undefined) {
+      previewCache.delete(resumeId)
+    } else {
+      previewCache.clear()
+    }
   },
 
   // 审核简历

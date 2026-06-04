@@ -1058,7 +1058,7 @@ const handlePreview = async (resume) => {
   previewType.value = (resume.file_type || '').toLowerCase()
   previewDialogVisible.value = true
 
-  // PDF 文件使用 iframe 预览
+  // PDF 文件使用 iframe 预览（HTTP 缓存全程在后端处理，前端零改动）
   if (previewType.value === 'pdf') {
     previewLoading.value = true
     try {
