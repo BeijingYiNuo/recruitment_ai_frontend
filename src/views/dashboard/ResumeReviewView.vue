@@ -569,6 +569,9 @@ async function fetchResumes() {
     currentIndex.value = 0
     await loadCurrent()
     fetchTabCounts()
+
+    // 后台预热简历缓存，下次预览直接走本地磁盘
+    resumeApi.precacheResumes().catch(() => {})
   } catch (e) {
     ElMessage.error('获取简历列表失败')
   } finally {

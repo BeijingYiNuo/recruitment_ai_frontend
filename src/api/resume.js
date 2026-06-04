@@ -162,5 +162,8 @@ export const resumeApi = {
   resumeStream: (streamId) => request.post(`/stream/${streamId}/resume`),
 
   // 流式控制 - 取消
-  cancelStream: (streamId) => request.post(`/stream/${streamId}/cancel`)
+  cancelStream: (streamId) => request.post(`/stream/${streamId}/cancel`),
+
+  // 预热所有简历的本地缓存（后台执行，不阻塞）
+  precacheResumes: () => request.post('/resumes/precache')
 }
