@@ -1,9 +1,12 @@
 import request from '../utils/request'
+import { fileCacheDB } from '../utils/fileCacheDB'
 
 // ── 简历预览内存缓存 ──
 // Chrome XHR + responseType: 'blob' 不参与 HTTP 缓存，无法使用 304 协商缓存
 // 此处用 Map 做模块级内存缓存，相同 resumeId 第二次调用直接返回缓存的 Blob
 const previewCache = new Map()
+// 追踪进行中的请求，防止同一 resumeId 的并发请求重复发往后端
+const pendingPreviews = new Map()
 
 export const resumeApi = {
   // 导入简历
@@ -59,21 +62,49 @@ export const resumeApi = {
     })
   },
 
-  // 预览简历（走内存缓存，第二次访问秒开）
-  previewResume: (resumeId) => {
-    // 命中缓存 → 直接返回
+  // 预览简历（走内存 + IndexedDB 二级缓存，跨页面可用）
+  previewResume: async (resumeId) => {
+    // 1. 命中内存缓存 → 直接返回
     const cached = previewCache.get(resumeId)
-    if (cached) return Promise.resolve(cached)
+    if (cached) return cached
 
-    const token = localStorage.getItem('token')
-    return request.get(`/resumes/preview/${resumeId}`, {
-      params: { token },
-      responseType: 'blob',
-      timeout: 60000 // 大 PDF 传输慢，给够 60s
-    }).then(blob => {
-      previewCache.set(resumeId, blob)
-      return blob
-    })
+    // 2. 同一 resumeId 有进行中的请求 → 复用其 Promise，避免并发重复请求
+    const inflight = pendingPreviews.get(resumeId)
+    if (inflight) return inflight
+
+    // 3. 尝试 IndexedDB 缓存（跨页面共享）
+    try {
+      const dbItem = await fileCacheDB.getPreviewById(resumeId)
+      if (dbItem?.blob) {
+        previewCache.set(resumeId, dbItem.blob)
+        return dbItem.blob
+      }
+    } catch (e) { /* ignore */ }
+
+    // 4. 从后端获取（记录到进行中 Map，请求完成后清除）
+    const promise = (async () => {
+      try {
+        const token = localStorage.getItem('token')
+        const blob = await request.get(`/resumes/preview/${resumeId}`, {
+          params: { token },
+          responseType: 'blob',
+          timeout: 60000
+        })
+
+        // 5. 写入两级缓存
+        previewCache.set(resumeId, blob)
+        try {
+          fileCacheDB.savePreviewById(resumeId, blob)
+        } catch (e) { /* ignore */ }
+
+        return blob
+      } finally {
+        pendingPreviews.delete(resumeId)
+      }
+    })()
+
+    pendingPreviews.set(resumeId, promise)
+    return promise
   },
 
   // 清除指定简历的预览缓存

@@ -403,6 +403,7 @@ import { resumeApi } from '../../api/resume'
 import { positionApi } from '../../api/position'
 import { ElMessage } from 'element-plus'
 import InterviewQuestionsFloat from '../../components/InterviewQuestionsFloat.vue'
+import { fileCacheDB } from '../../utils/fileCacheDB'
 import {
   ArrowLeft, ArrowRight, Close, QuestionFilled, Check, Document, EditPen, MagicStick,
   Reading, Briefcase, Coin, Collection, List, Grid, Plus, Search
@@ -515,6 +516,7 @@ function getFilterParam() {
 }
 
 function enterDetail(index) {
+  console.log('[enterDetail] called', { index, currentIndex: currentIndex.value })
   saveCurrentRemark()
   currentIndex.value = index
   viewMode.value = 'detail'
@@ -616,29 +618,57 @@ async function loadCurrent() {
 
   const resume = currentResume.value
   if (!resume) {
+    console.log('[loadCurrent] resume is null, clearing parsed')
     clearParsed()
     return
   }
 
   // 列表模式不需要 PDF 预览
   if (viewMode.value === 'detail') {
-    // 通过 Axios 获取预览（走 Vite proxy，避免 HTTPS 自签名证书报错）
     previewLoading.value = true
     const currentId = resume.id
+    console.log('[loadCurrent] preview start', { id: currentId, fileType: fileType.value, rawFileType: resume.file_type, originalFileName: resume.original_file_name })
     try {
-      const blob = await resumeApi.previewResume(resume.id)
+      // 优先从 IndexedDB 预览缓存读取（批量导入上传后缓存至此）
+      let blob = null
+      let fromCache = false
+      const cached = resume.original_file_name ? await fileCacheDB.getPreviewFile(resume.original_file_name) : null
+      if (cached?.blob) {
+        blob = cached.blob
+        fromCache = true
+        console.log('[loadCurrent] cache HIT (by filename)')
+        // 同步写入 resumeId 缓存，供其他页面（面试/面试管理）直接使用
+        fileCacheDB.savePreviewById(resume.id, blob)
+      } else {
+        console.log('[loadCurrent] cache miss, fetching from api')
+        // 缓存未命中，从后端下载（previewResume 内部也会写入 resumeId 缓存）
+        blob = await resumeApi.previewResume(resume.id)
+      }
+      console.log('[loadCurrent] preview loaded', { id: currentId, fromCache, fileType: fileType.value, blobSize: blob?.size, blobType: blob?.type })
       // 防止快速切换简历时旧请求覆盖新内容
-      if (currentResume.value?.id !== currentId) return
+      if (currentResume.value?.id !== currentId) {
+        console.log('[loadCurrent] stale request, skipping', { expected: currentId, actual: currentResume.value?.id })
+        return
+      }
+      console.log('[loadCurrent] setting fileUrl, fileType:', fileType.value, 'isImageType:', isImageType.value)
       if (fileType.value === 'pdf') {
         fileUrl.value = URL.createObjectURL(
           new Blob([blob], { type: 'application/pdf' })
         )
       } else if (isImageType.value) {
         fileUrl.value = URL.createObjectURL(blob)
+      } else {
+        console.log('[loadCurrent] fileType not handled, fileUrl remains empty', { fileType: fileType.value })
       }
     } catch (error) {
       if (currentResume.value?.id !== currentId) return
-      console.error('预览加载失败:', error)
+      console.error('[loadCurrent] 预览加载失败:', error)
+      try {
+        // 尝试打印更详细的错误信息
+        const errDetail = error?.response ? await error.response?.data?.text?.() : null
+        console.error('[loadCurrent] error detail:', errDetail || error?.detail || error?.message || error?.statusText || JSON.stringify(error))
+      } catch (_) {}
+      ElMessage.error('简历预览加载失败: ' + (error?.detail || error?.message || error?.statusText || '未知错误'))
       fileUrl.value = ''
     } finally {
       if (currentResume.value?.id === currentId) {
@@ -1033,6 +1063,13 @@ function removeCurrent() {
     loadCurrent()
   }
 }
+
+// 切换至详情模式时调用 loadCurrent 加载预览
+watch(viewMode, (mode) => {
+  if (mode === 'detail' && currentResume.value) {
+    loadCurrent()
+  }
+})
 
 onMounted(() => fetchResumes())
 onUnmounted(() => revokeFileUrl())

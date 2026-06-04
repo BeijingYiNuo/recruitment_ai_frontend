@@ -1177,8 +1177,10 @@ const handlePreview = async (resume) => {
       let blob
       if (cached?.blob) {
         blob = cached.blob
+        // 同步写入 resumeId 缓存，供其他页面（面试/面试管理）直接使用
+        fileCacheDB.savePreviewById(resume.id, blob)
       } else {
-        // 缓存未命中，从后端下载
+        // 缓存未命中，从后端下载（previewResume 内部也会写入 resumeId 缓存）
         blob = await resumeApi.previewResume(resume.id)
       }
       const pdfBlob = new Blob([blob], { type: 'application/pdf' })

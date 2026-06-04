@@ -187,6 +187,38 @@ export const fileCacheDB = {
     return item
   },
 
+  /** 按 resumeId 保存到预览缓存 */
+  async savePreviewById(resumeId, blob, type = '') {
+    const db = await openDB()
+    const tx = db.transaction(PREVIEW_STORE, 'readwrite')
+    const store = tx.objectStore(PREVIEW_STORE)
+    await new Promise((resolve, reject) => {
+      const req = store.put({
+        name: `byId:${resumeId}`,
+        blob: blob,
+        type: type,
+        cachedAt: Date.now()
+      })
+      req.onsuccess = () => resolve()
+      req.onerror = () => reject(req.error)
+    })
+    db.close()
+  },
+
+  /** 按 resumeId 从预览缓存读取文件 blob */
+  async getPreviewById(resumeId) {
+    const db = await openDB()
+    const tx = db.transaction(PREVIEW_STORE, 'readonly')
+    const store = tx.objectStore(PREVIEW_STORE)
+    const item = await new Promise((resolve, reject) => {
+      const req = store.get(`byId:${resumeId}`)
+      req.onsuccess = () => resolve(req.result)
+      req.onerror = () => reject(req.error)
+    })
+    db.close()
+    return item
+  },
+
   /** 清空预览缓存 */
   async clearPreviewCache() {
     const db = await openDB()
