@@ -1,329 +1,941 @@
 <template>
   <div class="feishu-page">
-    <div class="card-container">
 
-      <!-- Header -->
-      <div class="header-area">
-        <div class="header-top">
-          <div class="title-area">
-            <h1>面试报告</h1>
-            <span class="badge">待定</span>
-          </div>
-          <div class="header-actions">
-            <el-button class="lark-btn-ghost" @click="$router.push('/dashboard/interview-manage')">返回面试管理</el-button>
-            <el-button class="lark-btn-primary" type="primary" @click="exportPDF">导出 PDF</el-button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Overview Cards -->
-      <div class="overview-cards">
-        <div class="info-card">
-          <div class="info-row">
-            <span class="info-label">候选人</span>
-            <span class="info-value">张某某</span>
-          </div>
-          <div class="info-row">
-            <span class="info-label">面试官</span>
-            <span class="info-value">李面试官</span>
-          </div>
-        </div>
-        <div class="info-card">
-          <div class="info-row">
-            <span class="info-label">应聘岗位</span>
-            <span class="info-value">Java 后端开发</span>
-          </div>
-          <div class="info-row">
-            <span class="info-label">面试形式</span>
-            <span class="info-value">线上面试</span>
-          </div>
-        </div>
-        <div class="info-card">
-          <div class="info-row">
-            <span class="info-label">面试日期</span>
-            <span class="info-value">2026-05-29</span>
-          </div>
-          <div class="info-row">
-            <span class="info-label">面试时长</span>
-            <span class="info-value">32 分钟</span>
-          </div>
-        </div>
-        <div class="info-card stages-card">
-          <div class="info-row">
-            <span class="info-label">面试阶段</span>
-          </div>
-          <div class="stages-flow">
-            <span class="stage-tag active">开场介绍</span>
-            <span class="stage-arrow">→</span>
-            <span class="stage-tag active">自我介绍</span>
-            <span class="stage-arrow">→</span>
-            <span class="stage-tag active">项目深挖</span>
-            <span class="stage-arrow">→</span>
-            <span class="stage-tag inactive">技术理论</span>
-            <span class="stage-arrow">→</span>
-            <span class="stage-tag inactive">文化匹配</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Score Summary Cards -->
-      <div class="score-summary-row">
-        <div class="score-card overall">
-          <div class="score-icon"><el-icon><Medal /></el-icon></div>
-          <div class="score-content">
-            <div class="score-value">{{ overallScore }}</div>
-            <div class="score-label">综合评分</div>
-            <div class="score-range">参考: A/B/C/D</div>
-          </div>
-        </div>
-        <div class="score-card match">
-          <div class="score-icon"><el-icon><DataAnalysis /></el-icon></div>
-          <div class="score-content">
-            <div class="score-value">85%</div>
-            <div class="score-label">技术匹配度</div>
-            <div class="score-range">较匹配</div>
-          </div>
-        </div>
-        <div class="score-card recommendation">
-          <div class="score-icon"><el-icon><Document /></el-icon></div>
-          <div class="score-content">
-            <div class="score-value neutral">待定</div>
-            <div class="score-label">推荐意见</div>
-            <div class="score-options">
-              <span class="opt">建议录用</span>
-              <span class="opt selected">待定</span>
-              <span class="opt">不建议</span>
+    <!-- ==================== ROOT VIEW ==================== -->
+    <template v-if="viewMode === 'root'">
+      <div class="card-container">
+        <div class="header-area">
+          <div class="header-top">
+            <div class="title-area">
+              <h1>面试报告</h1>
+            </div>
+            <div class="header-actions">
+              <el-input
+                v-model="searchKeyword"
+                placeholder="搜索候选人姓名"
+                clearable
+                style="width: 240px;"
+                @keyup.enter="fetchCandidateGroups"
+                @clear="fetchCandidateGroups"
+              >
+                <template #prefix>
+                  <el-icon><Search /></el-icon>
+                </template>
+              </el-input>
             </div>
           </div>
         </div>
-        <div class="score-card risk">
-          <div class="score-icon"><el-icon><WarningFilled /></el-icon></div>
-          <div class="score-content">
-            <div class="score-value medium">中等</div>
-            <div class="score-label">风险等级</div>
-            <div class="risk-bar">
-              <div class="risk-segment low"></div>
-              <div class="risk-segment medium active"></div>
-              <div class="risk-segment high"></div>
+
+        <div v-if="loadingRoot" class="loading-container-inline">
+          <el-skeleton :rows="6" animated />
+        </div>
+
+        <div v-else-if="candidateGroups.length === 0" class="empty-container-inline">
+          <el-empty description="暂无面试报告数据">
+            <el-button @click="$router.push('/dashboard/interview-manage')">前往面试管理</el-button>
+          </el-empty>
+        </div>
+
+        <div v-else class="folder-grid">
+          <div
+            v-for="group in candidateGroups"
+            :key="group.candidate_name"
+            class="folder-card"
+            @click="enterCandidate(group.candidate_name)"
+          >
+            <div class="folder-icon">
+              <el-icon :size="40"><FolderOpened /></el-icon>
+            </div>
+            <div class="folder-name">{{ group.candidate_name }}</div>
+            <div class="folder-meta">
+              <span>{{ group.session_count }} 次面试</span>
+              <span v-if="group.report_count">· {{ group.report_count }} 份报告</span>
+            </div>
+            <div v-if="group.latest_report_at" class="folder-time">
+              {{ formatDate(group.latest_report_at) }}
             </div>
           </div>
         </div>
       </div>
+    </template>
 
-      <!-- Radar Chart + Ability Indicators -->
-      <div class="section-card">
-        <h2 class="section-title">能力评估</h2>
-        <div class="radar-section">
-          <div class="radar-chart-container">
-            <div ref="radarChartRef" class="radar-chart"></div>
-          </div>
-          <div class="ability-list">
-            <div v-for="item in abilityIndicators" :key="item.name" class="ability-item">
-              <div class="ability-header">
-                <span class="ability-icon" :class="item.status">{{ item.status === 'good' ? '★' : item.status === 'abnormal' ? '⚠' : '✓' }}</span>
-                <span class="ability-name">{{ item.name }}</span>
-                <span class="ability-score" :class="item.status">{{ item.score }}</span>
-              </div>
-              <div class="ability-bar-wrapper">
-                <div class="ability-bar-bg">
-                  <div class="ability-bar-fill" :class="item.status" :style="{ width: abilityBarWidth(item.score) }"></div>
-                </div>
-                <span class="ability-range">参考: A/B/C/D</span>
-              </div>
-              <div class="ability-desc">{{ item.desc }}</div>
+    <!-- ==================== CANDIDATE VIEW ==================== -->
+    <template v-if="viewMode === 'candidate'">
+      <div class="card-container">
+        <div class="header-area">
+          <div class="header-top">
+            <div class="title-area">
+              <el-button text @click="goToRoot">
+                <el-icon><ArrowLeft /></el-icon>
+              </el-button>
+              <h1>面试报告 / {{ currentCandidate }}</h1>
             </div>
           </div>
         </div>
-      </div>
 
-      <!-- Stage Comparison Bar Chart -->
-      <div class="section-card">
-        <h2 class="section-title">各阶段表现</h2>
-        <div class="stage-chart-section">
-          <div class="stage-chart-container">
-            <div ref="stageChartRef" class="stage-chart"></div>
-          </div>
-          <div class="stage-insights">
-            <div class="insight-item positive">
-              <span class="insight-icon">★</span>
-              <span>项目深挖阶段表现最充分，技术细节回答详实</span>
-            </div>
-            <div class="insight-item warning">
-              <span class="insight-icon">⚠</span>
-              <span>技术理论阶段未覆盖，建议后续轮次补充考察</span>
-            </div>
-          </div>
+        <div v-if="loadingCandidate" class="loading-container-inline">
+          <el-skeleton :rows="6" animated />
         </div>
-      </div>
 
-      <!-- Abnormal Findings Table -->
-      <div class="section-card">
-        <h2 class="section-title">
-          异常发现
-          <span class="section-subtitle">需关注的技术盲区与风险点</span>
-        </h2>
-        <el-table :data="abnormalFindings" style="width: 100%" stripe :header-cell-style="{ background: '#FAFBFC', color: '#1F2329', fontWeight: 600 }">
-          <el-table-column prop="item" label="异常项目" width="120">
+        <div v-else-if="candidateSessions.length === 0" class="empty-container-inline">
+          <el-empty description="该候选人暂无面试记录" />
+        </div>
+
+        <el-table v-else :data="candidateSessions" stripe style="width: 100%">
+          <el-table-column label="面试日期" width="140">
             <template #default="{ row }">
-              <span class="abnormal-item"><el-icon><WarningFilled /></el-icon> {{ row.item }}</span>
+              {{ row.interview_date || '未知' }}
             </template>
           </el-table-column>
-          <el-table-column prop="finding" label="异常描述" min-width="200" />
-          <el-table-column prop="detail" label="详细说明" min-width="280" />
-          <el-table-column prop="severity" label="严重程度" width="100">
+          <el-table-column label="面试轮次" min-width="160">
             <template #default="{ row }">
-              <el-tag :type="severityType(row.severity)" size="small">{{ row.severity }}</el-tag>
+              <div v-if="row.rounds && row.rounds.length">
+                <el-tag
+                  v-for="r in row.rounds"
+                  :key="r.round_id"
+                  size="small"
+                  style="margin-right: 4px;"
+                >
+                  {{ r.round_name }}
+                </el-tag>
+              </div>
+              <span v-else class="text-muted">无轮次</span>
             </template>
           </el-table-column>
-          <el-table-column prop="suggested_action" label="处理建议" min-width="200" />
+          <el-table-column label="报告状态" width="140">
+            <template #default="{ row }">
+              <template v-for="rp in row.reports" :key="rp.report_id">
+                <el-tag v-if="rp.status === 'final'" type="success" size="small" style="margin-right: 4px;">
+                  已完成
+                </el-tag>
+                <el-tag v-else-if="rp.status === 'generating'" type="warning" size="small" style="margin-right: 4px;">
+                  生成中
+                </el-tag>
+                <el-tag v-else-if="rp.status === 'failed'" type="danger" size="small" style="margin-right: 4px;">
+                  失败
+                </el-tag>
+              </template>
+              <span v-if="!row.reports || !row.reports.length" class="text-muted">未生成</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="180" fixed="right">
+            <template #default="{ row }">
+              <el-button
+                v-for="rp in row.reports"
+                :key="rp.report_id"
+                :type="rp.status === 'failed' ? 'warning' : 'primary'"
+                size="small"
+                style="margin-right: 4px;"
+                @click="enterDetail(row.session_id, rp.round_id)"
+              >
+                {{ rp.status === 'failed' ? '重新生成' : '查看' }}
+              </el-button>
+              <el-button
+                v-if="!row.reports || !row.reports.length"
+                type="primary"
+                size="small"
+                @click="triggerGenerate(row.session_id, row.rounds?.[0]?.round_id, true)"
+              >
+                生成报告
+              </el-button>
+            </template>
+          </el-table-column>
         </el-table>
       </div>
+    </template>
 
-
-      <!-- Tech Keywords -->
-      <div class="section-card">
-        <h2 class="section-title">技术关键词</h2>
-        <div class="keywords-section">
-          <div class="keyword-tags">
-            <el-tag v-for="kw in techKeywords" :key="kw.text" :class="'freq-' + kw.freq" class="keyword-tag">{{ kw.text }}</el-tag>
-          </div>
-          <div class="keyword-legend">
-            <span class="freq-dot high"></span> 高频提及
-            <span class="freq-dot mid" style="margin-left: 20px;"></span> 中频
-            <span class="freq-dot low" style="margin-left: 20px;"></span> 低频
-          </div>
+    <!-- ==================== DETAIL VIEW ==================== -->
+    <template v-if="viewMode === 'detail'">
+      <!-- Loading -->
+      <div v-if="loading" class="card-container">
+        <div class="loading-container-inline">
+          <el-skeleton :rows="10" animated />
         </div>
       </div>
 
-      <!-- Key Dialogue Highlights -->
-      <div class="section-card">
-        <h2 class="section-title">关键对话摘录</h2>
-        <div class="dialogue-list">
-          <div v-for="(d, i) in dialogueHighlights" :key="i" class="dialogue-item">
-            <div class="dialogue-speaker">
-              <span class="speaker-tag" :class="d.speaker === '面试官' ? 'interviewer' : 'candidate'">{{ d.speaker }}</span>
+      <!-- Generating overlay -->
+      <div v-else-if="reportStatus === 'generating'" class="card-container">
+        <div class="generating-container">
+          <el-progress type="circle" :percentage="50" :indeterminate="true" :width="120" :stroke-width="8" />
+          <h2 class="generating-title">AI 正在生成面试报告...</h2>
+          <p class="generating-sub">正在分析面试对话，请稍候</p>
+        </div>
+      </div>
+
+      <!-- Error -->
+      <div v-else-if="error" class="card-container">
+        <div class="empty-container-inline">
+          <el-result icon="error" title="加载失败" :sub-title="error">
+            <template #extra>
+              <el-button type="primary" @click="fetchReport">重新加载</el-button>
+              <el-button @click="goToCandidate">返回候选人</el-button>
+            </template>
+          </el-result>
+        </div>
+      </div>
+
+      <!-- Not Generated -->
+      <div v-else-if="!reportData" class="card-container">
+        <div class="empty-container-inline">
+          <el-result icon="info" title="报告尚未生成">
+            <template #extra>
+              <el-button type="primary" :loading="generating" @click="triggerGenerate(sessionId, roundId)">生成面试报告</el-button>
+              <el-button @click="goToCandidate">返回候选人</el-button>
+            </template>
+          </el-result>
+        </div>
+      </div>
+
+      <!-- Failed -->
+      <div v-else-if="reportStatus === 'failed'" class="card-container">
+        <div class="empty-container-inline">
+          <el-result icon="error" title="报告生成失败">
+            <template #extra>
+              <el-button type="primary" :loading="generating" @click="triggerGenerate(sessionId, roundId)">重新生成</el-button>
+              <el-button @click="goToCandidate">返回候选人</el-button>
+            </template>
+          </el-result>
+        </div>
+      </div>
+
+      <!-- Report Content -->
+      <div v-else class="card-container">
+        <!-- Header -->
+        <div class="header-area">
+          <div class="header-top">
+            <div class="title-area">
+              <el-button text @click="goToCandidate">
+                <el-icon><ArrowLeft /></el-icon>
+              </el-button>
+              <h1>面试报告</h1>
+              <span class="badge">{{ badgeText }}</span>
             </div>
-            <div class="dialogue-content">
-              <div class="dialogue-text">{{ d.content }}</div>
-              <div v-if="d.evaluation" class="dialogue-eval">{{ d.evaluation }}</div>
+            <div class="header-actions">
+              <el-button class="lark-btn-ghost" @click="goToCandidate">返回候选人</el-button>
+              <el-button v-if="!editMode" class="lark-btn-primary" type="primary" @click="enterEditMode">编辑</el-button>
+              <el-button v-if="editMode" type="success" :loading="saving" @click="saveReport">保存</el-button>
+              <el-button v-if="editMode" @click="cancelEdit">取消</el-button>
+              <el-button class="lark-btn-ghost" @click="exportPDF">导出 PDF</el-button>
             </div>
           </div>
         </div>
-      </div>
 
-      <!-- Conclusion & Recommendation -->
-      <div class="section-card conclusion-card">
-        <h2 class="section-title">总检结论与建议</h2>
-        <div class="conclusion-grid">
-          <div class="conclusion-block strengths">
-            <div class="block-title">优势</div>
-            <ul>
-              <li v-for="(s, i) in conclusion.strengths" :key="i">{{ s }}</li>
-            </ul>
+        <!-- Overview Cards -->
+        <div class="overview-cards">
+          <div class="info-card">
+            <div class="info-row">
+              <span class="info-label">候选人</span>
+              <span class="info-value">{{ reportData.candidate_name || '未知' }}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">面试官</span>
+              <span class="info-value">{{ reportData.interviewer_name || '未知' }}</span>
+            </div>
           </div>
-          <div class="conclusion-block weaknesses">
-            <div class="block-title">不足</div>
-            <ul>
-              <li v-for="(w, i) in conclusion.weaknesses" :key="i">{{ w }}</li>
-            </ul>
+          <div class="info-card">
+            <div class="info-row">
+              <span class="info-label">应聘岗位</span>
+              <span class="info-value">{{ reportData.position_name || '未知' }}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">面试形式</span>
+              <span class="info-value">{{ reportData.session_type || '未知' }}</span>
+            </div>
           </div>
-          <div class="conclusion-block suggestions">
-            <div class="block-title">建议</div>
-            <ul>
-              <li v-for="(s, i) in conclusion.suggestions" :key="i">{{ s }}</li>
-            </ul>
+          <div class="info-card">
+            <div class="info-row">
+              <span class="info-label">面试日期</span>
+              <span class="info-value">{{ reportData.interview_date || '未知' }}</span>
+            </div>
+          </div>
+          <div class="info-card stages-card">
+            <div class="info-row">
+              <span class="info-label">面试阶段</span>
+            </div>
+            <div class="stages-flow">
+              <template v-for="(stage, i) in reportData.stages" :key="i">
+                <span v-if="i > 0" class="stage-arrow">→</span>
+                <span class="stage-tag" :class="stage.active ? 'active' : 'inactive'">{{ stage.name }}</span>
+              </template>
+            </div>
           </div>
         </div>
-        <el-divider />
-        <div class="final-decision">
-          <div class="decision-label">综合决定</div>
-          <div class="decision-options">
-            <el-radio-group v-model="finalDecision" size="large">
-              <el-radio-button value="recommend" class="decision-recommend">建议录用</el-radio-button>
-              <el-radio-button value="neutral" class="decision-neutral">待定</el-radio-button>
-              <el-radio-button value="not_recommend" class="decision-not">不建议录用</el-radio-button>
-            </el-radio-group>
+
+        <!-- Score Summary Cards (editable) -->
+        <div class="score-summary-row">
+          <div class="score-card overall">
+            <div class="score-icon"><el-icon><Medal /></el-icon></div>
+            <div class="score-content">
+              <div v-if="editMode" class="score-edit">
+                <el-select v-model="editData.overall_score" size="small" style="width: 80px;">
+                  <el-option label="A" value="A" />
+                  <el-option label="B" value="B" />
+                  <el-option label="C" value="C" />
+                  <el-option label="D" value="D" />
+                </el-select>
+              </div>
+              <div v-else class="score-value">{{ reportData.overall_score || '-' }}</div>
+              <div class="score-label">综合评分</div>
+              <div class="score-range">参考: A/B/C/D</div>
+            </div>
+          </div>
+          <div class="score-card match">
+            <div class="score-icon"><el-icon><DataAnalysis /></el-icon></div>
+            <div class="score-content">
+              <div v-if="editMode" class="score-edit">
+                <el-input-number v-model="editData.tech_match" :min="0" :max="100" size="small" style="width: 120px;" />
+              </div>
+              <div v-else class="score-value">{{ reportData.tech_match ?? '-' }}%</div>
+              <div class="score-label">技术匹配度</div>
+              <div class="score-range">{{ techMatchLabel }}</div>
+            </div>
+          </div>
+          <div class="score-card recommendation">
+            <div class="score-icon"><el-icon><Document /></el-icon></div>
+            <div class="score-content">
+              <div v-if="editMode" class="score-edit">
+                <el-select v-model="editData.final_decision" size="small" style="width: 120px;">
+                  <el-option label="建议录用" value="recommend" />
+                  <el-option label="待定" value="neutral" />
+                  <el-option label="不建议录用" value="not_recommend" />
+                </el-select>
+              </div>
+              <div v-else class="score-value" :class="decisionClass">{{ decisionLabel }}</div>
+              <div class="score-label">推荐意见</div>
+              <div class="score-options">
+                <span class="opt" :class="{ selected: reportData.final_decision === 'recommend' }">建议录用</span>
+                <span class="opt" :class="{ selected: reportData.final_decision === 'neutral' }">待定</span>
+                <span class="opt" :class="{ selected: reportData.final_decision === 'not_recommend' }">不建议</span>
+              </div>
+            </div>
+          </div>
+          <div class="score-card risk">
+            <div class="score-icon"><el-icon><WarningFilled /></el-icon></div>
+            <div class="score-content">
+              <div v-if="editMode" class="score-edit">
+                <el-select v-model="editData.risk_level" size="small" style="width: 100px;">
+                  <el-option label="低" value="low" />
+                  <el-option label="中等" value="medium" />
+                  <el-option label="高" value="high" />
+                </el-select>
+              </div>
+              <div v-else class="score-value" :class="riskClass">{{ riskLabel }}</div>
+              <div class="score-label">风险等级</div>
+              <div class="risk-bar">
+                <div class="risk-segment low" :class="{ active: reportData.risk_level === 'low' }"></div>
+                <div class="risk-segment medium" :class="{ active: reportData.risk_level === 'medium' }"></div>
+                <div class="risk-segment high" :class="{ active: reportData.risk_level === 'high' }"></div>
+              </div>
+            </div>
           </div>
         </div>
-        <div class="next-focus">
-          <span class="next-label">下阶段重点关注：</span>
-          <el-tag v-for="f in conclusion.nextFocus" :key="f" class="focus-tag">{{ f }}</el-tag>
+
+        <!-- Radar Chart + Ability Indicators (editable) -->
+        <div class="section-card">
+          <h2 class="section-title">能力评估</h2>
+          <div class="radar-section">
+            <div class="radar-chart-container">
+              <div ref="radarChartRef" class="radar-chart"></div>
+            </div>
+            <div class="ability-list">
+              <div v-for="(item, idx) in abilityIndicators" :key="idx" class="ability-item">
+                <div class="ability-header">
+                  <span class="ability-icon" :class="item.status">{{ item.status === 'good' ? '★' : item.status === 'abnormal' ? '⚠' : '✓' }}</span>
+                  <span class="ability-name">{{ item.name }}</span>
+                  <span v-if="editMode" class="ability-edit-score">
+                    <el-select v-model="editData.ability_indicators[idx].score" size="small" style="width: 70px;">
+                      <el-option label="A" value="A" />
+                      <el-option label="B" value="B" />
+                      <el-option label="C" value="C" />
+                      <el-option label="D" value="D" />
+                    </el-select>
+                  </span>
+                  <span v-else class="ability-score" :class="item.status">{{ item.score }}</span>
+                </div>
+                <div class="ability-bar-wrapper">
+                  <div class="ability-bar-bg">
+                    <div class="ability-bar-fill" :class="item.status" :style="{ width: abilityBarWidth(item.score) }"></div>
+                  </div>
+                  <span class="ability-range">参考: A/B/C/D</span>
+                </div>
+                <div v-if="editMode" class="ability-edit-desc">
+                  <el-input v-model="editData.ability_indicators[idx].desc" type="textarea" :rows="2" size="small" />
+                </div>
+                <div v-else class="ability-desc">{{ item.desc }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Stage Comparison Bar Chart (editable) -->
+        <div class="section-card">
+          <h2 class="section-title">各阶段表现</h2>
+          <div class="stage-chart-section">
+            <div class="stage-chart-container">
+              <div ref="stageChartRef" class="stage-chart"></div>
+            </div>
+            <div class="stage-insights">
+              <div v-for="(item, i) in stageInsights" :key="i" class="insight-item" :class="item.type">
+                <span class="insight-icon">{{ item.type === 'positive' ? '★' : '⚠' }}</span>
+                <span v-if="editMode">
+                  <el-select v-model="editData.stage_data[i].score" size="small" style="width: 70px; margin-right: 8px;">
+                    <el-option label="A" value="A" />
+                    <el-option label="B" value="B" />
+                    <el-option label="C" value="C" />
+                    <el-option label="D" value="D" />
+                  </el-select>
+                  <el-input v-model="editData.stage_data[i].insight" type="textarea" :rows="2" size="small" style="margin-top: 4px;" />
+                </span>
+                <span v-else>{{ item.text }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Abnormal Findings Table (editable) -->
+        <div class="section-card">
+          <h2 class="section-title">
+            异常发现
+            <span class="section-subtitle">需关注的技术盲区与风险点</span>
+          </h2>
+          <el-table :data="abnormalFindings" style="width: 100%" stripe :header-cell-style="{ background: '#FAFBFC', color: '#1F2329', fontWeight: 600 }">
+            <el-table-column prop="item" label="异常项目" width="120">
+              <template #default="{ row, $index }">
+                <span class="abnormal-item"><el-icon><WarningFilled /></el-icon>
+                  <el-input v-if="editMode" v-model="editData.abnormal_findings[$index].item" size="small" />
+                  <span v-else>{{ row.item }}</span>
+                </span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="finding" label="异常描述" min-width="200">
+              <template #default="{ row, $index }">
+                <el-input v-if="editMode" v-model="editData.abnormal_findings[$index].finding" size="small" />
+                <span v-else>{{ row.finding }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="detail" label="详细说明" min-width="280">
+              <template #default="{ row, $index }">
+                <el-input v-if="editMode" v-model="editData.abnormal_findings[$index].detail" type="textarea" :rows="2" size="small" />
+                <span v-else>{{ row.detail }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="severity" label="严重程度" width="100">
+              <template #default="{ row, $index }">
+                <el-select v-if="editMode" v-model="editData.abnormal_findings[$index].severity" size="small">
+                  <el-option label="高" value="高" />
+                  <el-option label="中" value="中" />
+                  <el-option label="低" value="低" />
+                </el-select>
+                <el-tag v-else :type="severityType(row.severity)" size="small">{{ row.severity }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="suggested_action" label="处理建议" min-width="200">
+              <template #default="{ row, $index }">
+                <el-input v-if="editMode" v-model="editData.abnormal_findings[$index].suggested_action" size="small" />
+                <span v-else>{{ row.suggested_action }}</span>
+              </template>
+            </el-table-column>
+          </el-table>
+        </div>
+
+        <!-- Tech Keywords (editable) -->
+        <div class="section-card">
+          <h2 class="section-title">技术关键词</h2>
+          <div class="keywords-section">
+            <div class="keyword-tags">
+              <el-tag
+                v-for="(kw, idx) in techKeywords"
+                :key="idx"
+                :class="'freq-' + kw.freq"
+                class="keyword-tag"
+                :closable="editMode"
+                @close="removeKeyword(idx)"
+              >{{ kw.text }}</el-tag>
+              <el-button v-if="editMode" size="small" type="primary" plain @click="addKeyword">+ 添加</el-button>
+            </div>
+            <div class="keyword-legend">
+              <span class="freq-dot high"></span> 高频提及
+              <span class="freq-dot mid" style="margin-left: 20px;"></span> 中频
+              <span class="freq-dot low" style="margin-left: 20px;"></span> 低频
+            </div>
+          </div>
+        </div>
+
+        <!-- Conclusion & Recommendation (editable) -->
+        <div class="section-card conclusion-card">
+          <h2 class="section-title">总检结论与建议</h2>
+          <div class="conclusion-grid">
+            <div class="conclusion-block strengths">
+              <div class="block-title">优势</div>
+              <ul>
+                <li v-for="(s, i) in conclusion.strengths" :key="i">
+                  <el-input v-if="editMode" v-model="editData.conclusion.strengths[i]" size="small" style="width: 90%;" />
+                  <span v-else>{{ s }}</span>
+                  <el-button v-if="editMode" type="danger" size="small" :icon="Delete" circle @click="removeConclusionItem('strengths', i)" />
+                </li>
+              </ul>
+              <el-button v-if="editMode" size="small" type="primary" plain @click="addConclusionItem('strengths')">+ 添加</el-button>
+            </div>
+            <div class="conclusion-block weaknesses">
+              <div class="block-title">不足</div>
+              <ul>
+                <li v-for="(w, i) in conclusion.weaknesses" :key="i">
+                  <el-input v-if="editMode" v-model="editData.conclusion.weaknesses[i]" size="small" style="width: 90%;" />
+                  <span v-else>{{ w }}</span>
+                  <el-button v-if="editMode" type="danger" size="small" :icon="Delete" circle @click="removeConclusionItem('weaknesses', i)" />
+                </li>
+              </ul>
+              <el-button v-if="editMode" size="small" type="primary" plain @click="addConclusionItem('weaknesses')">+ 添加</el-button>
+            </div>
+            <div class="conclusion-block suggestions">
+              <div class="block-title">建议</div>
+              <ul>
+                <li v-for="(s, i) in conclusion.suggestions" :key="i">
+                  <el-input v-if="editMode" v-model="editData.conclusion.suggestions[i]" size="small" style="width: 90%;" />
+                  <span v-else>{{ s }}</span>
+                  <el-button v-if="editMode" type="danger" size="small" :icon="Delete" circle @click="removeConclusionItem('suggestions', i)" />
+                </li>
+              </ul>
+              <el-button v-if="editMode" size="small" type="primary" plain @click="addConclusionItem('suggestions')">+ 添加</el-button>
+            </div>
+          </div>
+          <el-divider />
+          <div class="final-decision">
+            <div class="decision-label">综合决定</div>
+            <div class="decision-options">
+              <el-radio-group v-model="finalDecision" size="large" :disabled="!editMode">
+                <el-radio-button value="recommend" class="decision-recommend">建议录用</el-radio-button>
+                <el-radio-button value="neutral" class="decision-neutral">待定</el-radio-button>
+                <el-radio-button value="not_recommend" class="decision-not">不建议录用</el-radio-button>
+              </el-radio-group>
+            </div>
+          </div>
+          <div class="next-focus">
+            <span class="next-label">下阶段重点关注：</span>
+            <el-tag
+              v-for="(f, idx) in conclusion.nextFocus"
+              :key="idx"
+              class="focus-tag"
+              :closable="editMode"
+              @close="removeFocusItem(idx)"
+            >{{ f }}</el-tag>
+            <el-button v-if="editMode" size="small" type="primary" plain @click="addFocusItem">+ 添加</el-button>
+          </div>
         </div>
       </div>
-
-    </div>
+    </template>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick, onBeforeUnmount } from 'vue'
-import { Medal, DataAnalysis, Document, WarningFilled } from '@element-plus/icons-vue'
+import { ref, computed, onMounted, nextTick, onBeforeUnmount, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import {
+  Medal, DataAnalysis, Document, WarningFilled,
+  Search, FolderOpened, ArrowLeft, Delete
+} from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 import * as echarts from 'echarts'
+import { interviewApi } from '../../api/interview'
 
-// ========== Mock Data ==========
-const overallScore = ref('B')
+const route = useRoute()
+const router = useRouter()
+
+// ========== View State ==========
+const viewMode = ref('root') // 'root' | 'candidate' | 'detail'
+const searchKeyword = ref('')
+
+// Root view state
+const loadingRoot = ref(false)
+const candidateGroups = ref([])
+
+// Candidate view state
+const loadingCandidate = ref(false)
+const currentCandidate = ref('')
+const candidateSessions = ref([])
+
+// Detail view state
+const loading = ref(false)
+const error = ref('')
+const generating = ref(false)
+const saving = ref(false)
+const reportData = ref(null)
+const reportStatus = ref('')
 const finalDecision = ref('neutral')
+const sessionId = ref(null)
+const roundId = ref(null)
+const reportId = ref(null)
 
-const abilityIndicators = [
-  { name: '逻辑思维', score: 'B', range: 'A/B/C/D', status: 'normal', desc: '结构清晰，论证合理', value: 75 },
-  { name: '表达沟通', score: 'B', range: 'A/B/C/D', status: 'normal', desc: '语言流畅，重点突出', value: 70 },
-  { name: '内生动力', score: 'A', range: 'A/B/C/D', status: 'good', desc: '学习意愿强，有明确职业规划', value: 90 },
-  { name: '技术深度', score: 'C', range: 'A/B/C/D', status: 'abnormal', desc: '停留在使用层面，缺乏原理性思考', value: 55 },
-  { name: '项目匹配', score: 'B', range: 'A/B/C/D', status: 'normal', desc: '电商项目经验与岗位匹配', value: 78 },
-]
+// Edit mode
+const editMode = ref(false)
+const editData = ref(null)
+const originalData = ref(null)
 
-const abnormalFindings = [
-  { item: '技术深度', finding: 'Seata AT 模式高并发瓶颈无意识', detail: '候选人提到使用了 Seata AT 模式处理分布式事务，但被追问到高并发下 atlog 表写入压力时，未能意识到该场景下 AT 模式的性能瓶颈', severity: '中', suggested_action: '下轮面试重点考察分布式事务原理和 Seata 源码理解' },
-  { item: '项目经验', finding: '个人贡献占比不明确', detail: '候选人在项目中负责订单、库存、支付等多个模块，但哪些是独立设计实现、哪些在指导下完成不够清晰', severity: '低', suggested_action: '追问具体技术方案设计过程和遇到的困难' },
-  { item: '技术广度', finding: '未涉及技术理论基础考察', detail: '本次面试主要集中在项目经验层面，未覆盖 JVM、并发编程、数据结构等基础知识', severity: '中', suggested_action: '建议安排第二轮技术面补充考察' },
-]
+// ========== Lifecycle ==========
+onMounted(async () => {
+  const qSessionId = route.query.session_id
+  const qRoundId = route.query.round_id
+  const qCandidate = route.query.candidate
 
-const stageData = [
-  { name: '开场介绍', score: 'B', value: 70 },
-  { name: '自我介绍', score: 'B', value: 75 },
-  { name: '项目深挖', score: 'A', value: 88 },
-  { name: '技术理论', score: '-', value: 0 },
-  { name: '文化匹配', score: '-', value: 0 },
-  { name: '候选人提问', score: '-', value: 0 },
-  { name: '结束总结', score: '-', value: 0 },
-]
+  if (qSessionId) {
+    sessionId.value = Number(qSessionId)
+    roundId.value = qRoundId ? Number(qRoundId) : null
+    viewMode.value = 'detail'
+    await fetchReport()
+  } else if (qCandidate) {
+    currentCandidate.value = qCandidate
+    viewMode.value = 'candidate'
+    await fetchCandidateSessions()
+  } else {
+    viewMode.value = 'root'
+    await fetchCandidateGroups()
+  }
+})
 
-const techKeywords = [
-  { text: 'Java', freq: 'high' },
-  { text: 'Spring Cloud', freq: 'high' },
-  { text: '微服务', freq: 'high' },
-  { text: 'Seata', freq: 'high' },
-  { text: 'AT 模式', freq: 'mid' },
-  { text: '分布式事务', freq: 'high' },
-  { text: 'Redis', freq: 'mid' },
-  { text: 'MySQL', freq: 'mid' },
-  { text: '订单服务', freq: 'high' },
-  { text: '库存服务', freq: 'high' },
-  { text: '支付服务', freq: 'mid' },
-  { text: '商品服务', freq: 'mid' },
-  { text: '高并发', freq: 'mid' },
-  { text: 'atlog 表', freq: 'low' },
-  { text: '服务拆分', freq: 'mid' },
-  { text: '接口化', freq: 'low' },
-  { text: '电商', freq: 'high' },
-  { text: '大促', freq: 'low' },
-]
+onMounted(() => {
+  window.addEventListener('resize', handleResize)
+})
 
-const dialogueHighlights = [
-  { speaker: '面试官', content: '做这个项目是单体还是微服务？你负责的这个模块具体是做啥的？', evaluation: '' },
-  { speaker: '候选人', content: '基于 Spring Cloud 微服务架构，拆分了商品、订单、库存、支付服务，我主要负责订单和库存', evaluation: '回答清晰，有自己的项目理解' },
-  { speaker: '面试官', content: '订单和库存之间的数据一致性怎么保证的？', evaluation: '' },
-  { speaker: '候选人', content: '用了 Seata 的 AT 模式处理分布式事务', evaluation: '知道工具但缺乏深入理解' },
-  { speaker: '面试官', content: '那 AT 模式在高并发下会有什么问题吗？', evaluation: '' },
-  { speaker: '候选人', content: '呃...这个...atlog 表写入压力会比较大', evaluation: '被追问后意识到问题，但缺乏系统性的解决方案描述' },
-]
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', handleResize)
+  radarChart?.dispose()
+  stageChart?.dispose()
+})
 
-const conclusion = {
-  strengths: ['技术栈（Java/Spring Cloud）与岗位高度匹配', '有完整的电商微服务项目落地经验', '沟通表达能力强，逻辑清晰', '学习意愿强，有明确职业规划'],
-  weaknesses: ['技术原理理解停留在使用层面，缺乏深入思考', '高并发实战经验不足，缺乏性能优化数据', '项目难点总结能力有待加强'],
-  suggestions: ['补充技术理论基础面试（JVM、并发、数据结构）', '深入考察分布式系统设计能力', '追问具体技术方案的设计过程和取舍'],
-  nextFocus: ['分布式事务原理', '高并发系统设计', '性能调优经验', '源码理解深度'],
+// ========== Root View ==========
+async function fetchCandidateGroups() {
+  loadingRoot.value = true
+  try {
+    const params = {}
+    if (searchKeyword.value) params.keyword = searchKeyword.value
+    candidateGroups.value = await interviewApi.getReportCandidateGroups(params)
+  } catch (e) {
+    ElMessage.error('加载候选人列表失败: ' + (e?.detail || e?.message || ''))
+    candidateGroups.value = []
+  } finally {
+    loadingRoot.value = false
+  }
 }
+
+function enterCandidate(name) {
+  currentCandidate.value = name
+  viewMode.value = 'candidate'
+  fetchCandidateSessions()
+}
+
+// ========== Candidate View ==========
+async function fetchCandidateSessions() {
+  loadingCandidate.value = true
+  try {
+    const res = await interviewApi.getReportsByCandidate(currentCandidate.value)
+    candidateSessions.value = res.sessions || []
+  } catch (e) {
+    ElMessage.error('加载候选人面试记录失败')
+    candidateSessions.value = []
+  } finally {
+    loadingCandidate.value = false
+  }
+}
+
+function goToRoot() {
+  viewMode.value = 'root'
+  router.replace('/dashboard/report-generate')
+}
+
+function goToCandidate() {
+  sessionId.value = null
+  roundId.value = null
+  editMode.value = false
+  editData.value = null
+  originalData.value = null
+  reportData.value = null
+  viewMode.value = 'candidate'
+  router.replace(`/dashboard/report-generate?candidate=${encodeURIComponent(currentCandidate.value)}`)
+  fetchCandidateSessions()
+}
+
+// ========== Detail View ==========
+function enterDetail(sid, rid) {
+  sessionId.value = sid
+  roundId.value = rid
+  editMode.value = false
+  editData.value = null
+  originalData.value = null
+  viewMode.value = 'detail'
+  router.replace(`/dashboard/report-generate?session_id=${sid}${rid ? '&round_id=' + rid : ''}`)
+  fetchReport()
+}
+
+async function fetchReport() {
+  if (!sessionId.value) return
+
+  loading.value = true
+  error.value = ''
+  try {
+    const params = {}
+    if (roundId.value) params.round_id = roundId.value
+    const res = await interviewApi.getReportBySession(sessionId.value, params)
+
+    if (res.status === 'generating') {
+      reportStatus.value = 'generating'
+      loading.value = false
+      await waitForReport(sessionId.value)
+    } else if (res.status === 'final' && res.report_data) {
+      reportData.value = res.report_data
+      reportStatus.value = 'final'
+      finalDecision.value = res.report_data.final_decision || 'neutral'
+      reportId.value = res.id
+      loading.value = false
+      await nextTick()
+      initCharts()
+    } else if (res.status === 'failed') {
+      reportStatus.value = 'failed'
+      reportData.value = null
+      loading.value = false
+    } else {
+      reportStatus.value = 'not_generated'
+      reportData.value = null
+      loading.value = false
+    }
+  } catch (e) {
+    error.value = e?.detail || e?.message || '加载报告失败'
+    loading.value = false
+  }
+}
+
+async function waitForReport(sid) {
+  let retries = 0
+  const maxRetries = 300
+
+  while (retries < maxRetries) {
+    await new Promise(r => setTimeout(r, 5000))
+    retries++
+
+    try {
+      const params = {}
+      if (roundId.value) params.round_id = roundId.value
+      const res = await interviewApi.getReportBySession(sid, params)
+
+      if (res.status === 'final' && res.report_data) {
+        reportData.value = res.report_data
+        reportStatus.value = 'final'
+        finalDecision.value = res.report_data.final_decision || 'neutral'
+        reportId.value = res.id
+        await nextTick()
+        initCharts()
+        ElMessage.success('面试报告生成完成')
+        return
+      }
+
+      if (res.status === 'failed') {
+        reportStatus.value = 'failed'
+        ElMessage.error('报告生成失败，请点击重试')
+        return
+      }
+
+      if (res.status === 'not_generated') {
+        reportStatus.value = 'not_generated'
+        return
+      }
+    } catch {
+      // continue polling
+    }
+  }
+
+  reportStatus.value = 'timeout'
+  ElMessage.warning('报告生成超时，请稍后重试')
+}
+
+async function triggerGenerate(sid, rid, isCandidateView = false) {
+  const targetSid = sid || sessionId.value
+  const targetRid = rid !== undefined ? rid : roundId.value
+
+  if (isCandidateView) {
+    generating.value = true
+    try {
+      const params = {}
+      if (targetRid) params.round_id = targetRid
+      await interviewApi.generateReport(targetSid, params)
+      ElMessage.success('已触发报告生成')
+      await fetchCandidateSessions()
+    } catch (e) {
+      ElMessage.error(e?.detail || e?.message || '触发生成失败')
+    } finally {
+      generating.value = false
+    }
+    return
+  }
+
+  generating.value = true
+  reportStatus.value = 'generating'
+  try {
+    const params = {}
+    if (targetRid) params.round_id = targetRid
+    const res = await interviewApi.generateReport(targetSid, params)
+    if (res.status === 'final' && res.report_data) {
+      reportData.value = res.report_data
+      reportStatus.value = 'final'
+      finalDecision.value = res.report_data.final_decision || 'neutral'
+      ElMessage.success('报告生成成功')
+      await nextTick()
+      initCharts()
+    } else if (res.status === 'generating') {
+      reportStatus.value = 'generating'
+      await waitForReport(targetSid)
+    } else {
+      ElMessage.error('报告生成失败，请稍后重试')
+      reportStatus.value = 'failed'
+    }
+  } catch (e) {
+    ElMessage.error(e?.detail || e?.message || '报告生成失败')
+    reportStatus.value = 'failed'
+  } finally {
+    generating.value = false
+  }
+}
+
+// ========== Edit Mode ==========
+function enterEditMode() {
+  originalData.value = JSON.parse(JSON.stringify(reportData.value))
+  editData.value = JSON.parse(JSON.stringify(reportData.value))
+  editMode.value = true
+}
+
+function cancelEdit() {
+  editData.value = null
+  originalData.value = null
+  editMode.value = false
+}
+
+async function saveReport() {
+  if (!reportId.value) {
+    ElMessage.error('报告 ID 缺失，无法保存')
+    return
+  }
+
+  saving.value = true
+  try {
+    // Sync finalDecision back to editData
+    editData.value.final_decision = finalDecision.value
+
+    await interviewApi.updateReport(reportId.value, {
+      report_data: JSON.stringify(editData.value),
+    })
+    reportData.value = JSON.parse(JSON.stringify(editData.value))
+    ElMessage.success('报告已保存')
+    editMode.value = false
+    editData.value = null
+    originalData.value = null
+    await nextTick()
+    initCharts()
+  } catch (e) {
+    ElMessage.error('保存失败: ' + (e?.detail || e?.message || ''))
+  } finally {
+    saving.value = false
+  }
+}
+
+// ========== Edit Helpers ==========
+function addKeyword() {
+  editData.value.tech_keywords.push({ text: '新关键词', freq: 'mid' })
+}
+
+function removeKeyword(idx) {
+  editData.value.tech_keywords.splice(idx, 1)
+}
+
+function addConclusionItem(field) {
+  editData.value.conclusion[field].push('')
+}
+
+function removeConclusionItem(field, idx) {
+  editData.value.conclusion[field].splice(idx, 1)
+}
+
+function addFocusItem() {
+  editData.value.conclusion.next_focus.push('')
+}
+
+function removeFocusItem(idx) {
+  editData.value.conclusion.next_focus.splice(idx, 1)
+}
+
+// ========== Computed ==========
+const badgeText = computed(() => {
+  const map = { recommend: '建议录用', neutral: '待定', not_recommend: '不建议录用' }
+  return map[reportData.value?.final_decision] || '待定'
+})
+
+const decisionLabel = computed(() => {
+  const map = { recommend: '建议录用', neutral: '待定', not_recommend: '不建议录用' }
+  return map[reportData.value?.final_decision] || '待定'
+})
+
+const decisionClass = computed(() => {
+  const map = { recommend: '', neutral: 'neutral', not_recommend: 'not' }
+  return map[reportData.value?.final_decision] || 'neutral'
+})
+
+const riskLabel = computed(() => {
+  const map = { low: '低', medium: '中等', high: '高' }
+  return map[reportData.value?.risk_level] || '未知'
+})
+
+const riskClass = computed(() => {
+  const map = { low: 'low', medium: 'medium', high: 'high' }
+  return map[reportData.value?.risk_level] || 'medium'
+})
+
+const techMatchLabel = computed(() => {
+  const v = reportData.value?.tech_match
+  if (v == null) return '未知'
+  if (v >= 80) return '较匹配'
+  if (v >= 60) return '一般'
+  return '较弱'
+})
+
+const abilityIndicators = computed(() => {
+  if (editMode.value && editData.value?.ability_indicators) {
+    return editData.value.ability_indicators
+  }
+  return reportData.value?.ability_indicators || []
+})
+
+const abnormalFindings = computed(() => {
+  if (editMode.value && editData.value?.abnormal_findings) {
+    return editData.value.abnormal_findings
+  }
+  return reportData.value?.abnormal_findings || []
+})
+
+const techKeywords = computed(() => {
+  if (editMode.value && editData.value?.tech_keywords) {
+    return editData.value.tech_keywords
+  }
+  return reportData.value?.tech_keywords || []
+})
+
+const conclusion = computed(() => {
+  const c = editMode.value && editData.value?.conclusion
+    ? editData.value.conclusion
+    : (reportData.value?.conclusion || {})
+  return {
+    strengths: c.strengths || [],
+    weaknesses: c.weaknesses || [],
+    suggestions: c.suggestions || [],
+    nextFocus: c.next_focus || [],
+  }
+})
+
+const stageInsights = computed(() => {
+  const items = reportData.value?.stage_data || []
+  return items
+    .filter(s => s.insight)
+    .map(s => ({
+      type: s.score === 'A' || s.score === 'B' ? 'positive' : 'warning',
+      text: s.insight,
+    }))
+})
 
 // ========== Chart Helpers ==========
 function abilityBarWidth(score) {
@@ -336,25 +948,35 @@ function severityType(severity) {
   return map[severity] || 'info'
 }
 
-// ========== Chart Refs ==========
+function formatDate(dateStr) {
+  if (!dateStr) return ''
+  const d = new Date(dateStr)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+// ========== Charts ==========
 const radarChartRef = ref(null)
 const stageChartRef = ref(null)
 let radarChart = null
 let stageChart = null
 
+function initCharts() {
+  initRadarChart()
+  initStageChart()
+}
+
 function initRadarChart() {
   if (!radarChartRef.value) return
+  if (radarChart) radarChart.dispose()
   radarChart = echarts.init(radarChartRef.value)
+  const indicators = abilityIndicators.value
+  if (!indicators.length) return
   radarChart.setOption({
     radar: {
-      indicator: abilityIndicators.map(i => ({ name: i.name, max: 100 })),
+      indicator: indicators.map(i => ({ name: i.name, max: 100 })),
       center: ['50%', '50%'],
       radius: '65%',
-      axisName: {
-        color: '#1F2329',
-        fontSize: 13,
-        fontWeight: 500,
-      },
+      axisName: { color: '#1F2329', fontSize: 13, fontWeight: 500 },
       splitArea: {
         areaStyle: {
           color: ['rgba(51,112,255,0.02)', 'rgba(51,112,255,0.04)', 'rgba(51,112,255,0.06)', 'rgba(51,112,255,0.08)'],
@@ -364,7 +986,7 @@ function initRadarChart() {
     },
     series: [{
       type: 'radar',
-      data: [{ value: abilityIndicators.map(i => i.value), name: '能力评估' }],
+      data: [{ value: indicators.map(i => i.value), name: '能力评估' }],
       areaStyle: { color: 'rgba(51,112,255,0.2)' },
       lineStyle: { color: '#3370FF', width: 2 },
       itemStyle: { color: '#3370FF' },
@@ -376,55 +998,44 @@ function initRadarChart() {
 
 function initStageChart() {
   if (!stageChartRef.value) return
+  if (stageChart) stageChart.dispose()
   stageChart = echarts.init(stageChartRef.value)
-  const hasValue = stageData.filter(d => d.value > 0)
-  const noValue = stageData.filter(d => d.value === 0)
-
+  const stageData = reportData.value?.stage_data || []
+  if (!stageData.length) return
   stageChart.setOption({
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
     grid: { left: '3%', right: '8%', bottom: '3%', top: '10%', containLabel: true },
     xAxis: { type: 'value', max: 100, axisLabel: { show: true }, splitLine: { lineStyle: { color: '#F0F1F5' } } },
     yAxis: {
       type: 'category',
-      data: stageData.map(d => {
-        const hasScore = d.value > 0
-        return hasScore ? `${d.name}  ${d.score}` : d.name
-      }),
+      data: stageData.map(d => d.value > 0 ? `${d.name}  ${d.score}` : d.name),
       axisLine: { show: false },
       axisTick: { show: false },
       axisLabel: { color: '#1F2329', fontSize: 13, fontWeight: 500 },
     },
-    series: [
-      {
-        type: 'bar',
-        data: stageData.map(d => {
-          if (d.value === 0) return { value: 0, itemStyle: { color: '#E5E6EB' } }
-          const colorMap = { A: '#52C41A', B: '#3370FF', C: '#FAAD14', D: '#FF4D4F' }
-          return { value: d.value, itemStyle: { color: colorMap[d.score] || '#3370FF', borderRadius: [0, 4, 4, 0] } }
-        }),
-        barWidth: 22,
-        label: {
-          show: true,
-          position: 'right',
-          formatter: (p) => {
-            const d = stageData[p.dataIndex]
-            return d.value > 0 ? d.score : '未考察'
-          },
-          color: '#646A73',
-          fontSize: 13,
-          fontWeight: 500,
+    series: [{
+      type: 'bar',
+      data: stageData.map(d => {
+        if (d.value === 0) return { value: 0, itemStyle: { color: '#E5E6EB' } }
+        const colorMap = { A: '#52C41A', B: '#3370FF', C: '#FAAD14', D: '#FF4D4F' }
+        return { value: d.value, itemStyle: { color: colorMap[d.score] || '#3370FF', borderRadius: [0, 4, 4, 0] } }
+      }),
+      barWidth: 22,
+      label: {
+        show: true,
+        position: 'right',
+        formatter: (p) => {
+          const d = stageData[p.dataIndex]
+          return d.value > 0 ? d.score : '未考察'
         },
+        color: '#646A73',
+        fontSize: 13,
+        fontWeight: 500,
       },
-    ],
+    }],
   })
 }
 
-
-function initKeywordChart() {
-  // 使用 el-tag 展示关键词，无需 echarts-wordcloud 插件
-}
-
-// ========== Resize Handler ==========
 function handleResize() {
   radarChart?.resize()
   stageChart?.resize()
@@ -434,17 +1045,17 @@ function exportPDF() {
   window.print()
 }
 
-onMounted(async () => {
+// ========== Watch ==========
+watch(editMode, async (val) => {
+  if (!val) return
   await nextTick()
-  initRadarChart()
-  initStageChart()
-  window.addEventListener('resize', handleResize)
+  initCharts()
 })
 
-onBeforeUnmount(() => {
-  window.removeEventListener('resize', handleResize)
-  radarChart?.dispose()
-  stageChart?.dispose()
+watch(reportData, async () => {
+  if (viewMode.value !== 'detail') return
+  await nextTick()
+  initCharts()
 })
 </script>
 
@@ -463,6 +1074,76 @@ onBeforeUnmount(() => {
   min-height: 80vh;
   box-shadow: 0 2px 8px rgba(31, 35, 41, 0.04);
   padding: 24px;
+}
+
+.loading-container-inline,
+.empty-container-inline {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40vh;
+}
+
+/* ===== Generating ===== */
+.generating-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 50vh;
+  gap: 16px;
+}
+.generating-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #1F2329;
+  margin: 0;
+}
+.generating-sub {
+  font-size: 14px;
+  color: #8F959E;
+  margin: 0;
+}
+
+/* ===== Folder Grid (Root View) ===== */
+.folder-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+  margin-top: 8px;
+}
+.folder-card {
+  background: #FAFBFC;
+  border: 1px solid #E5E6EB;
+  border-radius: 8px;
+  padding: 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.folder-card:hover {
+  border-color: #3370FF;
+  box-shadow: 0 2px 8px rgba(51, 112, 255, 0.1);
+  transform: translateY(-2px);
+}
+.folder-icon {
+  margin-bottom: 8px;
+  color: #3370FF;
+}
+.folder-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1F2329;
+  margin-bottom: 4px;
+}
+.folder-meta {
+  font-size: 12px;
+  color: #8F959E;
+}
+.folder-time {
+  font-size: 11px;
+  color: #C0C4CC;
+  margin-top: 4px;
 }
 
 /* ===== Header ===== */
@@ -501,6 +1182,11 @@ onBeforeUnmount(() => {
 .header-actions {
   display: flex;
   gap: 12px;
+}
+
+.text-muted {
+  color: #C0C4CC;
+  font-size: 12px;
 }
 
 /* ===== Overview Cards ===== */
@@ -558,7 +1244,7 @@ onBeforeUnmount(() => {
   font-size: 11px;
 }
 
-/* ===== Score Summary Cards ===== */
+/* ===== Score Summary ===== */
 .score-summary-row {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -598,7 +1284,10 @@ onBeforeUnmount(() => {
   color: #1F2329;
 }
 .score-value.neutral { color: #FAAD14; }
+.score-value.not { color: #FF4D4F; }
 .score-value.medium { color: #FAAD14; }
+.score-value.low { color: #52C41A; }
+.score-value.high { color: #FF4D4F; }
 .score-label {
   font-size: 13px;
   color: #8F959E;
@@ -638,8 +1327,11 @@ onBeforeUnmount(() => {
   background: #F0F1F5;
 }
 .risk-segment.active { background: #FAAD14; }
-.risk-segment.low { background: #52C41A; }
-.risk-segment.high { background: #FF4D4F; }
+.risk-segment.low.active { background: #52C41A; }
+.risk-segment.high.active { background: #FF4D4F; }
+.score-edit {
+  margin-bottom: 4px;
+}
 
 /* ===== Section Card ===== */
 .section-card {
@@ -700,7 +1392,6 @@ onBeforeUnmount(() => {
 .ability-icon.good { color: #52C41A; }
 .ability-icon.abnormal { color: #FAAD14; }
 .ability-icon.normal { color: #3370FF; }
-
 .ability-name {
   flex: 1;
   font-size: 14px;
@@ -714,7 +1405,9 @@ onBeforeUnmount(() => {
 }
 .ability-score.good { color: #52C41A; }
 .ability-score.abnormal { color: #FAAD14; }
-
+.ability-edit-score {
+  margin-left: auto;
+}
 .ability-bar-wrapper {
   display: flex;
   align-items: center;
@@ -736,7 +1429,6 @@ onBeforeUnmount(() => {
 .ability-bar-fill.good { background: linear-gradient(90deg, #52C41A, #73D13D); }
 .ability-bar-fill.abnormal { background: linear-gradient(90deg, #FAAD14, #FFC53D); }
 .ability-bar-fill.normal { background: linear-gradient(90deg, #3370FF, #597EF7); }
-
 .ability-range {
   font-size: 11px;
   color: #C0C4CC;
@@ -745,6 +1437,10 @@ onBeforeUnmount(() => {
 .ability-desc {
   font-size: 12px;
   color: #646A73;
+  margin-top: 4px;
+  padding-left: 28px;
+}
+.ability-edit-desc {
   margin-top: 4px;
   padding-left: 28px;
 }
@@ -778,12 +1474,8 @@ onBeforeUnmount(() => {
   color: #1F2329;
   line-height: 1.6;
 }
-.insight-item.positive {
-  background: #E8F8E8;
-}
-.insight-item.warning {
-  background: #FFF7E6;
-}
+.insight-item.positive { background: #E8F8E8; }
+.insight-item.warning { background: #FFF7E6; }
 .insight-icon {
   font-size: 16px;
   flex-shrink: 0;
@@ -810,6 +1502,7 @@ onBeforeUnmount(() => {
   gap: 8px;
   justify-content: center;
   padding: 12px 0;
+  align-items: center;
 }
 .keyword-tag.freq-high {
   font-size: 15px;
@@ -851,55 +1544,6 @@ onBeforeUnmount(() => {
 .freq-dot.mid { background: #73A3FF; }
 .freq-dot.low { background: #C0D4F0; }
 
-/* ===== Dialogue ===== */
-.dialogue-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.dialogue-item {
-  display: flex;
-  gap: 12px;
-  padding: 12px 16px;
-  background: #FAFBFC;
-  border-radius: 8px;
-  border-left: 3px solid #E5E6EB;
-}
-.dialogue-item:has(.speaker-tag.interviewer) {
-  border-left-color: #3370FF;
-}
-.dialogue-item:has(.speaker-tag.candidate) {
-  border-left-color: #52C41A;
-}
-.dialogue-speaker {
-  flex-shrink: 0;
-  width: 60px;
-}
-.speaker-tag {
-  display: inline-block;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 4px;
-}
-.speaker-tag.interviewer { background: #E8F0FF; color: #3370FF; }
-.speaker-tag.candidate { background: #E8F8E8; color: #52C41A; }
-.dialogue-content { flex: 1; }
-.dialogue-text {
-  font-size: 14px;
-  color: #1F2329;
-  line-height: 1.6;
-}
-.dialogue-eval {
-  font-size: 12px;
-  color: #646A73;
-  margin-top: 4px;
-  padding: 4px 10px;
-  background: #F0F1F5;
-  border-radius: 4px;
-  display: inline-block;
-}
-
 /* ===== Conclusion ===== */
 .conclusion-grid {
   display: grid;
@@ -933,6 +1577,9 @@ onBeforeUnmount(() => {
   padding: 3px 0;
   padding-left: 16px;
   position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 .conclusion-block li::before {
   content: '•';
@@ -976,8 +1623,8 @@ onBeforeUnmount(() => {
   color: #3370FF;
   border: none;
 }
-
 </style>
+
 <style>
 @media print {
   body, #app, .app-wrapper, .main-wrapper {

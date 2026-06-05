@@ -856,8 +856,8 @@ const handleStartASR = (item) => {
 }
 
 const handleViewReport = (item) => {
-  // 跳转到报告生成页面
-  router.push('/dashboard/report-generate')
+  // 跳转到报告生成页面，传递 session_id
+  router.push(`/dashboard/report-generate?session_id=${item.id}`)
 }
 
 const handleSyncRounds = async (sessionId) => {

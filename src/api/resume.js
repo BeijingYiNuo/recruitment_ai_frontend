@@ -126,6 +126,11 @@ export const resumeApi = {
     return request.post(`/resumes/${resumeId}/unreview`)
   },
 
+  // 保存审核备注（不改变审核状态）
+  saveRemark: (resumeId, comment) => {
+    return request.patch(`/resumes/${resumeId}/remark`, { comment })
+  },
+
   // 设置简历关联岗位
   setResumePosition: (resumeId, positionId) => {
     return request.put(`/resumes/${resumeId}/position`, { position_id: positionId })

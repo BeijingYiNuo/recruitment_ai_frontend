@@ -4,13 +4,10 @@
       :info="interviewInfo"
       :stageInfo="stageInfo"
       :isAsrActive="isAsrActive"
-      :isRecording="isRecording"
       :isPaused="isPaused"
       @goBack="goBack"
       @startAsr="onStartAsr"
       @stopAsr="onStopAsr"
-      @startRecording="onStartRecording"
-      @stopRecording="onStopRecording"
       @pauseInterview="onPauseInterview"
       @resumeInterview="onResumeInterview"
       @manualFollowUp="onManualFollowUp"
@@ -75,7 +72,6 @@ import FollowUpPanel from '../components/interview/FollowUpPanel.vue'
 import EvaluationPanel from '../components/interview/EvaluationPanel.vue'
 import InterviewQuestionsFloat from '../components/InterviewQuestionsFloat.vue'
 import { interviewApi } from '../api/interview'
-import { fileApi } from '../api/file'
 import { resumeApi } from '../api/resume'
 import { startMockAsr, type MockAsrHandle } from '../utils/mockAsrWs'
 
@@ -94,12 +90,6 @@ let audioDataQueue: number[] = [] // 音频样本队列，用于缓冲并对齐 
 let frameCount = 0 // 音频帧发送计数器
 let timerInterval: any = null
 let secondsElapsed = 0
-
-// ========== 录音逻辑变量 ==========
-const isRecording = ref(false)
-const isUploadingRecording = ref(false)
-let mediaRecorder: MediaRecorder | null = null
-let recordedChunks: Blob[] = []
 
 // ========== ASR 实时转写数据（新版：支持说话人识别） ==========
 type AsrSegment = {
@@ -306,69 +296,6 @@ const stopTimer = () => {
     clearInterval(timerInterval)
     timerInterval = null
   }
-}
-
-// ========== 录音控制逻辑 ==========
-const onStartRecording = () => {
-  if (!mediaStream) {
-    ElMessage.error('无法录音：未获取到音频流')
-    return
-  }
-
-  recordedChunks = []
-  try {
-    // 优先使用 mp4/webm 等现代编码
-    const options = { mimeType: 'audio/webm;codecs=opus' }
-    if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-      console.warn('webm/opus 不支持，尝试默认类型')
-      mediaRecorder = new MediaRecorder(mediaStream)
-    } else {
-      mediaRecorder = new MediaRecorder(mediaStream, options)
-    }
-
-    mediaRecorder.ondataavailable = (event) => {
-      if (event.data.size > 0) {
-        recordedChunks.push(event.data)
-      }
-    }
-
-    mediaRecorder.onstop = async () => {
-      const blob = new Blob(recordedChunks, { type: mediaRecorder?.mimeType || 'audio/webm' })
-      const timestamp = new Date().toLocaleString().replace(/[\/\\:\*\?\"<>\|]/g, '-')
-      const fileName = `面试录音_${interviewInfo.value.candidateName}_${timestamp}.webm`
-
-      // 自动上传至 TOS 文件系统，关联到当前面试会话
-      isUploadingRecording.value = true
-      const formData = new FormData()
-      formData.append('file', blob, fileName)
-      formData.append('file_type', 'voice')
-      formData.append('session_id', String(sessionId))
-
-      try {
-        console.log('[Upload] Starting automatic upload for:', fileName)
-        await fileApi.uploadFile(formData)
-        ElMessage.success('录音已保存至文件管理')
-      } catch (err: any) {
-        console.error('[Upload] Automatic upload failed:', err)
-        ElMessage.error(`录音保存失败: ${err.message || '网络异常'}`)
-      } finally {
-        isUploadingRecording.value = false
-      }
-    }
-
-    mediaRecorder.start()
-    isRecording.value = true
-  } catch (err) {
-    console.error('Failed to start recording:', err)
-    ElMessage.error('启动录音失败')
-  }
-}
-
-const onStopRecording = () => {
-  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-    mediaRecorder.stop()
-  }
-  isRecording.value = false
 }
 
 const interviewInfo = ref({
@@ -633,7 +560,6 @@ const onStartAsr = async () => {
       interviewInfo.value.statusColor = '#67c23a'
       startTimer()
       mockHandle = startMockAsr(handleWsMessage)
-      onStartRecording()
       ElMessage.success('Mock ASR 已启动')
       return
     }
@@ -661,7 +587,6 @@ const onStartAsr = async () => {
       // 连接成功后启动音频采集并发送
       startAudioCapture()
       startTimer()
-      onStartRecording()
       ElMessage.success('ASR 识别通道已打通')
     }
 
@@ -703,11 +628,6 @@ const onStopAsr = async () => {
     }
     stopTimer()
     
-    // 如果正在录音，联动停止
-    if (isRecording.value) {
-      onStopRecording()
-    }
-
     // 释放麦克风轨道
     if (mediaStream) {
       mediaStream.getTracks().forEach(track => track.stop())
@@ -734,9 +654,6 @@ const onPauseInterview = () => {
   interviewInfo.value.status = '面试已暂停'
   interviewInfo.value.statusColor = '#e6a23c'
   stopTimer()
-  if (mediaRecorder && mediaRecorder.state === 'recording') {
-    mediaRecorder.pause()
-  }
   ElMessage.warning('面试已暂停')
 }
 
@@ -806,9 +723,6 @@ const onResumeInterview = async () => {
   isPaused.value = false
   interviewInfo.value.status = '正在重连...'
   interviewInfo.value.statusColor = '#409eff'
-  if (mediaRecorder && mediaRecorder.state === 'paused') {
-    mediaRecorder.resume()
-  }
   await resumeAsrConnection()
 }
 
@@ -873,8 +787,12 @@ async function handleResultConfirm(result: string) {
     await interviewApi.updateReserveSession(Number(sessionId), { status: statusMap[result] })
     const labelMap: Record<string, string> = { pass: '通过', fail: '不通过', pending: '待定' }
     ElMessage.success('面试结果: ' + labelMap[result])
-    // 跳转回面试管理页面
-    router.push('/dashboard/interview-manage')
+
+    // 自动触发报告生成（携带 round_id，不等待完成）
+    interviewApi.generateReport(Number(sessionId), { round_id: Number(roundId) }).catch(() => {})
+
+    // 跳转至面试报告/候选人页面
+    router.push(`/dashboard/report-generate?candidate=${encodeURIComponent(interviewInfo.value.candidateName)}`)
   } catch (err: any) {
     ElMessage.error('操作失败: ' + (err?.detail || err?.message || '网络连接异常'))
   }

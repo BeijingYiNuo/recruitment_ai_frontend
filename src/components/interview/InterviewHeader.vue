@@ -71,16 +71,6 @@
         @click="$emit('resumeInterview')"
       >恢复面试</el-button>
 
-      <el-button
-        v-if="isRecording"
-        size="medium"
-        type="danger"
-        @click="$emit('stopRecording')"
-        class="record-btn is-recording"
-      >
-        <span class="record-dot"></span> 停止录音并下载
-      </el-button>
-
       <el-button size="medium" type="danger" @click="$emit('endInterview')" :disabled="!isAsrActive">结束面试</el-button>
 
       <el-button size="medium" type="default" class="manual-btn" @click="$emit('manualFollowUp')" :disabled="!isAsrActive || manualAnalysisLoading">
@@ -115,7 +105,6 @@ type StageInfo = {
 const props = defineProps<{
   info: InterviewStatus
   isAsrActive?: boolean
-  isRecording?: boolean
   isPaused?: boolean
   stageInfo?: StageInfo
   meetingMode?: boolean
@@ -196,32 +185,6 @@ defineEmits<{
   display: flex;
   align-items: center;
   padding: 0 8px;
-}
-
-.record-btn {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 100px;
-}
-
-.is-recording {
-  animation: pulse-border 2s infinite;
-}
-
-.record-dot {
-  width: 8px;
-  height: 8px;
-  background-color: #ffffff;
-  border-radius: 50%;
-  box-shadow: 0 0 5px rgba(255, 255, 255, 0.8);
-}
-
-@keyframes pulse-border {
-  0% { box-shadow: 0 0 0 0 rgba(245, 63, 63, 0.4); }
-  70% { box-shadow: 0 0 0 10px rgba(245, 63, 63, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(245, 63, 63, 0); }
 }
 
 /* 阶段进度条 */

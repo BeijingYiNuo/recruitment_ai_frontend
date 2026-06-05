@@ -52,4 +52,21 @@ export const interviewApi = {
 
   // 手动触发 AI 分析（对最近对话生成追问建议和评价）
   manualTriggerAnalysis: (sessionId, roundId) => request.post(`/asr/analyze/manual/${sessionId}/${roundId}`, {}),
+
+  // ====== 面试报告 ======
+
+  // 获取候选人分组报告列表（文件夹根视图）
+  getReportCandidateGroups: (params = {}) => request.get('/interviews/reports/candidate-groups', { params }),
+
+  // 按候选人获取所有面试 session 及其报告状态
+  getReportsByCandidate: (name) => request.get('/interviews/reports/by-candidate', { params: { name } }),
+
+  // 获取会话的面试报告（含结构化数据）
+  getReportBySession: (sessionId, params = {}) => request.get(`/interviews/reports/session/${sessionId}`, { params }),
+
+  // 触发 AI 生成面试报告
+  generateReport: (sessionId, params = {}) => request.post(`/interviews/reports/generate/${sessionId}`, null, { params }),
+
+  // 更新面试报告内容
+  updateReport: (reportId, data) => request.put(`/interviews/reports/${reportId}`, data),
 }

@@ -11,7 +11,7 @@
       </div>
     </div>
 
-    <div class="asr-text-box" ref="transcriptBodyRef">
+    <div class="asr-text-box" ref="transcriptBodyRef" @scroll="onScroll">
       <!-- 已确认的历史段落 -->
       <div
         v-for="(segment, idx) in asrSegments"
@@ -42,6 +42,10 @@
       <!-- 空状态 -->
       <p v-if="!hasContent && !isListening" class="asr-placeholder">暂无语音转写内容</p>
       <p v-if="!hasContent && isListening" class="asr-placeholder">等待语音输入...</p>
+    </div>
+    <div v-if="!shouldAutoScroll" class="scroll-bottom-bar" @click="scrollToBottomForce">
+      <span class="scroll-bottom-icon">↓</span>
+      <span class="scroll-bottom-text">回到最新</span>
     </div>
   </div>
 </template>
@@ -90,10 +94,27 @@ const getSpeakerName = (speakerId: string | null | undefined) => {
 
 // 自动滚动到底部
 const transcriptBodyRef = ref<HTMLElement | null>(null)
+const shouldAutoScroll = ref(true)
 const { scrollToBottom } = useScrollToBottom(transcriptBodyRef)
 
-watch(() => props.liveText, scrollToBottom)
-watch(() => props.asrSegments?.length, scrollToBottom)
+const onScroll = () => {
+  const el = transcriptBodyRef.value
+  if (!el) return
+  const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 60
+  shouldAutoScroll.value = atBottom
+}
+
+const scrollToBottomForce = () => {
+  shouldAutoScroll.value = true
+  scrollToBottom()
+}
+
+watch(() => props.liveText, () => {
+  if (shouldAutoScroll.value) scrollToBottom()
+})
+watch(() => props.asrSegments?.length, () => {
+  if (shouldAutoScroll.value) scrollToBottom()
+})
 </script>
 
 <style lang="scss" scoped>
@@ -285,5 +306,28 @@ watch(() => props.asrSegments?.length, scrollToBottom)
 @keyframes blink-cursor {
   0%, 100% { opacity: 1; }
   50% { opacity: 0; }
+}
+
+/* 滚动到底部按钮 */
+.scroll-bottom-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 0;
+  cursor: pointer;
+  color: #3370ff;
+  font-size: 13px;
+  user-select: none;
+  transition: color 0.2s;
+}
+
+.scroll-bottom-bar:hover {
+  color: #1d4ed8;
+}
+
+.scroll-bottom-icon {
+  font-size: 14px;
+  font-weight: bold;
 }
 </style>

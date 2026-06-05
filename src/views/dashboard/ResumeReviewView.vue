@@ -209,7 +209,11 @@
                 <div class="detail-section" v-if="parsedData.educations.length">
                   <div class="section-title"><el-icon><Reading /></el-icon> 教育经历</div>
                   <div v-for="edu in parsedData.educations" :key="edu.id" class="detail-item">
-                    <div class="detail-main">{{ edu.school_name }}</div>
+                    <div class="detail-main">
+                      {{ edu.school_name }}
+                      <span v-if="edu.is_985" class="school-tag tag-985">985</span>
+                      <span v-if="edu.is_211" class="school-tag tag-211">211</span>
+                    </div>
                     <div class="detail-sub">{{ edu.degree }} · {{ edu.major }}</div>
                     <div class="detail-time">{{ fmtDate(edu.start_date) }} - {{ fmtDate(edu.end_date) }}</div>
                   </div>
@@ -268,10 +272,11 @@
     </div>
 
     <!-- 备注弹窗 -->
-    <el-dialog v-model="remarkVisible" title="备注" width="420px" destroy-on-close @close="saveCurrentRemark">
+    <el-dialog v-model="remarkVisible" title="备注" width="420px" destroy-on-close @close="remarkVisible = false">
       <el-input v-model="remarkText" type="textarea" :rows="8" placeholder="在此写下备注信息，边看简历边记录..." maxlength="1000" show-word-limit />
       <template #footer>
-        <el-button type="primary" class="lark-btn-primary" @click="remarkVisible = false">关闭</el-button>
+        <el-button @click="remarkVisible = false">取消</el-button>
+        <el-button type="primary" class="lark-btn-primary" :loading="savingRemark" @click="handleSaveRemark">保存</el-button>
       </template>
     </el-dialog>
 
@@ -420,6 +425,7 @@ const reviewingId = ref(null)
 const remarkVisible = ref(false)
 const remarkText = ref('')
 const remarkMap = reactive({})
+const savingRemark = ref(false)
 const activeFilter = ref('null')
 const detailLoading = ref(false)
 const viewMode = ref('list')
@@ -613,7 +619,7 @@ function revokeFileUrl() {
 }
 
 async function loadCurrent() {
-  saveCurrentRemark()
+  remarkText.value = ''
   revokeFileUrl()
 
   const resume = currentResume.value
@@ -954,15 +960,38 @@ function createInterview(resume) {
 function openRemark() {
   const resume = currentResume.value
   if (resume) {
-    remarkText.value = remarkMap[resume.id] || ''
+    // 优先使用本地未保存的备注，否则使用后端已有的审核意见
+    remarkText.value = remarkMap[resume.id] || resume.review_comment || ''
   }
   remarkVisible.value = true
 }
 
-function saveCurrentRemark() {
+async function saveCurrentRemark() {
   const resume = currentResume.value
-  if (resume && remarkText.value) {
-    remarkMap[resume.id] = remarkText.value
+  if (!resume) return
+
+  remarkMap[resume.id] = remarkText.value || ''
+  try {
+    await resumeApi.saveRemark(resume.id, remarkText.value || '')
+  } catch (e) {
+    // 静默失败，本地 map 中已有数据
+  }
+}
+
+async function handleSaveRemark() {
+  const resume = currentResume.value
+  if (!resume) return
+
+  savingRemark.value = true
+  try {
+    remarkMap[resume.id] = remarkText.value || ''
+    await resumeApi.saveRemark(resume.id, remarkText.value || '')
+    remarkVisible.value = false
+    ElMessage.success('备注已保存')
+  } catch (e) {
+    ElMessage.error('备注保存失败: ' + (e?.detail || e?.message || '请重试'))
+  } finally {
+    savingRemark.value = false
   }
 }
 
@@ -1341,6 +1370,19 @@ onUnmounted(() => revokeFileUrl())
     font-size: 12px;
   }
 }
+
+.school-tag {
+  display: inline-block;
+  padding: 0 6px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+.tag-985 { background: #e8f8e8; color: #52c41a; }
+.tag-211 { background: #e8f0ff; color: #3370ff; }
 
 .no-detail {
   display: flex;
