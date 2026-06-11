@@ -31,25 +31,54 @@ function openDB() {
 export const fileCacheDB = {
   // ====== 批量上传前的暂存区（staging） ======
 
-  /** 保存文件列表到 IndexedDB，返回新记录的 id 列表 */
-  async saveFiles(files) {
+  /** 保存文件列表到 IndexedDB，同名文件更新缓存时间，返回 id 列表 */
+  async saveFiles(files, onProgress) {
     const db = await openDB()
     const tx = db.transaction(STAGING_STORE, 'readwrite')
     const store = tx.objectStore(STAGING_STORE)
+    const nameIndex = store.index('name')
     const ids = []
-    for (const file of files) {
-      const result = await new Promise((resolve, reject) => {
-        const req = store.add({
-          name: file.name,
-          size: file.size,
-          type: file.type,
-          blob: file,
-          cachedAt: Date.now()
-        })
+    const total = files.length
+    for (let i = 0; i < total; i++) {
+      const file = files[i]
+      // 查找是否已有同名文件
+      const existing = await new Promise((resolve, reject) => {
+        const req = nameIndex.getAll(file.name)
         req.onsuccess = () => resolve(req.result)
         req.onerror = () => reject(req.error)
       })
-      ids.push(result)
+      if (existing && existing.length > 0) {
+        // 更新已有记录的上传时间和文件内容
+        const record = existing[0]
+        const result = await new Promise((resolve, reject) => {
+          const req = store.put({
+            id: record.id,
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            blob: file,
+            cachedAt: Date.now()
+          })
+          req.onsuccess = () => resolve(record.id)
+          req.onerror = () => reject(req.error)
+        })
+        ids.push(result)
+      } else {
+        // 新文件，添加记录
+        const result = await new Promise((resolve, reject) => {
+          const req = store.add({
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            blob: file,
+            cachedAt: Date.now()
+          })
+          req.onsuccess = () => resolve(req.result)
+          req.onerror = () => reject(req.error)
+        })
+        ids.push(result)
+      }
+      onProgress?.({ current: i + 1, total })
     }
     await new Promise((resolve, reject) => {
       tx.oncomplete = resolve
@@ -59,7 +88,7 @@ export const fileCacheDB = {
     return ids
   },
 
-  /** 获取所有已缓存文件列表（不含 blob 数据） */
+  /** 获取所有已缓存文件列表（不含 blob 数据，按缓存时间倒序） */
   async getFileList() {
     const db = await openDB()
     const tx = db.transaction(STAGING_STORE, 'readonly')
@@ -70,13 +99,15 @@ export const fileCacheDB = {
       req.onerror = () => reject(req.error)
     })
     db.close()
-    return all.map(item => ({
-      id: item.id,
-      name: item.name,
-      size: item.size,
-      type: item.type,
-      cachedAt: item.cachedAt
-    }))
+    return all
+      .map(item => ({
+        id: item.id,
+        name: item.name,
+        size: item.size,
+        type: item.type,
+        cachedAt: item.cachedAt
+      }))
+      .sort((a, b) => b.cachedAt - a.cachedAt)
   },
 
   /** 获取单个文件的完整数据（含 blob） */

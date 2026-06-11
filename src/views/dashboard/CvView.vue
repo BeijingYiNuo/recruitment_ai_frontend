@@ -23,8 +23,7 @@
               </template>
             </el-input>
             <el-button type="primary" class="lark-btn-primary" @click="uploadDialogVisible = true">添加简历</el-button>
-            <el-button class="lark-btn-ghost" @click="triggerBatchCache">批量导入</el-button>
-            <!-- 上传缓存按钮已隐藏 -->
+            <el-button class="lark-btn-ghost" @click="triggerBatchCache" :disabled="isCachingToDB">批量导入</el-button>
             <!-- 隐藏的文件选择器，用于批量选择后直接缓存 -->
             <input
               ref="batchFileInputRef"
@@ -34,8 +33,27 @@
               style="display: none"
               @change="handleBatchFileSelect"
             />
+            <!-- 缓存进度 -->
+            <div v-if="isCachingToDB" style="display: inline-flex; align-items: center; gap: 8px; margin-left: 8px;">
+              <el-progress
+                type="circle"
+                :percentage="cachingPercent"
+                :width="28"
+                :stroke-width="3"
+                color="#1677ff"
+              />
+              <span style="font-size: 13px; color: #666; white-space: nowrap;">
+                正在缓存 {{ cachingCurrent }}/{{ cachingTotal }}
+              </span>
+            </div>
           </div>
         </div>
+      </div>
+
+      <!-- 后台处理中提示 -->
+      <div v-if="showProcessingBanner" class="processing-banner">
+        <el-icon class="is-loading" style="margin-right: 8px;"><Loading /></el-icon>
+        <span>正在后台解析简历，请稍候...</span>
       </div>
 
       <!-- Main List Area -->
@@ -58,7 +76,7 @@
           <div class="col-type">格式</div>
           <div class="col-status">解析状态</div>
           <div class="col-review">审核状态</div>
-          <div class="col-time">上传时间</div>
+          <div class="col-time">更新时间</div>
           <div class="col-action">操作</div>
         </div>
 
@@ -104,7 +122,7 @@
               <span class="lark-tag" :class="reviewTagClass(resume.review_status)">{{ reviewLabel(resume.review_status) }}</span>
             </div>
             
-            <div class="col-time">{{ formatFullTime(resume.created_at) || '刚刚' }}</div>
+            <div class="col-time">{{ formatFullTime(resume.updated_at) || '刚刚' }}</div>
             
             <div class="col-action">
               <el-button type="primary" link @click.stop="handleDownload(resume)">下载</el-button>
@@ -177,7 +195,7 @@
                       {{ getStatusLabel(currentDetail.status) }}
                     </el-tag>
                   </el-descriptions-item>
-                  <el-descriptions-item label="上传时间">{{ formatFullTime(currentDetail.created_at) || '未知' }}</el-descriptions-item>
+                  <el-descriptions-item label="更新时间">{{ formatFullTime(currentDetail.updated_at) || '未知' }}</el-descriptions-item>
                 </el-descriptions>
               </div>
 
@@ -441,7 +459,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
 import { ElMessage, ElLoading, ElMessageBox } from 'element-plus'
-import { UploadFilled, Download, Close, Search } from '@element-plus/icons-vue'
+import { UploadFilled, Download, Close, Search, Loading } from '@element-plus/icons-vue'
 import { getCurrentUser } from '../../services/authService'
 import { useResumeStore } from '../../stores/resumeStore'
 import { resumeApi } from '../../api/resume'
@@ -458,6 +476,7 @@ const totalCount = ref(0)
 
 // List retrieval
 let statusPolling = null
+const showProcessingBanner = ref(false)
 
 const stopPolling = () => {
   if (statusPolling) {
@@ -466,26 +485,44 @@ const stopPolling = () => {
   }
 }
 
-const checkAndStartPolling = () => {
-  const needsPolling = resumeStore.resumes.some(r => isAnalyzing(r.status))
+const checkAndStartPolling = (force = false) => {
+  const needsPolling = resumeStore.resumes.some(r => isAnalyzing(r.status)) || force
 
-  if (needsPolling && !statusPolling) {
+  if (needsPolling) {
+    showProcessingBanner.value = true
+    if (statusPolling) return
     statusPolling = setInterval(async () => {
       try {
         const data = await resumeApi.getResumes(0, 100)
         let list = Array.isArray(data) ? data : (data.items || data.data || [])
+        const hadAnalyzing = resumeStore.resumes.some(r => isAnalyzing(r.status))
         resumeStore.setResumes(list)
 
         // 如果全部解析完毕，停止轮询
         if (!list.some(r => isAnalyzing(r.status))) {
           stopPolling()
+          showProcessingBanner.value = false
+          if (hadAnalyzing) {
+            // 检测非简历文件：上传数量 - 实际新增数量 = 被拒绝的文件数
+            if (lastImportCount.value > 0) {
+              const actualIncrease = list.length - lastPreImportCount.value
+              const rejectedCount = lastImportCount.value - actualIncrease
+              lastImportCount.value = 0
+              lastPreImportCount.value = 0
+              if (rejectedCount > 0) {
+                ElMessage.warning(`${rejectedCount} 份文件不是有效简历，已自动忽略`)
+              }
+            }
+            ElMessage.success('简历解析完成')
+          }
         }
       } catch (error) {
         console.error('状态轮询失败:', error)
       }
-    }, 5000)
-  } else if (!needsPolling && statusPolling) {
-    stopPolling()
+    }, 3000)
+  } else {
+    showProcessingBanner.value = false
+    if (statusPolling) stopPolling()
   }
 }
 
@@ -632,8 +669,18 @@ const batchDialogVisible = ref(false)
 const cacheUploading = ref(false)
 const cachedCount = ref(0)
 const batchFileInputRef = ref(null)
+// 批量导入完成后的追踪（用于检测非简历文件）
+const lastImportCount = ref(0)
+const lastPreImportCount = ref(0)
 // batchFiles 存储从 IndexedDB 读取的文件元数据 { id, name, size, cachedAt }
 const batchFiles = ref([])
+// IndexedDB 缓存文件进度
+const isCachingToDB = ref(false)
+const cachingCurrent = ref(0)
+const cachingTotal = ref(0)
+const cachingPercent = computed(() =>
+  cachingTotal.value > 0 ? Math.round((cachingCurrent.value / cachingTotal.value) * 100) : 0
+)
 
 const validateBatchFile = (file) => {
   const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
@@ -682,15 +729,26 @@ const handleBatchFileSelect = async (event) => {
     return
   }
 
+  // 显示缓存进度
+  isCachingToDB.value = true
+  cachingCurrent.value = 0
+  cachingTotal.value = validFiles.length
+
   try {
-    await fileCacheDB.saveFiles(validFiles)
+    await fileCacheDB.saveFiles(validFiles, ({ current, total }) => {
+      cachingCurrent.value = current
+      cachingTotal.value = total
+    })
     await loadCachedFiles()
     ElMessage.success(`已缓存 ${validFiles.length} 份简历，即将自动上传至服务器`)
   } catch (error) {
     ElMessage.error('缓存文件失败: ' + (error?.message || '未知错误'))
     event.target.value = ''
+    isCachingToDB.value = false
     return
   }
+
+  isCachingToDB.value = false
 
   // 重置 input
   event.target.value = ''
@@ -731,16 +789,21 @@ const uploadCachedFiles = async () => {
   cacheUploading.value = true
   try {
     const files = items.map(item => new File([item.blob], item.name, { type: item.type }))
+    // 记录上传前的简历总数，用于后续检测非简历文件
+    lastPreImportCount.value = totalCount.value
     const result = await resumeApi.batchImportLocal(files)
 
     if (result && result.imported > 0) {
-      ElMessage.success(`已上传 ${result.imported} 份简历到服务器，后台处理中（几秒后刷新查看）`)
+      lastImportCount.value = result.imported
+      ElMessage.success(`已上传 ${result.imported} 份简历`)
       // 上传成功：清除暂存区
       await fileCacheDB.clearAll()
       batchFiles.value = []
       cachedCount.value = 0
       batchDialogVisible.value = false
-      setTimeout(() => fetchResumes(), 2000)
+      // 立即获取最新列表并强制轮询（后台尚未创建记录）
+      await fetchResumes()
+      checkAndStartPolling(true)
     } else {
       ElMessage.error('批量上传失败，请重试')
     }
@@ -1059,7 +1122,7 @@ const handleDelete = (id) => {
       type: 'warning'
     }
   ).then(async () => {
-    const loading = ElLoading.service({ lock: true, text: '正在斩草除根删除中...' })
+    const loading = ElLoading.service({ lock: true, text: '正在删除中...' })
     try {
       await resumeApi.deleteResume(id)
       resumeStore.deleteResume(id)
@@ -1174,6 +1237,18 @@ const onPreviewClose = () => {
 
 <style scoped>
 
+.processing-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 16px;
+  margin-bottom: 12px;
+  background: #e6f4ff;
+  border: 1px solid #91caff;
+  border-radius: 6px;
+  color: #1677ff;
+  font-size: 14px;
+}
 
 .list-header-row {
   display: flex;
