@@ -906,38 +906,48 @@ async function startBatchAiReview() {
 
   const ids = [...batchSelectedResumeIds.value]
   const total = ids.length
-  const results = []
 
-  for (let idx = 0; idx < total; idx++) {
-    const resumeId = ids[idx]
-    try {
-      const extra = batchAiReviewForm.custom_requirements || ''
-      const res = await resumeApi.aiReviewResume(resumeId, {
-        position: batchAiReviewForm.position || '',
-        jd: batchAiReviewForm.jd || '',
-        custom_requirements: extra,
-        headcount: batchAiReviewForm.headcount || 1,
-      })
-      const resumeObj = pendingReviewResumes.value.find(r => r.id === resumeId)
-      results.push({
-        resume_id: resumeId,
-        candidate_name: resumeObj?.candidate_name || '',
-        result: res,
-      })
-    } catch (e) {
-      results.push({
-        resume_id: resumeId,
-        candidate_name: pendingReviewResumes.value.find(r => r.id === resumeId)?.candidate_name || '',
-        error: e?.detail || e?.message || '审核失败',
-      })
-    }
-    batchAiReviewResults.value = [...results]
-    batchReviewProgress.value = Math.round(((idx + 1) / total) * 100)
+  // 平滑进度动画：API 调用期间从 0 逐渐涨到 90
+  let progressTimer = null
+  let p = 0
+  const animateProgress = () => {
+    if (p >= 90) return
+    const step = Math.max(0.5, (90 - p) / 30) // 越靠近 90 步长越小
+    p = Math.min(90, p + step)
+    batchReviewProgress.value = Math.round(p * 10) / 10
+    progressTimer = setTimeout(animateProgress, 600)
   }
+  animateProgress()
 
-  batchAiReviewRunning.value = false
-  ElMessage.success(`批量 AI 审核完成，共处理 ${total} 份简历`)
-  fetchResumes()
+  try {
+    const extra = batchAiReviewForm.custom_requirements || ''
+    const res = await resumeApi.batchAiReviewResume({
+      resume_ids: ids,
+      position: batchAiReviewForm.position || '',
+      jd: batchAiReviewForm.jd || '',
+      custom_requirements: extra,
+      headcount: batchAiReviewForm.headcount || 1,
+    })
+    clearTimeout(progressTimer)
+    batchReviewProgress.value = 95
+    // 给 DOM 一点刷新时间，避免从 90 直接卡到 100
+    await new Promise(r => setTimeout(r, 150))
+    const results = (res.results || []).map(item => ({
+      resume_id: item.resume_id,
+      candidate_name: item.candidate_name || pendingReviewResumes.value.find(r => r.id === item.resume_id)?.candidate_name || '',
+      result: item.result,
+      error: item.error,
+    }))
+    batchAiReviewResults.value = results
+    batchReviewProgress.value = 100
+    ElMessage.success(`批量 AI 横向比较审核完成，共处理 ${total} 份简历`)
+  } catch (e) {
+    clearTimeout(progressTimer)
+    ElMessage.error('批量 AI 审核失败: ' + (e?.detail || e?.message || '请重试'))
+  } finally {
+    batchAiReviewRunning.value = false
+    fetchResumes()
+  }
 }
 
 async function batchApplyReview(item, decision) {
