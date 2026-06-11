@@ -767,8 +767,9 @@ const handlePreviewResume = async (item) => {
   previewLoading.value = true
   previewUrl.value = ''
   try {
-    const blob = await resumeApi.previewResume(item.resume_id)
-    previewUrl.value = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }))
+    const token = localStorage.getItem('token')
+    // 直接使用后端预览 URL，浏览器 HTTP 缓存自动处理内容缓存
+    previewUrl.value = `/api/resumes/preview/${item.resume_id}?token=${token}`
   } catch (error) {
     ElMessage.error('简历预览加载失败')
     previewDialogVisible.value = false

@@ -24,15 +24,7 @@
             </el-input>
             <el-button type="primary" class="lark-btn-primary" @click="uploadDialogVisible = true">添加简历</el-button>
             <el-button class="lark-btn-ghost" @click="triggerBatchCache">批量导入</el-button>
-            <el-button
-              class="lark-btn-ghost"
-              :disabled="cachedCount === 0 || cacheUploading"
-              :loading="cacheUploading"
-              @click="uploadCachedFiles"
-            >
-              上传缓存
-              <span v-if="cachedCount > 0" class="cache-badge">{{ cachedCount }}</span>
-            </el-button>
+            <!-- 上传缓存按钮已隐藏 -->
             <!-- 隐藏的文件选择器，用于批量选择后直接缓存 -->
             <input
               ref="batchFileInputRef"
@@ -743,8 +735,7 @@ const uploadCachedFiles = async () => {
 
     if (result && result.imported > 0) {
       ElMessage.success(`已上传 ${result.imported} 份简历到服务器，后台处理中（几秒后刷新查看）`)
-      // 上传成功：先保存到预览缓存（供后续直接预览），再清除暂存区
-      await fileCacheDB.savePreviewFiles(items)
+      // 上传成功：清除暂存区
       await fileCacheDB.clearAll()
       batchFiles.value = []
       cachedCount.value = 0
@@ -1168,37 +1159,15 @@ const handlePreview = async (resume) => {
   previewType.value = (resume.file_type || '').toLowerCase()
   previewDialogVisible.value = true
 
-  // PDF 文件使用 iframe 预览：先查本地预览缓存，命中则直接展示
+  // PDF 文件：直接使用后端预览 URL，浏览器 HTTP 缓存自动处理内容缓存
   if (previewType.value === 'pdf') {
-    previewLoading.value = true
-    try {
-      // 尝试从预览缓存读取（批量导入的文件上传后会缓存至此）
-      const cached = resume.original_file_name ? await fileCacheDB.getPreviewFile(resume.original_file_name) : null
-      let blob
-      if (cached?.blob) {
-        blob = cached.blob
-        // 同步写入 resumeId 缓存，供其他页面（面试/面试管理）直接使用
-        fileCacheDB.savePreviewById(resume.id, blob)
-      } else {
-        // 缓存未命中，从后端下载（previewResume 内部也会写入 resumeId 缓存）
-        blob = await resumeApi.previewResume(resume.id)
-      }
-      const pdfBlob = new Blob([blob], { type: 'application/pdf' })
-      previewUrl.value = URL.createObjectURL(pdfBlob)
-    } catch (error) {
-      ElMessage.error('预览加载失败: ' + (error?.detail || error?.message || '网络异常'))
-      previewDialogVisible.value = false
-    } finally {
-      previewLoading.value = false
-    }
+    const token = localStorage.getItem('token')
+    previewUrl.value = `/api/resumes/preview/${resume.id}?token=${token}`
   }
 }
 
 const onPreviewClose = () => {
-  if (previewUrl.value) {
-    URL.revokeObjectURL(previewUrl.value)
-    previewUrl.value = ''
-  }
+  previewUrl.value = ''
   previewResumeData.value = null
 }
 </script>

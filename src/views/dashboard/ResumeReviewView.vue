@@ -85,6 +85,7 @@
           <div class="list-header">
             <div class="col-name">候选人</div>
             <div class="col-status">审核状态</div>
+            <div class="col-ai-review">AI 建议</div>
             <div class="col-time">上传时间</div>
             <div class="col-action">操作</div>
           </div>
@@ -105,6 +106,9 @@
               </div>
               <div class="col-status">
                 <span class="lark-tag" :class="statusTagClass(r.review_status)">{{ statusLabel(r.review_status) }}</span>
+              </div>
+              <div class="col-ai-review">
+                <span v-if="getAiSuggestion(r)" class="lark-tag ai-suggestion-tag" :class="resultTagClass(getAiSuggestion(r))" style="cursor:pointer;" @click.stop="viewAiReviewDetail(r)">{{ statusLabel(getAiSuggestion(r)) }}</span>
               </div>
               <div class="col-time">{{ fmtDateTime(r.created_at) }}</div>
               <div class="col-action">
@@ -204,6 +208,14 @@
                   <span class="lark-tag" :class="resultTagClass(currentResumeAiReview.suggestion)" style="margin-left: 6px;">{{ statusLabel(currentResumeAiReview.suggestion) }}</span>
                 </div>
                 <div class="ai-review-summary-body">{{ currentResumeAiReview.reason }}</div>
+                <div v-if="currentResumeAiReview.matched_points?.length" class="ai-review-points">
+                  <div class="points-title points-matched">匹配点</div>
+                  <div v-for="(pt, i) in currentResumeAiReview.matched_points" :key="i" class="point-item point-matched">● {{ pt }}</div>
+                </div>
+                <div v-if="currentResumeAiReview.gaps?.length" class="ai-review-points">
+                  <div class="points-title points-gap">不足点</div>
+                  <div v-for="(pt, i) in currentResumeAiReview.gaps" :key="i" class="point-item point-gap">● {{ pt }}</div>
+                </div>
               </div>
               <div class="parsed-content" v-loading="detailLoading">
                 <div class="detail-section" v-if="parsedData.educations.length">
@@ -391,6 +403,30 @@
       </template>
     </el-dialog>
 
+    <!-- AI 审核详情弹窗（列表模式点击 AI 建议标签查看） -->
+    <el-dialog v-model="aiReviewDetailVisible" title="AI 审核详情" width="520px" destroy-on-close @close="aiReviewDetailData = null">
+      <div v-if="aiReviewDetailData" class="ai-review-result">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+          <span class="lark-tag" :class="resultTagClass(aiReviewDetailData.suggestion)">
+            {{ statusLabel(aiReviewDetailData.suggestion) }}
+          </span>
+          <span style="font-size:13px;color:#646a73;">AI 建议</span>
+        </div>
+        <div style="margin-bottom:12px;font-size:14px;line-height:1.6;color:#1f2329;white-space:pre-wrap;">{{ aiReviewDetailData.reason }}</div>
+        <div v-if="aiReviewDetailData.matched_points?.length" style="margin-bottom:8px;">
+          <div style="font-size:13px;font-weight:600;color:#52c41a;margin-bottom:4px;">匹配点</div>
+          <div v-for="(pt, i) in aiReviewDetailData.matched_points" :key="i" style="font-size:13px;color:#646a73;padding:2px 0;">● {{ pt }}</div>
+        </div>
+        <div v-if="aiReviewDetailData.gaps?.length">
+          <div style="font-size:13px;font-weight:600;color:#ff4d4f;margin-bottom:4px;">不足点</div>
+          <div v-for="(pt, i) in aiReviewDetailData.gaps" :key="i" style="font-size:13px;color:#646a73;padding:2px 0;">● {{ pt }}</div>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="aiReviewDetailVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 面试提问建议 - 浮窗组件（仅详情模式显示） -->
     <InterviewQuestionsFloat
       v-if="viewMode === 'detail'"
@@ -408,7 +444,6 @@ import { resumeApi } from '../../api/resume'
 import { positionApi } from '../../api/position'
 import { ElMessage } from 'element-plus'
 import InterviewQuestionsFloat from '../../components/InterviewQuestionsFloat.vue'
-import { fileCacheDB } from '../../utils/fileCacheDB'
 import {
   ArrowLeft, ArrowRight, Close, QuestionFilled, Check, Document, EditPen, MagicStick,
   Reading, Briefcase, Coin, Collection, List, Grid, Plus, Search
@@ -440,6 +475,10 @@ const aiReviewVisible = ref(false)
 const aiReviewLoading = ref(false)
 const aiReviewForm = reactive({ position: '', jd: '', custom_requirements: '', headcount: 1 })
 const aiReviewResult = ref(null)
+
+// AI 审核详情弹窗（列表模式查看）
+const aiReviewDetailVisible = ref(false)
+const aiReviewDetailData = ref(null)
 
 // 批量 AI 审核
 const batchAiReviewVisible = ref(false)
@@ -578,10 +617,8 @@ async function fetchResumes() {
     await loadCurrent()
     fetchTabCounts()
 
-    // 后台预热简历缓存（服务器磁盘 + 浏览器内存）
+    // 后台预热简历缓存（服务器磁盘）
     resumeApi.precacheResumes().catch(() => {})
-    // 逐个后台下载第一页简历的 PDF 到浏览器内存缓存，点开详情时秒开
-    precacheBrowserCache(list.slice(0, pageSize.value))
   } catch (e) {
     ElMessage.error('获取简历列表失败')
   } finally {
@@ -594,33 +631,14 @@ function handleSearch() {
   fetchResumes()
 }
 
-// 逐个后台下载 PDF 到浏览器内存缓存，不阻塞页面
-function precacheBrowserCache(resumes) {
-  let i = 0
-  const next = () => {
-    if (i >= resumes.length) return
-    const r = resumes[i++]
-    if (resumeApi.previewCache?.has(r.id)) { next(); return }
-    resumeApi.previewResume(r.id).then(next).catch(next)
-  }
-  next()
-}
-
 function handlePageChange(page) {
   currentPage.value = page
   fetchResumes()
 }
 
-function revokeFileUrl() {
-  if (fileUrl.value && fileUrl.value.startsWith('blob:')) {
-    URL.revokeObjectURL(fileUrl.value)
-  }
-  fileUrl.value = ''
-}
-
 async function loadCurrent() {
   remarkText.value = ''
-  revokeFileUrl()
+  fileUrl.value = ''
 
   const resume = currentResume.value
   if (!resume) {
@@ -633,48 +651,19 @@ async function loadCurrent() {
   if (viewMode.value === 'detail') {
     previewLoading.value = true
     const currentId = resume.id
-    console.log('[loadCurrent] preview start', { id: currentId, fileType: fileType.value, rawFileType: resume.file_type, originalFileName: resume.original_file_name })
+    console.log('[loadCurrent] preview start', { id: currentId, fileType: fileType.value, rawFileType: resume.file_type })
     try {
-      // 优先从 IndexedDB 预览缓存读取（批量导入上传后缓存至此）
-      let blob = null
-      let fromCache = false
-      const cached = resume.original_file_name ? await fileCacheDB.getPreviewFile(resume.original_file_name) : null
-      if (cached?.blob) {
-        blob = cached.blob
-        fromCache = true
-        console.log('[loadCurrent] cache HIT (by filename)')
-        // 同步写入 resumeId 缓存，供其他页面（面试/面试管理）直接使用
-        fileCacheDB.savePreviewById(resume.id, blob)
-      } else {
-        console.log('[loadCurrent] cache miss, fetching from api')
-        // 缓存未命中，从后端下载（previewResume 内部也会写入 resumeId 缓存）
-        blob = await resumeApi.previewResume(resume.id)
-      }
-      console.log('[loadCurrent] preview loaded', { id: currentId, fromCache, fileType: fileType.value, blobSize: blob?.size, blobType: blob?.type })
-      // 防止快速切换简历时旧请求覆盖新内容
-      if (currentResume.value?.id !== currentId) {
-        console.log('[loadCurrent] stale request, skipping', { expected: currentId, actual: currentResume.value?.id })
-        return
-      }
-      console.log('[loadCurrent] setting fileUrl, fileType:', fileType.value, 'isImageType:', isImageType.value)
-      if (fileType.value === 'pdf') {
-        fileUrl.value = URL.createObjectURL(
-          new Blob([blob], { type: 'application/pdf' })
-        )
-      } else if (isImageType.value) {
-        fileUrl.value = URL.createObjectURL(blob)
+      // 直接使用后端预览 URL，浏览器 HTTP 缓存自动处理内容缓存
+      if (fileType.value === 'pdf' || isImageType.value) {
+        const token = localStorage.getItem('token')
+        fileUrl.value = `/api/resumes/preview/${resume.id}?token=${token}`
       } else {
         console.log('[loadCurrent] fileType not handled, fileUrl remains empty', { fileType: fileType.value })
       }
     } catch (error) {
       if (currentResume.value?.id !== currentId) return
       console.error('[loadCurrent] 预览加载失败:', error)
-      try {
-        // 尝试打印更详细的错误信息
-        const errDetail = error?.response ? await error.response?.data?.text?.() : null
-        console.error('[loadCurrent] error detail:', errDetail || error?.detail || error?.message || error?.statusText || JSON.stringify(error))
-      } catch (_) {}
-      ElMessage.error('简历预览加载失败: ' + (error?.detail || error?.message || error?.statusText || '未知错误'))
+      ElMessage.error('简历预览加载失败')
       fileUrl.value = ''
     } finally {
       if (currentResume.value?.id === currentId) {
@@ -837,6 +826,25 @@ function acceptAiReview() {
 
 function resultTagClass(suggestion) {
   return ({ PASS: 'tag-green', PENDING: 'tag-orange', FAIL: 'tag-red' })[suggestion] || 'tag-gray'
+}
+
+function getAiSuggestion(resume) {
+  if (!resume.ai_review_data) return null
+  try {
+    const parsed = typeof resume.ai_review_data === 'string' ? JSON.parse(resume.ai_review_data) : resume.ai_review_data
+    return parsed.suggestion || null
+  } catch { return null }
+}
+
+function viewAiReviewDetail(resume) {
+  if (!resume.ai_review_data) return
+  try {
+    const parsed = typeof resume.ai_review_data === 'string' ? JSON.parse(resume.ai_review_data) : resume.ai_review_data
+    aiReviewDetailData.value = parsed
+    aiReviewDetailVisible.value = true
+  } catch (e) {
+    ElMessage.error('AI 审核数据解析失败')
+  }
 }
 
 function handleBatchPositionChange(positionId) {
@@ -1213,6 +1221,7 @@ onUnmounted(() => revokeFileUrl())
   .row-name { font-size: 14px; font-weight: 500; color: #1f2329; }
 }
 .col-status { flex: 0.8; }
+.col-ai-review { flex: 0.8; font-size: 13px; }
 .col-time { flex: 0.8; color: #8f959e; font-size: 13px; }
 .col-action { flex: 1.5; }
 
@@ -1532,5 +1541,25 @@ onUnmounted(() => revokeFileUrl())
   line-height: 1.5;
   white-space: pre-wrap;
 }
+.ai-review-points {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #e8e9eb;
+}
+.points-title {
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.points-matched { color: #52c41a; }
+.points-gap { color: #ff4d4f; }
+.point-item {
+  font-size: 12px;
+  color: #646a73;
+  padding: 2px 0;
+  line-height: 1.5;
+}
+.point-matched { color: #3d9e17; }
+.point-gap { color: #e84545; }
 </style>
 

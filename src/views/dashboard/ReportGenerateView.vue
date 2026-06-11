@@ -807,6 +807,26 @@ function cancelEdit() {
   editMode.value = false
 }
 
+const scoreToValue = { A: 85, B: 65, C: 45, D: 25 }
+
+function syncScoreToValue(data) {
+  if (!data) return
+  if (data.ability_indicators) {
+    for (const item of data.ability_indicators) {
+      if (item.score && scoreToValue[item.score] !== undefined) {
+        item.value = scoreToValue[item.score]
+      }
+    }
+  }
+  if (data.stage_data) {
+    for (const item of data.stage_data) {
+      if (item.score && scoreToValue[item.score] !== undefined) {
+        item.value = scoreToValue[item.score]
+      }
+    }
+  }
+}
+
 async function saveReport() {
   if (!reportId.value) {
     ElMessage.error('报告 ID 缺失，无法保存')
@@ -817,6 +837,8 @@ async function saveReport() {
   try {
     // Sync finalDecision back to editData
     editData.value.final_decision = finalDecision.value
+    // 将 score(A/B/C/D) 同步为 value(数值)，确保持久化数据一致性
+    syncScoreToValue(editData.value)
 
     await interviewApi.updateReport(reportId.value, {
       report_data: JSON.stringify(editData.value),
@@ -965,6 +987,13 @@ function initCharts() {
   initStageChart()
 }
 
+/** 将 score 等级映射为图表数值 */
+function getChartValue(item) {
+  const map = { A: 85, B: 65, C: 45, D: 25 }
+  if (item.score && map[item.score] !== undefined) return map[item.score]
+  return item.value || 0
+}
+
 function initRadarChart() {
   if (!radarChartRef.value) return
   if (radarChart) radarChart.dispose()
@@ -986,12 +1015,26 @@ function initRadarChart() {
     },
     series: [{
       type: 'radar',
-      data: [{ value: indicators.map(i => i.value), name: '能力评估' }],
+      data: [{ value: indicators.map(i => getChartValue(i)), name: '能力评估' }],
       areaStyle: { color: 'rgba(51,112,255,0.2)' },
       lineStyle: { color: '#3370FF', width: 2 },
       itemStyle: { color: '#3370FF' },
       symbol: 'circle',
       symbolSize: 6,
+    }],
+  })
+}
+
+function updateRadarChart() {
+  if (!radarChart) return
+  const indicators = abilityIndicators.value
+  if (!indicators.length) return
+  radarChart.setOption({
+    radar: {
+      indicator: indicators.map(i => ({ name: i.name, max: 100 })),
+    },
+    series: [{
+      data: [{ value: indicators.map(i => getChartValue(i)), name: '能力评估' }],
     }],
   })
 }
@@ -1002,36 +1045,56 @@ function initStageChart() {
   stageChart = echarts.init(stageChartRef.value)
   const stageData = reportData.value?.stage_data || []
   if (!stageData.length) return
+  const chartValues = stageData.map(d => getChartValue(d))
   stageChart.setOption({
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
     grid: { left: '3%', right: '8%', bottom: '3%', top: '10%', containLabel: true },
     xAxis: { type: 'value', max: 100, axisLabel: { show: true }, splitLine: { lineStyle: { color: '#F0F1F5' } } },
     yAxis: {
       type: 'category',
-      data: stageData.map(d => d.value > 0 ? `${d.name}  ${d.score}` : d.name),
+      data: stageData.map((d, i) => chartValues[i] > 0 ? `${d.name}  ${d.score}` : d.name),
       axisLine: { show: false },
       axisTick: { show: false },
       axisLabel: { color: '#1F2329', fontSize: 13, fontWeight: 500 },
     },
     series: [{
       type: 'bar',
-      data: stageData.map(d => {
-        if (d.value === 0) return { value: 0, itemStyle: { color: '#E5E6EB' } }
+      data: stageData.map((d, i) => {
+        if (chartValues[i] === 0) return { value: 0, itemStyle: { color: '#E5E6EB' } }
         const colorMap = { A: '#52C41A', B: '#3370FF', C: '#FAAD14', D: '#FF4D4F' }
-        return { value: d.value, itemStyle: { color: colorMap[d.score] || '#3370FF', borderRadius: [0, 4, 4, 0] } }
+        return { value: chartValues[i], itemStyle: { color: colorMap[d.score] || '#3370FF', borderRadius: [0, 4, 4, 0] } }
       }),
       barWidth: 22,
       label: {
         show: true,
         position: 'right',
         formatter: (p) => {
-          const d = stageData[p.dataIndex]
-          return d.value > 0 ? d.score : '未考察'
+          const v = chartValues[p.dataIndex]
+          return v > 0 ? stageData[p.dataIndex].score : '未考察'
         },
         color: '#646A73',
         fontSize: 13,
         fontWeight: 500,
       },
+    }],
+  })
+}
+
+function updateStageChart() {
+  if (!stageChart) return
+  const stageData = reportData.value?.stage_data || []
+  if (!stageData.length) return
+  const chartValues = stageData.map(d => getChartValue(d))
+  stageChart.setOption({
+    yAxis: {
+      data: stageData.map((d, i) => chartValues[i] > 0 ? `${d.name}  ${d.score}` : d.name),
+    },
+    series: [{
+      data: stageData.map((d, i) => {
+        if (chartValues[i] === 0) return { value: 0, itemStyle: { color: '#E5E6EB' } }
+        const colorMap = { A: '#52C41A', B: '#3370FF', C: '#FAAD14', D: '#FF4D4F' }
+        return { value: chartValues[i], itemStyle: { color: colorMap[d.score] || '#3370FF', borderRadius: [0, 4, 4, 0] } }
+      }),
     }],
   })
 }
@@ -1057,6 +1120,13 @@ watch(reportData, async () => {
   await nextTick()
   initCharts()
 })
+
+// 编辑模式下实时更新图表（深监听编辑数据的变化）
+watch(editData, () => {
+  if (!editMode.value || viewMode.value !== 'detail') return
+  updateRadarChart()
+  updateStageChart()
+}, { deep: true })
 </script>
 
 <style scoped lang="scss">

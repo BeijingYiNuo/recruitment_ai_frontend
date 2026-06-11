@@ -12,7 +12,6 @@
             <span class="badge" v-if="displayFiles.length > 0">{{ displayFiles.length }}</span>
           </div>
           <div class="action-btn-group">
-            <el-button type="primary" class="lark-btn-primary" @click="uploadDialogVisible = true">上传文件</el-button>
           </div>
         </div>
         <!-- 面包屑导航 -->
@@ -30,7 +29,7 @@
             <el-icon class="empty-icon"><FolderOpened /></el-icon>
           </div>
           <p class="empty-title">文件夹为空</p>
-          <p class="empty-subtitle">点击右上角"上传文件"按钮添加</p>
+          <p class="empty-subtitle">暂无文件</p>
         </div>
 
         <template v-else>
@@ -150,43 +149,6 @@
       </div>
     </div>
 
-    <!-- 上传文件弹窗 -->
-    <el-dialog v-model="uploadDialogVisible" title="新建与上传" width="480px" destroy-on-close>
-      <el-form :model="uploadForm" label-position="top">
-        <el-form-item label="文件类别 (file_type)" required>
-          <el-select v-model="uploadForm.file_type" placeholder="请选择类别" style="width: 100%">
-            <el-option label="语音 (voice)" value="voice" />
-            <el-option label="对话 (dialogue)" value="dialogue" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="文件" required>
-          <el-upload
-            class="upload-demo"
-            drag
-            action="#"
-            :auto-upload="false"
-            :on-change="handleFileChange"
-            :on-remove="handleFileRemove"
-            :limit="1"
-            style="width: 100%"
-          >
-            <el-icon class="el-icon--upload"><Document /></el-icon>
-            <div class="el-upload__text">
-              将文件拖到此处，或 <em>点击上传</em>
-            </div>
-          </el-upload>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="uploadDialogVisible = false">取消</el-button>
-          <el-button type="primary" :loading="isUploading" @click="submitUpload">
-            确认上传
-          </el-button>
-        </span>
-      </template>
-    </el-dialog>
-
     <!-- 文件预览弹窗 -->
     <FilePreviewDialog
       v-model="previewDialogVisible"
@@ -203,9 +165,9 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { 
-  Plus, Delete,
-  Document, Picture, FolderOpened, Folder, Close, MoreFilled, Download, View, ArrowLeft
+import {
+  Delete,
+  Document, Picture, FolderOpened, Folder, Close, Download, View, ArrowLeft
 } from '@element-plus/icons-vue'
 import { fileApi } from '../../api/file'
 import FilePreviewDialog from '../../components/FilePreviewDialog.vue'
@@ -367,53 +329,6 @@ const displayFiles = computed(() => {
 onMounted(() => {
   fetchFileList()
 })
-
-// --- 上传文件逻辑 ---
-const uploadDialogVisible = ref(false)
-const isUploading = ref(false)
-const uploadForm = ref({
-  file_type: 'resume',
-  file: null
-})
-
-const handleFileChange = (uploadFile) => {
-  uploadForm.value.file = uploadFile.raw
-}
-
-const handleFileRemove = () => {
-  uploadForm.value.file = null
-}
-
-const submitUpload = async () => {
-  if (!uploadForm.value.file) {
-    ElMessage.warning('请选择需要上传的文件')
-    return
-  }
-  if (!uploadForm.value.file_type) {
-    ElMessage.warning('请选择文件类别')
-    return
-  }
-
-  const formData = new FormData()
-  formData.append('file', uploadForm.value.file)
-  formData.append('file_type', uploadForm.value.file_type)
-
-  isUploading.value = true
-  try {
-    await fileApi.uploadFile(formData)
-    ElMessage.success('上传成功')
-    
-    uploadDialogVisible.value = false
-    uploadForm.value = { file_type: 'resume', file: null }
-    // 刷新列表以显示刚刚上传的文件
-    fetchFileList()
-  } catch (error) {
-    console.error('Upload Error:', error)
-    ElMessage.error(error.message || '接口调用失败，请检查后端状态')
-  } finally {
-    isUploading.value = false
-  }
-}
 
 // --- 删除文件逻辑 ---
 const deleteFile = async (fileId) => {

@@ -382,12 +382,9 @@ const fetchInterviewDetails = async () => {
 const fetchResumePreview = async (id: number) => {
   isResumeLoading.value = true
   try {
-    const blob = await resumeApi.previewResume(id)
-    const pdfBlob = new Blob([blob], { type: 'application/pdf' })
-    if (resumePreviewUrl.value) {
-      URL.revokeObjectURL(resumePreviewUrl.value)
-    }
-    resumePreviewUrl.value = URL.createObjectURL(pdfBlob)
+    const token = localStorage.getItem('token')
+    // 直接使用后端预览 URL，浏览器 HTTP 缓存自动处理内容缓存
+    resumePreviewUrl.value = `/api/resumes/preview/${id}?token=${token}`
   } catch (err) {
     console.error('Failed to fetch resume preview:', err)
     ElMessage.error('简历预览加载失败')
@@ -414,10 +411,7 @@ onBeforeUnmount(() => {
     mediaStream.getTracks().forEach(track => track.stop())
     mediaStream = null
   }
-  if (resumePreviewUrl.value) {
-    URL.revokeObjectURL(resumePreviewUrl.value)
-    resumePreviewUrl.value = null
-  }
+  resumePreviewUrl.value = null
   // 仅在 ASR 会话仍活跃时清理后端
   if (isAsrActive.value) {
     interviewApi.stopASR(sessionId, roundId).catch(() => {})
