@@ -29,7 +29,7 @@ export const resumeApi = {
     if (endTime) {
       params.end_time = endTime
     }
-    return request.get('/resumes', { params })
+    return request.get('/resumes', { params, timeout: 30000, _skipGlobalError: true })
   },
 
   // 获取特定用户列表简历 (原接口)

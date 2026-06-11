@@ -58,7 +58,7 @@ request.interceptors.response.use(
       else if (status >= 500) {
         ElMessage.error('服务器内部错误，请稍后再试')
       }
-    } else {
+    } else if (!error.config?._skipGlobalError) {
       ElMessage.error('网络连接超时或异常，请检查网络')
     }
 
