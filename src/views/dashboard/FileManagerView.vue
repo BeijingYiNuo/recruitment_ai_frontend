@@ -196,8 +196,8 @@ const files = ref([])
 
 const fetchFileList = async () => {
   try {
-    const res = await fileApi.getFileList()
-    let list = res.data || [] 
+    const res = await fileApi.getFileList({ skip: 0, limit: 9999, file_type: 'voice,dialogue' })
+    let list = res.data || []
     
     // 按更新时间降序排列，最新的在最上面
     list.sort((a, b) => {
@@ -212,9 +212,6 @@ const fetchFileList = async () => {
       voice: '语音',
       dialogue: '对话',
     }
-
-    // 过滤掉简历类型的文件（简历由简历管理模块管理）
-    list = list.filter(item => item.file_type !== 'resume')
 
     files.value = list.map(item => {
       const ext = item.file_name?.split('.').pop()?.toLowerCase() || ''
