@@ -16,11 +16,11 @@
       <div class="list-area" style="padding: 24px; flex: 1;">
         <StepGuide />
         
-        <KnowledgeList 
-          :list="filteredList" 
-          :loading="loading" 
-          @deleted="loadKnowledgeBaseList"
-          @updated="loadKnowledgeBaseList"
+        <KnowledgeList
+          :list="filteredList"
+          :loading="loading"
+          @deleted="handleDeleted"
+          @updated="handleUpdated"
         />
       </div>
     </div>
@@ -34,6 +34,9 @@
 import { ref, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { knowledgeApi } from '../../api/knowledge.js'
+import { useKnowledgeStore } from '../../stores/knowledgeStore.js'
+
+const knowledgeStore = useKnowledgeStore()
 
 import StepGuide from '../../components/knowledge/StepGuide.vue'
 import CreateButton from '../../components/knowledge/CreateButton.vue'
@@ -58,7 +61,9 @@ const filteredList = computed(() => {
 const loadKnowledgeBaseList = async () => {
   try {
     loading.value = true
-    const response = await knowledgeApi.getCollections()
+    const response = await knowledgeStore.getCachedCollections(async () => {
+      return await knowledgeApi.getCollections()
+    })
     let collections: any[] = []
 
     if (response) {
@@ -119,7 +124,18 @@ const showCreateDialog = () => {
   createDialogRef.value?.openDialog()
 }
 
+const handleDeleted = () => {
+  knowledgeStore.invalidateCache()
+  loadKnowledgeBaseList()
+}
+
+const handleUpdated = () => {
+  knowledgeStore.invalidateCache()
+  loadKnowledgeBaseList()
+}
+
 const handleCreateSuccess = () => {
+  knowledgeStore.invalidateCache()
   ElMessage.success('知识库创建成功！待更新列表...')
   loadKnowledgeBaseList()
 }

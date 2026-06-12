@@ -33,6 +33,9 @@
 import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { knowledgeApi } from '../../api/knowledge.js'
+import { useKnowledgeStore } from '../../stores/knowledgeStore.js'
+
+const knowledgeStore = useKnowledgeStore()
 
 import DetailHeader from '../../components/knowledge/detail/DetailHeader.vue'
 import TabOriginalDocs from '../../components/knowledge/detail/TabOriginalDocs.vue'
@@ -61,8 +64,9 @@ watch(activeTab, (newVal) => {
 onMounted(async () => {
   try {
     const kbName = route.params.id
-    const res = await knowledgeApi.getCollectionInfo(kbName as string)
-    // 根据请求拦截器结构兼容返回字段
+    const res = await knowledgeStore.getCachedCollectionInfo(kbName as string, async () => {
+      return await knowledgeApi.getCollectionInfo(kbName as string)
+    })
     kbInfo.value = res.data || res
   } catch (e) {
     console.error('获取知识库详情失败:', e)

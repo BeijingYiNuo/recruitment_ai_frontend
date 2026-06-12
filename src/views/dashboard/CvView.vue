@@ -601,10 +601,17 @@ const fetchResumes = async () => {
   listLoading.value = true
   try {
     const skip = (currentPage.value - 1) * pageSize.value
-    const data = await resumeApi.getResumes(skip, pageSize.value, null, searchKeyword.value)
-    let list = Array.isArray(data) ? data : (data.items || data.data || [])
-    totalCount.value = data.total || list.length
-    resumeStore.setResumes(list)
+    const result = await resumeStore.getCachedResumes(async () => {
+      const data = await resumeApi.getResumes(skip, pageSize.value, null, searchKeyword.value)
+      let list = Array.isArray(data) ? data : (data.items || data.data || [])
+      const total = data.total || list.length
+      totalCount.value = total
+      return { items: list, total }
+    })
+    // 缓存命中时恢复 totalCount
+    if (result && result.total !== undefined) {
+      totalCount.value = result.total
+    }
     checkAndStartPolling()
   } catch (error) {
     ElMessage.error('获取简历列表失败: ' + (error?.detail || error?.message || '未知错误'))
@@ -722,6 +729,7 @@ const submitUpload = async () => {
 
     ElMessage.success(`简历 ${file.name} 导入成功！`)
     uploadDialogVisible.value = false
+    resumeStore.invalidateCache()
     fetchResumes() // 这里会触发 checkAndStartPolling
   } catch (error) {
     if (Array.isArray(error?.detail)) {
@@ -881,6 +889,7 @@ const uploadCachedFiles = async () => {
       }))
       // 跳转到第 1 页并刷新列表
       currentPage.value = 1
+      resumeStore.invalidateCache()
       ElMessage.success(`已上传 ${result.imported} 份简历`)
       await fetchResumes()
       checkAndStartPolling(true)
@@ -933,15 +942,14 @@ const openDrawer = async (id) => {
   drawerLoading.value = true
   activeTab.value = 'basic'
   specialDataStr.value = ''
-  
+
   try {
-    const detail = await resumeApi.getResumeDetail(id)
-    currentDetail.value = detail || resumeStore.resumes.find(r => r.id === id)
-    // Optionally trigger store setup if deeply tied into other components
-    resumeStore.selectResume(currentDetail.value)
+    currentDetail.value = await resumeStore.getCachedDetail(id, async () => {
+      const detail = await resumeApi.getResumeDetail(id)
+      return detail || resumeStore.resumes.find(r => r.id === id)
+    })
   } catch (error) {
     ElMessage.error('无法获取简历详细内容')
-    // Fallback if detail fetch fails but we've got summary list
     currentDetail.value = resumeStore.resumes.find(r => r.id === id)
   } finally {
     drawerLoading.value = false
@@ -1022,6 +1030,7 @@ const handleFetchSpecialInDrawer = async (type, titleName) => {
 const handleRowReparse = async (resume) => {
   try {
     await resumeApi.reparseResume(resume.id)
+    resumeStore.invalidateCache(resume.id)
     ElMessage.success('重新解析已启动，请稍后查看结果')
     fetchResumes()
   } catch (error) {
@@ -1035,6 +1044,7 @@ const handleDrawerReparse = async () => {
 
   try {
     await resumeApi.reparseResume(id)
+    resumeStore.invalidateCache(id)
     ElMessage.success('重新解析已启动，请稍后查看结果')
     closeDrawer()
     fetchResumes()
@@ -1137,6 +1147,7 @@ const saveEdit = async () => {
     specialProjectList.value = editProjectList.value
 
     editMode.value = false
+    resumeStore.invalidateCache(currentDetail.value?.id)
     fetchResumes()
   } catch (error) {
     ElMessage.error('保存失败: ' + (error?.detail || error?.message || '未知错误'))
@@ -1211,6 +1222,7 @@ const handleDelete = (id) => {
     try {
       await resumeApi.deleteResume(id)
       resumeStore.deleteResume(id)
+      resumeStore.invalidateCache(id)
       ElMessage.success('物理删除简历成功！')
       fetchResumes()
     } catch (error) {
@@ -1272,6 +1284,7 @@ const handleBatchDelete = () => {
         ElMessage.warning(`${result.errors.length} 份简历删除失败`)
       }
       selectedIds.value = []
+      resumeStore.invalidateCache()
       fetchResumes()
     } catch (error) {
       ElMessage.error('批量删除失败: ' + (error?.detail || error?.message || '未知错误'))

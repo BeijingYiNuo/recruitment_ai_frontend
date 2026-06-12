@@ -1,48 +1,89 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, reactive } from 'vue'
 
 export const useResumeStore = defineStore('resume', () => {
-  // ----- State -----
+  // ========== 列表缓存 ==========
   const resumes = ref([])
+  const totalCount = ref(0)
   const selectedResume = ref(null)
+  const lastFetchTime = ref(0)
+  const LIST_CACHE_TTL = 30000 // 30 秒
 
-  // ----- Actions -----
-  /** 设置简历列表 */
+  // ========== 详情缓存 ==========
+  const detailCache = reactive({})
+  const DETAIL_CACHE_TTL = 60000 // 60 秒
+
+  // ----- 带缓存的获取列表（fetchFn 需返回 { items, total }）-----
+  const getCachedResumes = async (fetchFn) => {
+    const now = Date.now()
+    if (now - lastFetchTime.value < LIST_CACHE_TTL && resumes.value.length > 0) {
+      return { items: resumes.value, total: totalCount.value }
+    }
+    const result = await fetchFn()
+    resumes.value = result.items
+    totalCount.value = result.total
+    lastFetchTime.value = now
+    return result
+  }
+
+  // ----- 带缓存的获取详情 -----
+  const getCachedDetail = async (id, fetchFn) => {
+    const now = Date.now()
+    const cached = detailCache[id]
+    if (cached && now - cached.cachedAt < DETAIL_CACHE_TTL) {
+      selectedResume.value = cached.data
+      return cached.data
+    }
+    const data = await fetchFn()
+    detailCache[id] = { data, cachedAt: now }
+    selectedResume.value = data
+    return data
+  }
+
+  // ----- 清除缓存（增删改后调用） -----
+  const invalidateCache = (resumeId) => {
+    lastFetchTime.value = 0
+    if (resumeId) {
+      delete detailCache[resumeId]
+    } else {
+      Object.keys(detailCache).forEach(k => delete detailCache[k])
+    }
+  }
+
+  // ----- 原有方法 -----
   const setResumes = (list) => {
     resumes.value = list
   }
 
-  /** 添加一份新简历（上传后调用） */
   const addResume = (resume) => {
     resumes.value.unshift(resume)
   }
 
-  /** 删除简历 */
   const deleteResume = (id) => {
-    const target = resumes.value.find(r => r.id === id)
-    if (target && target.preview_url) {
-      URL.revokeObjectURL(target.preview_url)
-    }
     resumes.value = resumes.value.filter(r => r.id !== id)
-    // 如果正在查看被删除的简历，关闭详情
+    delete detailCache[id]
     if (selectedResume.value && selectedResume.value.id === id) {
       selectedResume.value = null
     }
   }
 
-  /** 选中查看某份简历详情 */
   const selectResume = (resume) => {
     selectedResume.value = resume
   }
 
-  /** 关闭简历详情 */
   const clearSelection = () => {
     selectedResume.value = null
   }
 
   return {
     resumes,
+    totalCount,
     selectedResume,
+    lastFetchTime,
+    detailCache,
+    getCachedResumes,
+    getCachedDetail,
+    invalidateCache,
     setResumes,
     addResume,
     deleteResume,

@@ -288,6 +288,9 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, OfficeBuilding, List, CaretBottom, Clock, Edit, Delete, User, Select, Search } from '@element-plus/icons-vue'
 import { positionApi } from '../../api/position.js'
+import { usePositionStore } from '../../stores/positionStore.js'
+
+const positionStore = usePositionStore()
 
 const loading = ref(false)
 const saving = ref(false)
@@ -358,10 +361,17 @@ const loadPositions = async () => {
     const skip = (currentPage.value - 1) * pageSize.value
     const params = { skip, limit: pageSize.value }
     if (searchKeyword.value) params.keyword = searchKeyword.value
-    const res = await positionApi.list(params)
-    const list = Array.isArray(res) ? res : res?.items || res?.data || []
-    positions.value = list
-    totalCount.value = res.total || list.length
+    const result = await positionStore.getCachedPositions(async () => {
+      const res = await positionApi.list(params)
+      const list = Array.isArray(res) ? res : res?.items || res?.data || []
+      const total = res.total || list.length
+      positions.value = list
+      totalCount.value = total
+      return { items: list, total }
+    })
+    if (result && result.total !== undefined) {
+      totalCount.value = result.total
+    }
   } catch (e) {
     console.error('加载岗位列表失败:', e)
     ElMessage.error('加载岗位列表失败')
@@ -431,6 +441,7 @@ const handleSave = async () => {
       ElMessage.success('岗位创建成功')
     }
     formDialog.visible = false
+    positionStore.invalidateCache()
     loadPositions()
   } catch (e) {
     console.error('保存岗位失败:', e)
@@ -443,6 +454,7 @@ const handleSave = async () => {
 const handleDelete = async (pos) => {
   try {
     await positionApi.delete(pos.id)
+    positionStore.invalidateCache()
     ElMessage.success('岗位已删除')
     loadPositions()
   } catch (e) {
@@ -461,8 +473,11 @@ const openRoundsDialog = async (pos) => {
 const loadRounds = async () => {
   roundsDialog.loading = true
   try {
-    const res = await positionApi.listRounds(roundsDialog.positionId)
-    rounds.value = Array.isArray(res) ? res : res?.data || []
+    const result = await positionStore.getCachedRounds(roundsDialog.positionId, async () => {
+      const res = await positionApi.listRounds(roundsDialog.positionId)
+      return Array.isArray(res) ? res : res?.data || []
+    })
+    rounds.value = result
   } catch (e) {
     console.error('加载轮次失败:', e)
     ElMessage.error('加载面试轮次失败')
@@ -540,6 +555,7 @@ const handleSaveRound = async () => {
       ElMessage.success('轮次添加成功')
     }
     roundFormDialog.visible = false
+    positionStore.invalidateCache()
     loadRounds()
   } catch (e) {
     console.error('保存轮次失败:', e)
@@ -557,6 +573,7 @@ const handleDeleteRound = async (round) => {
       type: 'warning'
     })
     await positionApi.deleteRound(roundsDialog.positionId, round.id)
+    positionStore.invalidateCache()
     ElMessage.success('轮次已删除')
     loadRounds()
   } catch (e) {
