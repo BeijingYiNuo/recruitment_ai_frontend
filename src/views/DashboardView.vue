@@ -9,7 +9,7 @@
         background-color="#ffffff"
         text-color="#646a73"
         active-text-color="#3370ff"
-        router
+        @select="handleMenuSelect"
       >
         <el-menu-item index="/dashboard/home">
           <el-icon><House /></el-icon>
@@ -174,6 +174,12 @@ const currentPageTitle = computed(() => {
 const handleLogout = () => {
   authService.logout()
   router.push('/login')
+}
+
+const handleMenuSelect = (index) => {
+  if (index) {
+    router.push(index)
+  }
 }
 </script>
 

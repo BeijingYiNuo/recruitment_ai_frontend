@@ -82,52 +82,81 @@
 
         <div class="list-body">
           <el-empty
-            v-if="(!resumeStore.resumes || resumeStore.resumes.length === 0) && !listLoading"
+            v-if="(!resumeStore.resumes || resumeStore.resumes.length === 0) && batchImportPlaceholders.length === 0 && !listLoading"
             description="暂无简历，请点击上方按钮添加导入"
             style="padding: 60px 0"
           />
 
-          <div
-            v-else
-            class="list-row"
-            :class="{ 'row-selected': selectedIds.includes(resume.id) }"
-            v-for="resume in resumeStore.resumes"
-            :key="resume.id"
-          >
-            <div class="col-check" @click.stop>
-              <el-checkbox
-                :model-value="selectedIds.includes(resume.id)"
-                @change="(val) => toggleSelectOne(resume.id, val)"
-              />
-            </div>
-            <div class="col-name" @click="openDrawer(resume.id)">
-              <el-avatar :size="32" class="lark-avatar">{{ resume.candidate_name?.charAt(0) || 'U' }}</el-avatar>
-              <span class="name-text">{{ resume.candidate_name }}</span>
-              <el-button v-if="resume.review_status === 'PASS'" type="success" link size="small" @click.stop="createInterview(resume)">创建面试</el-button>
-              <el-button type="primary" link size="small" @click.stop="handlePreview(resume)">预览</el-button>
-            </div>
-
-            <div class="col-type">
-              <span class="lark-tag tag-gray">{{ resume.file_type?.toUpperCase() }}</span>
-            </div>
-
-            <div class="col-status">
-              <div class="status-indicator">
-                <span class="dot" :class="isAnalyzing(resume.status) ? 'dot-loading' : 'dot-success'"></span>
-                <span>{{ getStatusLabel(resume.status) }}</span>
+          <div v-else>
+            <!-- 批量导入占位行（显示在最上面） -->
+            <div
+              v-for="ph in batchImportPlaceholders"
+              :key="ph.id"
+              class="list-row list-row-placeholder"
+            >
+              <div class="col-check"></div>
+              <div class="col-name">
+                <el-avatar :size="32" class="lark-avatar" style="background:#8F959E;">?</el-avatar>
+                <span class="name-text" style="color:#8F959E;font-weight:400;">{{ ph._displayName }}</span>
               </div>
+              <div class="col-type">
+                <span class="lark-tag tag-gray">{{ ph.file_type?.toUpperCase() }}</span>
+              </div>
+              <div class="col-status">
+                <div class="status-indicator">
+                  <span class="dot dot-loading"></span>
+                  <span style="color:#8F959E;">待解析</span>
+                </div>
+              </div>
+              <div class="col-review">
+                <span class="lark-tag tag-gray">待审核</span>
+              </div>
+              <div class="col-time" style="color:#8F959E;">刚刚</div>
+              <div class="col-action"></div>
             </div>
 
-            <div class="col-review">
-              <span class="lark-tag" :class="reviewTagClass(resume.review_status)">{{ reviewLabel(resume.review_status) }}</span>
-            </div>
-            
-            <div class="col-time">{{ formatFullTime(resume.updated_at) || '刚刚' }}</div>
-            
-            <div class="col-action">
-              <el-button type="primary" link @click.stop="handleDownload(resume)">下载</el-button>
-              <el-button type="primary" link @click.stop="handleRowReparse(resume)">重新解析</el-button>
-              <el-button type="danger" link @click.stop="handleDelete(resume.id)">删除</el-button>
+            <!-- 真实简历行 -->
+            <div
+              class="list-row"
+              :class="{ 'row-selected': selectedIds.includes(resume.id) }"
+              v-for="resume in resumeStore.resumes"
+              :key="resume.id"
+            >
+              <div class="col-check" @click.stop>
+                <el-checkbox
+                  :model-value="selectedIds.includes(resume.id)"
+                  @change="(val) => toggleSelectOne(resume.id, val)"
+                />
+              </div>
+              <div class="col-name" @click="openDrawer(resume.id)">
+                <el-avatar :size="32" class="lark-avatar">{{ resume.candidate_name?.charAt(0) || 'U' }}</el-avatar>
+                <span class="name-text">{{ resume.candidate_name }}</span>
+                <el-button v-if="resume.review_status === 'PASS'" type="success" link size="small" @click.stop="createInterview(resume)">创建面试</el-button>
+                <el-button type="primary" link size="small" @click.stop="handlePreview(resume)">预览</el-button>
+              </div>
+
+              <div class="col-type">
+                <span class="lark-tag tag-gray">{{ resume.file_type?.toUpperCase() }}</span>
+              </div>
+
+              <div class="col-status">
+                <div class="status-indicator">
+                  <span class="dot" :class="isAnalyzing(resume.status) ? 'dot-loading' : 'dot-success'"></span>
+                  <span>{{ getStatusLabel(resume.status) }}</span>
+                </div>
+              </div>
+
+              <div class="col-review">
+                <span class="lark-tag" :class="reviewTagClass(resume.review_status)">{{ reviewLabel(resume.review_status) }}</span>
+              </div>
+
+              <div class="col-time">{{ formatFullTime(resume.updated_at) || '刚刚' }}</div>
+
+              <div class="col-action">
+                <el-button type="primary" link @click.stop="handleDownload(resume)">下载</el-button>
+                <el-button type="primary" link @click.stop="handleRowReparse(resume)">重新解析</el-button>
+                <el-button type="danger" link @click.stop="handleDelete(resume.id)">删除</el-button>
+              </div>
             </div>
           </div>
         </div>
@@ -487,7 +516,7 @@ const stopPolling = () => {
 }
 
 const checkAndStartPolling = (force = false) => {
-  const needsPolling = resumeStore.resumes.some(r => isAnalyzing(r.status)) || force
+  const needsPolling = resumeStore.resumes.some(r => isAnalyzing(r.status)) || force || batchImportPlaceholders.value.length > 0
 
   if (needsPolling) {
     showProcessingBanner.value = true
@@ -501,30 +530,58 @@ const checkAndStartPolling = (force = false) => {
         const hadAnalyzing = resumeStore.resumes.some(r => isAnalyzing(r.status))
 
         // 只更新已有记录的状态，不替换分页列表（避免轮询冲掉分页）
-        const statusMap = {}
+        // 用最新 API 数据更新所有字段（候选人姓名、解析状态等）
+        const fullMap = {}
         for (const item of list) {
-          statusMap[item.id] = item.status
+          fullMap[item.id] = item
         }
         resumeStore.setResumes(
-          resumeStore.resumes.map(r => ({
-            ...r,
-            status: statusMap[r.id] || r.status
-          }))
+          resumeStore.resumes.map(r => {
+            const updated = fullMap[r.id]
+            return updated ? { ...r, ...updated } : r
+          })
         )
 
+        // ---- 匹配占位行与真实记录 ----
+        if (batchImportPlaceholders.value.length > 0) {
+          const stillPending = []
+          for (const ph of batchImportPlaceholders.value) {
+            const match = list.find(r => r.original_file_name === ph._originalFileName)
+            if (match) {
+              // 检测是否为重名（已存在的简历被更新）
+              if (preImportIds.value.has(match.id)) {
+                const name = match.candidate_name && match.candidate_name !== '待解析' ? match.candidate_name : ph._displayName
+                ElMessage.info(`简历「${name}」已更新`)
+                // 重名记录移到列表最上面
+                const existIdx = resumeStore.resumes.findIndex(r => r.id === match.id)
+                if (existIdx !== -1) {
+                  const [existing] = resumeStore.resumes.splice(existIdx, 1)
+                  resumeStore.resumes.unshift({ ...existing, ...match })
+                }
+              } else {
+                // 新记录插入列表最上面
+                const inStore = resumeStore.resumes.some(r => r.id === match.id)
+                if (!inStore) {
+                  resumeStore.resumes.unshift(match)
+                  totalCount.value++
+                }
+              }
+            } else {
+              stillPending.push(ph)
+            }
+          }
+          batchImportPlaceholders.value = stillPending
+        }
+
         if (!list.some(r => isAnalyzing(r.status))) {
+          // 所有记录解析完毕，清理遗留的占位行（无效文件不会生成记录）
+          if (batchImportPlaceholders.value.length > 0) {
+            ElMessage.warning(`${batchImportPlaceholders.value.length} 份文件不是有效简历，已自动忽略`)
+            batchImportPlaceholders.value = []
+          }
           stopPolling()
           showProcessingBanner.value = false
           if (hadAnalyzing) {
-            if (lastImportCount.value > 0) {
-              const actualIncrease = list.length - lastPreImportCount.value
-              const rejectedCount = lastImportCount.value - actualIncrease
-              lastImportCount.value = 0
-              lastPreImportCount.value = 0
-              if (rejectedCount > 0) {
-                ElMessage.warning(`${rejectedCount} 份文件不是有效简历，已自动忽略`)
-              }
-            }
             ElMessage.success('简历解析完成')
           }
         }
@@ -683,9 +740,9 @@ const batchDialogVisible = ref(false)
 const cacheUploading = ref(false)
 const cachedCount = ref(0)
 const batchFileInputRef = ref(null)
-// 批量导入完成后的追踪（用于检测非简历文件）
-const lastImportCount = ref(0)
-const lastPreImportCount = ref(0)
+// 批量导入完成后的追踪（占位行 + 重名检测）
+const batchImportPlaceholders = ref([])
+const preImportIds = ref(new Set())
 // batchFiles 存储从 IndexedDB 读取的文件元数据 { id, name, size, cachedAt }
 const batchFiles = ref([])
 // IndexedDB 缓存文件进度
@@ -803,14 +860,28 @@ const uploadCachedFiles = async () => {
   cacheUploading.value = true
   try {
     const files = items.map(item => new File([item.blob], item.name, { type: item.type }))
-    // 记录上传前的简历总数，用于后续检测非简历文件
-    lastPreImportCount.value = totalCount.value
+    // 记录导入前的简历 ID，用于后续检测重名
+    preImportIds.value = new Set(resumeStore.resumes.map(r => r.id))
+
     const result = await resumeApi.batchImportLocal(files)
 
     if (result && result.imported > 0) {
-      lastImportCount.value = result.imported
+      // 创建占位行：在列表显示假行，简历为未知待解析状态
+      const fileNames = items.map(item => item.name)
+      batchImportPlaceholders.value = fileNames.map((name, i) => ({
+        id: `placeholder-${Date.now()}-${i}`,
+        _placeholder: true,
+        _originalFileName: name,
+        _displayName: name.replace(/\.[^.]+$/, '') || name,
+        candidate_name: name.replace(/\.[^.]+$/, '') || '待解析',
+        file_type: (name.split('.').pop() || '').toLowerCase(),
+        status: 'pending_upload',
+        review_status: null,
+        updated_at: new Date().toISOString().slice(0, 19).replace('T', ' ')
+      }))
+      // 跳转到第 1 页并刷新列表
+      currentPage.value = 1
       ElMessage.success(`已上传 ${result.imported} 份简历`)
-      // 立即获取最新列表并强制轮询（后台尚未创建记录）
       await fetchResumes()
       checkAndStartPolling(true)
     } else {
@@ -1677,6 +1748,15 @@ const onPreviewClose = () => {
   font-size: 11px;
   font-weight: 600;
   line-height: 18px;
+}
+
+/* 批量导入占位列样式 */
+.list-row-placeholder {
+  border-bottom: 1px dashed #DEE0E3 !important;
+  background-color: #FAFBFC;
+}
+.list-row-placeholder:hover {
+  background-color: #F0F2F5 !important;
 }
 
 </style>

@@ -1093,6 +1093,10 @@ watch(viewMode, (mode) => {
   }
 })
 
+const revokeFileUrl = () => {
+  // fileUrl 为后端代理 URL，无需 revokeObjectURL，该函数仅用于安全兼容
+}
+
 onMounted(() => fetchResumes())
 onUnmounted(() => revokeFileUrl())
 </script>

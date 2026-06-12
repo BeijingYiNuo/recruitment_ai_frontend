@@ -129,24 +129,17 @@ const router = createRouter({
   routes
 })
 
-//路由守卫
-router.beforeEach((to, from, next) => {
+// 路由守卫（Vue Router 4.x：直接 return 目标路径，不要调用 next()）
+router.beforeEach((to, from) => {
   const isAuth = isAuthenticated()
 
   // 已登录状态下访问 首页、登录、注册 页面，直接跳转到控制台
   if (isAuth && ['home', 'login', 'register'].includes(to.name)) {
-    next({ path: '/dashboard' })
-    return
+    return { path: '/dashboard' }
   }
 
-  if (to.matched.some(record => record.meta.requiresAuth)) {
-    if (!isAuth) {
-      next({ name: 'login' })
-    } else {
-      next()
-    }
-  } else {
-    next()
+  if (to.matched.some(record => record.meta.requiresAuth) && !isAuth) {
+    return { name: 'login' }
   }
 })
 
