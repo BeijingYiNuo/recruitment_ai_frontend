@@ -796,11 +796,6 @@ const uploadCachedFiles = async () => {
     if (result && result.imported > 0) {
       lastImportCount.value = result.imported
       ElMessage.success(`已上传 ${result.imported} 份简历`)
-      // 上传成功：清除暂存区
-      await fileCacheDB.clearAll()
-      batchFiles.value = []
-      cachedCount.value = 0
-      batchDialogVisible.value = false
       // 立即获取最新列表并强制轮询（后台尚未创建记录）
       await fetchResumes()
       checkAndStartPolling(true)
@@ -811,6 +806,11 @@ const uploadCachedFiles = async () => {
     const msg = error?.detail || error?.message || error?.error || '未知错误'
     ElMessage.error('批量上传失败: ' + (typeof msg === 'string' ? msg : JSON.stringify(msg)))
   } finally {
+    // 无论成功或失败都清除缓存，避免遗留文件导致下次超出数量限制
+    await fileCacheDB.clearAll()
+    batchFiles.value = []
+    cachedCount.value = 0
+    batchDialogVisible.value = false
     cacheUploading.value = false
   }
 }

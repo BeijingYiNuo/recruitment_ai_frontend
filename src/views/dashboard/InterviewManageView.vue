@@ -92,18 +92,18 @@
                 @command="(val) => handleStatusChange(item, val)"
                 trigger="click"
               >
-                <span class="lark-tag pointer" :class="'tag-' + getStatusType(item.status)">
-                  {{ getStatusLabel(item.status) }}
+                <span class="lark-tag pointer" :class="'tag-' + getDisplayStatusType(item)">
+                  {{ getDisplayStatusLabel(item) }}
                   <el-icon class="el-icon--right"><ArrowDown /></el-icon>
                 </span>
                 <template #dropdown>
                   <el-dropdown-menu>
-                    <el-dropdown-item command="scheduled" :disabled="item.status === 'scheduled'">已预约</el-dropdown-item>
-                    <el-dropdown-item command="ongoing" :disabled="item.status === 'ongoing'">进行中</el-dropdown-item>
-                    <el-dropdown-item command="passed" divided :disabled="item.status === 'passed'">已通过</el-dropdown-item>
+                    <el-dropdown-item command="passed" :disabled="item.status === 'passed'">已通过</el-dropdown-item>
                     <el-dropdown-item command="failed" :disabled="item.status === 'failed'">不通过</el-dropdown-item>
-                    <el-dropdown-item command="pending" :disabled="item.status === 'pending'">待定</el-dropdown-item>
-                    <el-dropdown-item command="cancelled" divided :disabled="item.status === 'cancelled'">已取消</el-dropdown-item>
+                    <el-dropdown-item command="pending" divided :disabled="item.status === 'pending'">待定</el-dropdown-item>
+                    <el-dropdown-item command="scheduled" divided :disabled="item.status === 'scheduled'">已预约</el-dropdown-item>
+                    <el-dropdown-item command="ongoing" :disabled="item.status === 'ongoing'">进行中</el-dropdown-item>
+                    <el-dropdown-item command="cancelled" :disabled="item.status === 'cancelled'">已取消</el-dropdown-item>
                   </el-dropdown-menu>
                 </template>
               </el-dropdown>
@@ -121,7 +121,7 @@
                 <template v-for="(rd, rIdx) in visibleRounds(item.id)" :key="rd.id">
                   <div
                     class="round-node"
-                    :class="'round-' + rd.status"
+                    :class="'round-' + roundDisplayStatus(item, rd)"
                     @click.stop="handleRoundClick(item, rd)"
                   >
                     <div class="round-dot"></div>
@@ -270,6 +270,7 @@
           <el-radio-group v-model="evaluationForm.status">
             <el-radio value="pass">通过</el-radio>
             <el-radio value="fail">未通过</el-radio>
+            <el-radio value="pending_review">待定</el-radio>
             <el-radio value="skip">跳过</el-radio>
           </el-radio-group>
         </el-form-item>
@@ -409,6 +410,33 @@ const submitEvaluation = async () => {
         rounds[idx] = updated
         currentRound.value = { ...updated }
       }
+      // 最后一个轮次更新时同步计划状态
+      if (idx === rounds.length - 1) {
+        const planStatusMap = {
+          'pass': 'passed',
+          'fail': 'failed',
+          'pending_review': 'pending'
+        }
+        const planStatus = planStatusMap[evaluationForm.status]
+        if (planStatus && currentSessionForRound.value.status !== planStatus) {
+          await interviewApi.updateReserveSession(currentSessionForRound.value.id, { status: planStatus })
+        }
+      }
+
+      // 中间轮次不通过 → 后续轮次跳过 + 计划状态同步
+      if (evaluationForm.status === 'fail' && idx < rounds.length - 1) {
+        for (let i = idx + 1; i < rounds.length; i++) {
+          if (rounds[i].status === 'pending') {
+            const updatedRound = await interviewApi.updateSessionRound(
+              currentSessionForRound.value.id, rounds[i].id, { status: 'skip' }
+            )
+            rounds[i] = updatedRound
+          }
+        }
+        if (currentSessionForRound.value.status !== 'failed') {
+          await interviewApi.updateReserveSession(currentSessionForRound.value.id, { status: 'failed' })
+        }
+      }
     }
     ElMessage.success('评估提交成功！')
     evaluationDialogVisible.value = false
@@ -448,6 +476,35 @@ const getStatusType = (status) => {
   return map[status] || 'info'
 }
 
+// 列表行展示：'已完成' 按最后一个轮次结果显示
+const getDisplayStatusLabel = (session) => {
+  if (session.status === 'completed') {
+    const rounds = roundsMap[session.id]
+    if (rounds && rounds.length > 0) {
+      return roundStatusLabel(rounds[rounds.length - 1].status)
+    }
+  }
+  return getStatusLabel(session.status)
+}
+
+const getDisplayStatusType = (session) => {
+  if (session.status === 'completed') {
+    const rounds = roundsMap[session.id]
+    if (rounds && rounds.length > 0) {
+      const typeMap = {
+        'pending': 'info',
+        'pass': 'success',
+        'fail': 'danger',
+        'pending_review': 'warning',
+        'skip': 'info',
+        'completed': 'info'
+      }
+      return typeMap[rounds[rounds.length - 1].status] || 'info'
+    }
+  }
+  return getStatusType(session.status)
+}
+
 // 轮次相关函数
 const roundTypeLabel = (type) => {
   const map = {
@@ -466,10 +523,28 @@ const roundStatusLabel = (status) => {
     'pending': '待面试',
     'pass': '通过',
     'fail': '未通过',
+    'pending_review': '待定',
     'skip': '已跳过',
     'completed': '已完成'
   }
   return map[status] || status
+}
+
+// 单节点流程：节点颜色按计划状态显示，多节点则显示轮次实际状态
+const roundDisplayStatus = (session, round) => {
+  const rounds = roundsMap[session.id]
+  if (rounds && rounds.length === 1) {
+    const map = {
+      'passed': 'pass',
+      'failed': 'fail',
+      'pending': 'pending_review',
+      'scheduled': 'pending',
+      'ongoing': 'pending',
+      'cancelled': 'skip'
+    }
+    return map[session.status] || round.status
+  }
+  return round.status
 }
 
 const handleRoundClick = (session, round) => {
@@ -480,6 +555,8 @@ const handleRoundClick = (session, round) => {
 
 const canStartCurrentRound = () => {
   if (!currentRound.value || !currentSessionForRound.value) return false
+  // 只有计划状态为"已预约"时才能开始面试
+  if (currentSessionForRound.value.status !== 'scheduled') return false
   if (currentRound.value.status !== 'pending') return false
 
   const rounds = roundsMap[currentSessionForRound.value.id]
@@ -824,7 +901,24 @@ const handleCancel = (item) => {
 const handleStatusChange = async (item, newStatus) => {
   if (item.status === newStatus) return
   try {
+    // 先更新计划状态
     await interviewApi.updateReserveSession(item.id, { status: newStatus })
+
+    // 同步最后一个轮次状态，保持与计划状态一致
+    const rounds = roundsMap[item.id]
+    if (rounds && rounds.length > 0) {
+      const roundStatusMap = {
+        'passed': 'pass',
+        'failed': 'fail',
+        'pending': 'pending_review'
+      }
+      const roundStatus = roundStatusMap[newStatus]
+      if (roundStatus) {
+        const lastRound = rounds[rounds.length - 1]
+        await interviewApi.updateSessionRound(item.id, lastRound.id, { status: roundStatus })
+      }
+    }
+
     ElMessage.success('状态已更新')
     fetchInterviews()
   } catch (err) {
@@ -1136,6 +1230,8 @@ const handleSyncRounds = async (sessionId) => {
 .round-pass .round-label { color: #13A248; }
 .round-fail .round-dot { background: #F53F3F; }
 .round-fail .round-label { color: #F53F3F; }
+.round-pending_review .round-dot { background: #FF8800; }
+.round-pending_review .round-label { color: #FF8800; }
 .round-skip .round-dot { background: #8F959E; }
 .round-skip .round-label { color: #8F959E; }
 
@@ -1162,6 +1258,7 @@ const handleSyncRounds = async (sessionId) => {
 .round-tag-pending { background: #F0F1F5; color: #646A73; }
 .round-tag-pass { background: #E4F7EB; color: #13A248; }
 .round-tag-fail { background: #FFE4E2; color: #F53F3F; }
+.round-tag-pending_review { background: #FFF4E5; color: #FF8800; }
 .round-tag-skip { background: #F0F1F5; color: #8F959E; }
 
 /* 标签域 (浅色背景 + 深色文字) */
