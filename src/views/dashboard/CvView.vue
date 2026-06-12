@@ -493,21 +493,29 @@ const checkAndStartPolling = (force = false) => {
     showProcessingBanner.value = true
     if (statusPolling) return
     statusPolling = setInterval(async () => {
-      // 如果上一次请求还没回来，跳过本轮，避免请求堆积
       if (pollingPending.value) return
       pollingPending.value = true
       try {
-        const data = await resumeApi.getResumes(0, 100)
+        const data = await resumeApi.getResumes(0, 999)
         let list = Array.isArray(data) ? data : (data.items || data.data || [])
         const hadAnalyzing = resumeStore.resumes.some(r => isAnalyzing(r.status))
-        resumeStore.setResumes(list)
 
-        // 如果全部解析完毕，停止轮询
+        // 只更新已有记录的状态，不替换分页列表（避免轮询冲掉分页）
+        const statusMap = {}
+        for (const item of list) {
+          statusMap[item.id] = item.status
+        }
+        resumeStore.setResumes(
+          resumeStore.resumes.map(r => ({
+            ...r,
+            status: statusMap[r.id] || r.status
+          }))
+        )
+
         if (!list.some(r => isAnalyzing(r.status))) {
           stopPolling()
           showProcessingBanner.value = false
           if (hadAnalyzing) {
-            // 检测非简历文件：上传数量 - 实际新增数量 = 被拒绝的文件数
             if (lastImportCount.value > 0) {
               const actualIncrease = list.length - lastPreImportCount.value
               const rejectedCount = lastImportCount.value - actualIncrease
