@@ -617,8 +617,8 @@ async function fetchResumes() {
     await loadCurrent()
     fetchTabCounts()
 
-    // 后台预热简历缓存（服务器磁盘）
-    resumeApi.precacheResumes().catch(() => {})
+    // 后台预热简历缓存（3Mbps带宽下会占满，已注释）
+    // resumeApi.precacheResumes().catch(() => {})
   } catch (e) {
     ElMessage.error('获取简历列表失败')
   } finally {
