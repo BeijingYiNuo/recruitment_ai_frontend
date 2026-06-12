@@ -477,6 +477,7 @@ const totalCount = ref(0)
 // List retrieval
 let statusPolling = null
 const showProcessingBanner = ref(false)
+const pollingPending = ref(false)
 
 const stopPolling = () => {
   if (statusPolling) {
@@ -492,6 +493,9 @@ const checkAndStartPolling = (force = false) => {
     showProcessingBanner.value = true
     if (statusPolling) return
     statusPolling = setInterval(async () => {
+      // 如果上一次请求还没回来，跳过本轮，避免请求堆积
+      if (pollingPending.value) return
+      pollingPending.value = true
       try {
         const data = await resumeApi.getResumes(0, 100)
         let list = Array.isArray(data) ? data : (data.items || data.data || [])
@@ -518,6 +522,8 @@ const checkAndStartPolling = (force = false) => {
         }
       } catch (error) {
         console.error('状态轮询失败:', error)
+      } finally {
+        pollingPending.value = false
       }
     }, 3000)
   } else {
@@ -556,15 +562,15 @@ const handlePageChange = (page) => {
 const isAnalyzing = (status) => {
   if (!status) return false
   const s = status.toLowerCase()
-  return s === 'uploaded' || s === 'analyzing' || s === 'parsing'
+  return s === 'uploaded' || s === 'processed' || s === 'analyzing' || s === 'parsing' || s === 'pending_upload'
 }
 
 const getStatusLabel = (status) => {
   if (!status) return '未知状态'
   const s = status.toLowerCase()
   if (s === 'analyzed' || s === 'success' || s === 'completed') return '解析成功'
-  if (s === 'uploaded' || s === 'analyzing' || s === 'parsing') return '解析中...'
-  if (s === 'failed' || s === 'error') return '解析失败'
+  if (s === 'uploaded' || s === 'processed' || s === 'analyzing' || s === 'parsing' || s === 'pending_upload') return '解析中...'
+  if (s === 'failed_analysis' || s === 'failed' || s === 'error') return '解析失败'
   return status
 }
 
