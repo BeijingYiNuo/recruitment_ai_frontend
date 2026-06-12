@@ -57,56 +57,45 @@ const filteredList = computed(() => {
   return kbList.value.filter(kb => kb.name.toLowerCase().includes(q))
 })
 
+// 将原始知识库数据转换为组件所需格式
+const formatCollections = (raw) => {
+  const collections = raw.data ? (Array.isArray(raw.data) ? raw.data : [raw.data])
+    : Array.isArray(raw) ? raw : [raw]
+
+  collections.sort((a, b) => {
+    return new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime()
+  })
+
+  return collections.map(item => ({
+    ...item,
+    id: item.id,
+    name: item.name,
+    description: item.description,
+    status: item.enabled ? '已启用' : '已禁用',
+    docs: 0,
+    segments: 0,
+    appType: item.project || 'default',
+    createTime: (item.created_at || '').replace('T', ' ').split('.')[0],
+    updateTime: (item.updated_at || '').replace('T', ' ').split('.')[0],
+    storage: '0 MB',
+    creator: item.user_id || 'root/5722手机用户',
+    enabled: item.enabled,
+  }))
+}
+
 // 加载知识库列表
 const loadKnowledgeBaseList = async () => {
   try {
     loading.value = true
-    const response = await knowledgeStore.getCachedCollections(async () => {
-      return await knowledgeApi.getCollections()
+    await knowledgeStore.getCachedCollections(async () => {
+      const response = await knowledgeApi.getCollections()
+      kbList.value = formatCollections(response)
+      return kbList.value
     })
-    let collections: any[] = []
-
-    if (response) {
-      if (response.data) {
-        collections = Array.isArray(response.data) ? response.data : [response.data]
-      } else if (Array.isArray(response)) {
-        collections = response
-      } else {
-        collections = [response]
-      }
+    // 缓存命中时从 store 恢复
+    if (kbList.value.length === 0 && knowledgeStore.collections.length > 0) {
+      kbList.value = knowledgeStore.collections
     }
-
-    // 按更新时间降序排列，最新的在最上面
-    collections.sort((a: any, b: any) => {
-      const timeA = new Date(a.updated_at || 0).getTime()
-      const timeB = new Date(b.updated_at || 0).getTime()
-      return timeB - timeA
-    })
-
-    // 映射数据到组件需要的格式
-    kbList.value = collections.map(item => {
-      // 格式化日期：将 '2026-04-10T18:07:09' 转换为 '2026-04-10 18:07:09'
-      const formatDate = (dateStr: string) => {
-        if (!dateStr) return '';
-        return dateStr.replace('T', ' ').split('.')[0];
-      };
-
-      return {
-        ...item,
-        id: item.id,
-        name: item.name,
-        description: item.description,
-        status: item.enabled ? '已启用' : '已禁用',
-        docs: 0, 
-        segments: 0, 
-        appType: item.project || 'default',
-        createTime: formatDate(item.created_at) || '2026-04-08 09:26:00',
-        updateTime: formatDate(item.updated_at),
-        storage: '0 MB', 
-        creator: item.user_id || 'root/5722手机用户',
-        enabled: item.enabled,
-      };
-    })
   } catch (error) {
     console.error('加载知识库列表失败:', error)
     ElMessage.error('加载知识库列表失败')

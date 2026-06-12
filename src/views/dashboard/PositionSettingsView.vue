@@ -361,17 +361,15 @@ const loadPositions = async () => {
     const skip = (currentPage.value - 1) * pageSize.value
     const params = { skip, limit: pageSize.value }
     if (searchKeyword.value) params.keyword = searchKeyword.value
-    const result = await positionStore.getCachedPositions(async () => {
+    await positionStore.getCachedPositions(async () => {
       const res = await positionApi.list(params)
       const list = Array.isArray(res) ? res : res?.items || res?.data || []
       const total = res.total || list.length
-      positions.value = list
-      totalCount.value = total
       return { items: list, total }
     })
-    if (result && result.total !== undefined) {
-      totalCount.value = result.total
-    }
+    // 从 store 同步到本地 ref（支持缓存命中）
+    positions.value = positionStore.positions
+    totalCount.value = positionStore.totalCount
   } catch (e) {
     console.error('加载岗位列表失败:', e)
     ElMessage.error('加载岗位列表失败')
