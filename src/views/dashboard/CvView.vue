@@ -525,7 +525,7 @@ const checkAndStartPolling = (force = false) => {
       } finally {
         pollingPending.value = false
       }
-    }, 3000)
+    }, 10000)
   } else {
     showProcessingBanner.value = false
     if (statusPolling) stopPolling()

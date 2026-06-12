@@ -587,31 +587,6 @@ async function fetchResumes() {
     const list = Array.isArray(res) ? res : (res?.items || res?.data || [])
     totalCount.value = res.total || list.length
 
-    // Load parsed summaries for list mode (batch: first page resumes)
-    const summaryMap = {}
-    await Promise.all(list.slice(0, 20).map(async (r) => {
-      try {
-        const [educations, workExperiences, skills] = await Promise.all([
-          resumeApi.getResumeEducations(r.id).catch(() => null),
-          resumeApi.getResumeWorkExperiences(r.id).catch(() => null),
-          resumeApi.getResumeSkills(r.id).catch(() => null),
-        ])
-        const eduList = Array.isArray(educations) ? educations : (educations?.data || [])
-        const workList = Array.isArray(workExperiences) ? workExperiences : (workExperiences?.data || [])
-        const skillList = Array.isArray(skills) ? skills : (skills?.data || [])
-        summaryMap[r.id] = {
-          education: eduList.map(e => e.school_name),
-          workExperience: workList.map(w => `${w.company_name} ${w.position}`),
-          skills: skillList.map(s => s.skill_name),
-        }
-      } catch (_) { /* ignore */ }
-    }))
-    list.forEach(r => {
-      if (summaryMap[r.id]) {
-        r.summary = summaryMap[r.id]
-      }
-    })
-
     resumes.value = list
     currentIndex.value = 0
     await loadCurrent()
