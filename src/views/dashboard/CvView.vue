@@ -622,11 +622,13 @@ const fetchResumes = async () => {
 
 const handleSearch = () => {
   currentPage.value = 1
+  resumeStore.invalidateCache()
   fetchResumes()
 }
 
 const handlePageChange = (page) => {
   currentPage.value = page
+  resumeStore.invalidateCache()
   fetchResumes()
 }
 
