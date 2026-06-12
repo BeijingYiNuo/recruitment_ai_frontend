@@ -127,7 +127,7 @@
           <!-- 分页 -->
           <div class="pagination-wrapper" v-if="totalCount > 0" style="padding: 16px 24px; display: flex; justify-content: flex-end; border-top: 1px solid #DEE0E3;">
             <el-pagination
-              v-model:current-page="currentPage"
+              :current-page="currentPage"
               v-model:page-size="pageSize"
               :total="totalCount"
               layout="total, prev, pager, next"
