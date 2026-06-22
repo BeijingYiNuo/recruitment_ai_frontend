@@ -211,24 +211,21 @@ function formatDate(d) {
 async function fetchStats() {
   statsLoading.value = true
   try {
-    // Parallel fetch all data
-    const [allResumes, pendingResumes, pendingDecResumes, sessions] = await Promise.all([
-      resumeApi.getResumes(0, 1000).catch(() => null),
-      resumeApi.getResumes(0, 1000, 'null').catch(() => null),
-      resumeApi.getResumes(0, 1000, 'PENDING').catch(() => null),
+    // 合并为两个并行请求：一次获取全部简历，一次获取面试列表
+    const [resumesResult, sessions] = await Promise.all([
+      resumeApi.getResumes(0, 10000).catch(() => null),
       interviewApi.getUserInterviewSessions({}).catch(() => null),
     ])
 
-    const allList = Array.isArray(allResumes) ? allResumes : (allResumes?.items || [])
-    const pendingList = Array.isArray(pendingResumes) ? pendingResumes : (pendingResumes?.items || [])
-    const pendingDecList = Array.isArray(pendingDecResumes) ? pendingDecResumes : (pendingDecResumes?.items || [])
+    const allList = Array.isArray(resumesResult) ? resumesResult : (resumesResult?.items || [])
     const sessionList = Array.isArray(sessions) ? sessions : (sessions?.items || [])
 
+    // 客户端侧按 review_status 分类统计
     stats.totalResumes = allList.length
-    stats.pendingReview = pendingList.length
-    stats.pendingDecision = pendingDecList.length
+    stats.pendingReview = allList.filter(r => !r.review_status || r.review_status === '').length
+    stats.pendingDecision = allList.filter(r => r.review_status === 'PENDING').length
 
-    // Count interview stats
+    // 统计面试数据
     const now = new Date()
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
     const todayEnd = new Date(todayStart.getTime() + 86400000)

@@ -690,7 +690,25 @@ const fetchPositionsSilent = async () => {
 }
 
 onMounted(async () => {
-  fetchInterviews()
+  const hasHighlight = !!route.query.highlight
+
+  if (hasHighlight) {
+    // 从首页点击跳转时，先加载所有数据找到目标项所在页码
+    const savedPageSize = pageSize.value
+    pageSize.value = 9999
+    await fetchInterviews()
+
+    const idx = interviewStore.interviews.findIndex(i => i.id === Number(route.query.highlight))
+    if (idx !== -1) {
+      currentPage.value = Math.floor(idx / savedPageSize) + 1
+    }
+    // 恢复分页并重新加载目标页
+    pageSize.value = savedPageSize
+    await fetchInterviews()
+  } else {
+    fetchInterviews()
+  }
+
   fetchResumesSilent()
   fetchKnowledgeBasesSilent()
   fetchPositionsSilent()
@@ -706,7 +724,7 @@ onMounted(async () => {
   }
 
   // 从首页点击跳转时，高亮对应行
-  if (route.query.highlight) {
+  if (hasHighlight) {
     highlightId.value = Number(route.query.highlight)
     await nextTick()
     await nextTick() // 确保列表已渲染
