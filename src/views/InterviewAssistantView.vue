@@ -5,6 +5,7 @@
       :stageInfo="stageInfo"
       :isAsrActive="isAsrActive"
       :isPaused="isPaused"
+      :isSysAudioActive="isSysAudioActive"
       @goBack="goBack"
       @startAsr="onStartAsr"
       @stopAsr="onStopAsr"
@@ -13,9 +14,9 @@
       @manualFollowUp="onManualFollowUp"
       @endInterview="onEndInterview"
       @stageChange="onStageChange"
+      @toggleSysAudio="toggleSysAudio"
       :manualAnalysisLoading="manualAnalysisLoading"
     />
-
 
     <div class="page-content">
       <section class="left-column">
@@ -81,11 +82,15 @@ const sessionId = route.params.sessionId as string
 const roundId = route.params.roundId as string
 const isAsrActive = ref(false)
 const isPaused = ref(false)
+const isSysAudioActive = ref(false) // 系统音频共享状态
 let socket: WebSocket | null = null
 let mediaStream: MediaStream | null = null
+let sysStream: MediaStream | null = null  // 腾讯会议等系统音频（getDisplayMedia）
 let audioContext: any = null
 let processor: ScriptProcessorNode | null = null
 let gainNode: GainNode | null = null
+let mixerDest: MediaStreamAudioDestinationNode | null = null  // 混音目标
+let sysAudioSourceNode: AudioNode | null = null  // 系统音频源节点（动态连接/断开）
 let audioDataQueue: number[] = [] // 音频样本队列，用于缓冲并对齐 480 采样点 (30ms)
 let frameCount = 0 // 音频帧发送计数器
 let timerInterval: any = null
@@ -210,28 +215,47 @@ const startAudioCapture = async () => {
   // 采样率 16000 Hz
   audioContext = new AudioCtx({ sampleRate: 16000 })
   console.log('[Audio Debug] AudioContext created with SampleRate:', audioContext.sampleRate)
-  const source = audioContext.createMediaStreamSource(mediaStream)
 
-  // 参数：缓冲大小 1024，输入通道数 1，输出通道数 1
-  processor = audioContext.createScriptProcessor(1024, 1, 1)
+  // ---- 混合麦克风 + 系统音频（腾讯会议中候选人声音）到一路 MediaStream ----
+  mixerDest = audioContext.createMediaStreamDestination()
+
+  // 连接麦克风（面试官声音）
+  const micSource = audioContext.createMediaStreamSource(mediaStream)
+  micSource.connect(mixerDest)
+
+  // 如果已提前通过 toggleSysAudio 开启了系统音频，直接接入混音
+  if (sysStream && sysStream.getAudioTracks().length > 0) {
+    sysAudioSourceNode = audioContext.createMediaStreamSource(sysStream)
+    sysAudioSourceNode.connect(mixerDest)
+    console.log('[Audio] ✅ 系统音频已加入混音（双路采集）')
+  } else {
+    console.log('[Audio] ℹ️ 仅麦克风单路采集')
+  }
+
+  // 读取混音后的流
+  const mixedSource = audioContext.createMediaStreamSource(mixerDest.stream)
+
+  // 参数：缓冲大小 1024，输入通道数 2（兼容双路混音），输出通道数 1
+  processor = audioContext.createScriptProcessor(1024, 2, 1)
 
   // 避免输出的声音回声，静音处理
   gainNode = audioContext.createGain()
   gainNode.gain.value = 0
 
   processor.onaudioprocess = (e: any) => {
-    // 1. 获取单声道数据 (Float32Array)
-    const inputData = e.inputBuffer.getChannelData(0)
+    // 取两路通道并混为单声道
+    const ch0 = e.inputBuffer.getChannelData(0)
+    const ch1 = e.inputBuffer.getChannelData(1)
 
-    // 2. 将新样本推入队列
-    for (let i = 0; i < inputData.length; i++) {
-      audioDataQueue.push(inputData[i])
+    // 2ch → 单声道求和: mic(可能ch0+ch1) + sys(可能ch0+ch1)
+    for (let i = 0; i < ch0.length; i++) {
+      audioDataQueue.push(ch0[i] + ch1[i])
     }
 
-    // 3. 当队列中的样本数超过 480 (30ms@16kHz) 时，切片并发送
+    // 当队列中的样本数超过 480 (30ms@16kHz) 时，切片并发送
     while (audioDataQueue.length >= 480) {
       const slice = audioDataQueue.splice(0, 480)
-      
+
       if (isPaused.value) {
         continue
       }
@@ -257,7 +281,7 @@ const startAudioCapture = async () => {
     }
   }
 
-  source.connect(processor)
+  mixedSource.connect(processor)
   processor.connect(gainNode)
   gainNode.connect(audioContext.destination)
 }
@@ -272,6 +296,8 @@ const stopAudioCapture = () => {
     processor = null
     gainNode = null
     audioContext = null
+    mixerDest = null
+    sysAudioSourceNode = null
   }
 }
 
@@ -360,6 +386,109 @@ const requestMicPermission = async (): Promise<boolean> => {
   }
 }
 
+// ========== 系统音频采集（getDisplayMedia 采集腾讯会议等桌面应用的声音）==========
+const requestSystemAudio = async (): Promise<boolean> => {
+  if (!navigator.mediaDevices.getDisplayMedia) {
+    ElMessage.info('当前浏览器不支持系统音频采集，候选人声音将仅从麦克风拾取。推荐使用 Chrome/Edge')
+    return false
+  }
+
+  try {
+    // 弹出使用说明，引导用户选择窗口而非"整个屏幕"
+    await ElMessageBox.alert(
+      '请在弹出对话框中选择共享窗口或共享屏幕。\n\n' +
+      '这样只会采集候选人的声音，避免背景音乐等杂音干扰识别。',
+      '系统音频采集说明',
+      {
+        confirmButtonText: '知道了',
+        type: 'info',
+        dangerouslyUseHTMLString: false,
+      }
+    )
+
+    // getDisplayMedia 只采音频，不录屏
+    // 某些浏览器不支持 video:false，先尝试纯音频，失败后回退到最小 video 约束
+    let stream: MediaStream
+    try {
+      stream = await navigator.mediaDevices.getDisplayMedia({
+        video: false,
+        audio: {
+          suppressLocalAudioPlayback: false, // 不要过滤本地播放音（避免腾讯会议声音被消除）
+          echoCancellation: false,
+          noiseSuppression: false,
+        },
+      })
+    } catch (firstErr: any) {
+      // 部分浏览器不支持 video:false，回退为最小 1x1 视频（仍不录屏）
+      console.warn('getDisplayMedia({video:false}) 失败，尝试最小视频约束:', firstErr.message)
+      stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { width: 1, height: 1 },
+        audio: {
+          suppressLocalAudioPlayback: false,
+          echoCancellation: false,
+          noiseSuppression: false,
+        },
+      })
+    }
+
+    sysStream = stream
+
+    // 监听用户中途关闭共享 → 自动降级为仅麦克风
+    const audioTrack = stream.getAudioTracks()[0]
+    if (audioTrack) {
+      audioTrack.onended = () => {
+        ElMessage.warning('系统音频共享已中断，候选人声音将仅从麦克风拾取')
+        sysStream = null
+      }
+    }
+
+    ElMessage.success('系统音频采集已开启（仅采集所选窗口的声音）')
+    return true
+  } catch (err: any) {
+    if (err.name === 'NotAllowedError' || err.name === 'AbortError') {
+      // 用户点了"取消"或关闭对话框
+      ElMessage.info('已跳过系统音频采集，仅使用麦克风')
+    } else if (err.name === 'NotSupportedError' || err.name === 'NotFoundError') {
+      // 浏览器本身不支持（Safari / Firefox）或设备不可用
+      ElMessage.warning('当前浏览器不支持系统音频采集，候选人声音将仅通过麦克风拾取。推荐使用 Chrome')
+    } else {
+      console.error('System audio capture error:', err)
+      ElMessage.warning(`系统音频采集失败，将仅使用麦克风`)
+    }
+    return false
+  }
+}
+
+// ========== 手动开关系统音频共享（独立于 ASR 启停，可随时操作）==========
+const toggleSysAudio = async () => {
+  if (isSysAudioActive.value) {
+    // 停止共享
+    if (sysAudioSourceNode && audioContext) {
+      try { sysAudioSourceNode.disconnect() } catch {}
+      sysAudioSourceNode = null
+    }
+    if (sysStream) {
+      sysStream.getTracks().forEach(t => t.stop())
+      sysStream = null
+    }
+    isSysAudioActive.value = false
+    ElMessage.info('系统音频共享已停止')
+  } else {
+    // 开启共享
+    const ok = await requestSystemAudio()
+    if (!ok) return
+
+    isSysAudioActive.value = true
+
+    // 如果音频管道已在运行，动态接入混音
+    if (mixerDest && audioContext && sysStream) {
+      sysAudioSourceNode = audioContext.createMediaStreamSource(sysStream)
+      sysAudioSourceNode.connect(mixerDest)
+      console.log('[Audio] 系统音频已动态接入混音')
+    }
+  }
+}
+
 const fetchInterviewDetails = async () => {
   try {
     const res = await interviewApi.getReserveSession(sessionId)
@@ -410,6 +539,10 @@ onBeforeUnmount(() => {
   if (mediaStream) {
     mediaStream.getTracks().forEach(track => track.stop())
     mediaStream = null
+  }
+  if (sysStream) {
+    sysStream.getTracks().forEach(track => track.stop())
+    sysStream = null
   }
   resumePreviewUrl.value = null
   // 仅在 ASR 会话仍活跃时清理后端
@@ -559,6 +692,9 @@ const onStartAsr = async () => {
     }
 
     // ===== 真实模式 =====
+    // 如需采集腾讯会议中的候选人声音，请先点击页面上方的"共享系统音频"按钮
+    // 然后再启动 ASR。支持在 ASR 运行期间随时开启/关闭。
+
     // 必须先通过 HTTP 调用后端初始化 ASR 服务，否则 WebSocket 会被 1008 拒绝
     try {
       await interviewApi.startASR(sessionId, roundId, {})
@@ -590,6 +726,12 @@ const onStartAsr = async () => {
       console.log(`ASR WebSocket closed | code: ${ev.code} | reason: "${ev.reason}" | wasClean: ${ev.wasClean}`)
       isAsrActive.value = false
       stopAudioCapture()
+      // 连接意外断开时释放系统音频共享，下次重新请求
+      if (sysStream) {
+        sysStream.getTracks().forEach(t => t.stop())
+        sysStream = null
+      }
+      isSysAudioActive.value = false
       interviewInfo.value.status = '等待连接'
       interviewInfo.value.statusColor = '#909399'
     }
@@ -627,6 +769,12 @@ const onStopAsr = async () => {
       mediaStream.getTracks().forEach(track => track.stop())
       mediaStream = null
     }
+    // 释放系统音频轨道（getDisplayMedia 获取的共享流）
+    if (sysStream) {
+      sysStream.getTracks().forEach(track => track.stop())
+      sysStream = null
+    }
+    isSysAudioActive.value = false
     // 通知后端停止 ASR 服务（失败不阻塞前端清理）
     if (!USE_MOCK) {
       interviewApi.stopASR(sessionId, roundId).catch(err => {
@@ -662,6 +810,8 @@ const resumeAsrConnection = async () => {
         return
       }
     }
+
+    // 系统音频共享状态不受断连影响，如有需要请重新点击"共享系统音频"按钮
 
     // 必须在 startASR 之前将旧 socket 的 onclose 置空
     // 因为 startASR 内部会通过 stop_asr 关闭旧 WebSocket，触发 onclose 导致 isAsrActive 被置为 false
@@ -699,6 +849,12 @@ const resumeAsrConnection = async () => {
       console.log(`ASR WebSocket closed | code: ${ev.code} | reason: "${ev.reason}"`)
       isAsrActive.value = false
       stopAudioCapture()
+      // 连接意外断开时释放系统音频共享
+      if (sysStream) {
+        sysStream.getTracks().forEach(t => t.stop())
+        sysStream = null
+      }
+      isSysAudioActive.value = false
       interviewInfo.value.status = '等待连接'
       interviewInfo.value.statusColor = '#909399'
     }

@@ -55,6 +55,15 @@
 
     <div class="actions">
       <el-button size="medium" @click="$emit('goBack')">返回</el-button>
+      <el-button
+        size="small"
+        class="sys-audio-btn"
+        :type="isSysAudioActive ? 'warning' : ''"
+        @click="$emit('toggleSysAudio')"
+        :title="isSysAudioActive ? '点击停止共享系统音频' : '点击共享系统音频（采集腾讯会议中候选人声音）'"
+      >
+        {{ isSysAudioActive ? '系统音频 ●' : '系统音频' }}
+      </el-button>
       <el-button size="medium" type="primary" @click="$emit('startAsr')" :disabled="isAsrActive">开始面试</el-button>
 
       <el-button
@@ -108,12 +117,14 @@ const props = defineProps<{
   isPaused?: boolean
   stageInfo?: StageInfo
   meetingMode?: boolean
+  isSysAudioActive?: boolean
   manualAnalysisLoading?: boolean
 }>()
 
 defineEmits<{
   (e: 'update:meetingMode', val: boolean): void
   (e: 'stageChange', stageKey: string): void
+  (e: 'toggleSysAudio'): void
 }>()
 </script>
 
@@ -179,6 +190,18 @@ defineEmits<{
   background: #ff4d4f;
   border-color: #ff4d4f;
   color: #ffffff;
+}
+
+.sys-audio-btn {
+  color: #667085;
+  border-color: #d0d5dd;
+  font-size: 12px;
+}
+
+.sys-audio-btn.el-button--warning {
+  background: #fffbeb;
+  border-color: #fde68a;
+  color: #d97706;
 }
 
 .meeting-mode-toggle {
