@@ -26,9 +26,10 @@ echo ">>> 停止旧容器..."
 docker stop "$NGINX_CONTAINER" 2>/dev/null || true
 docker rm "$NGINX_CONTAINER" 2>/dev/null || true
 
-echo ">>> 启动新容器（HTTP）..."
+echo ">>> 启动新容器（HTTP 80 + HTTPS 443）..."
 docker run -d --name "$NGINX_CONTAINER" \
-  -p 5173:80 \
+  -p 80:80 \
+  -p 443:443 \
   -v "${FRONTEND_DIR}/dist:/usr/share/nginx/html:ro" \
   -v "${FRONTEND_DIR}/nginx.conf:/etc/nginx/conf.d/default.conf:ro" \
   -v /etc/nginx/ssl:/etc/nginx/ssl:ro \
