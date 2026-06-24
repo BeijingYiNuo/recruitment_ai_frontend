@@ -42,7 +42,7 @@
         </el-menu-item>
         <el-menu-item index="/dashboard/report-generate">
           <el-icon><Notebook /></el-icon>
-          <span>面试报告生成</span>
+          <span>面试报告管理</span>
         </el-menu-item>
         <el-menu-item index="/dashboard/positions">
           <el-icon><Setting /></el-icon>
@@ -160,7 +160,7 @@ const pageTitleMap = {
   '/dashboard/users': '用户管理',
   '/dashboard/knowledge-base': '知识库管理',
   '/dashboard/file-manager': '文件管理',
-  '/dashboard/report-generate': '面试报告生成',
+  '/dashboard/report-generate': '面试报告管理',
   '/dashboard/positions': '岗位设置',
   '/dashboard/resume-review': '简历审核'
 }

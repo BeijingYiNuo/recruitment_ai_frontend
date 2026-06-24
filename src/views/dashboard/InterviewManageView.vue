@@ -969,8 +969,10 @@ const handleStartASR = (item) => {
 }
 
 const handleViewReport = (item) => {
-  // 跳转到报告生成页面，传递 session_id
-  router.push(`/dashboard/report-generate?session_id=${item.id}`)
+  // 跳转到报告生成页面，传递 session_id 和 round_id
+  const rounds = roundsMap[item.id]
+  const roundId = rounds?.[0]?.id
+  router.push(`/dashboard/report-generate?session_id=${item.id}${roundId ? '&round_id=' + roundId : ''}`)
 }
 
 const handleSyncRounds = async (sessionId) => {
