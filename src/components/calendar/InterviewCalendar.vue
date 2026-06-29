@@ -382,7 +382,7 @@ function getEventStyle(evt) {
   const startMin = getMinuteOfDay(evt.scheduled_start_at)
   const endMin = getMinuteOfDay(evt.scheduled_end_at)
   const topPx = ((startMin - startHour * 60) / 60) * hourHeight.value
-  const rawHeight = Math.max(((endMin - startMin) / 60) * hourHeight.value, 8)
+  const rawHeight = Math.max(((endMin - startMin) / 60) * hourHeight.value, 22)
   const gap = 2
   const height = rawHeight - gap
 
@@ -636,7 +636,8 @@ defineExpose({ clearSelection, goToday })
 <style lang="scss" scoped>
 .interview-calendar {
   display: flex;
-  min-height: 600px;
+  height: 100%;
+  min-height: 0;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   font-size: 13px;
   color: #1f2329;
@@ -882,7 +883,8 @@ defineExpose({ clearSelection, goToday })
 
 .cal-grid-scroll {
   flex: 1;
-  overflow-y: visible;
+  min-height: 0;
+  overflow-y: auto;
   overflow-x: hidden;
 
   &::-webkit-scrollbar {

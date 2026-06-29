@@ -1337,6 +1337,34 @@ const onPreviewClose = () => {
 
 <style scoped>
 
+/* 页面铺满视口，无需页面滚动 */
+.feishu-page {
+  height: calc(100vh - 60px);
+  padding: 8px 24px;
+  overflow: hidden;
+}
+
+.card-container {
+  min-height: 0;
+  flex: 1;
+}
+
+.header-area {
+  padding: 10px 24px;
+  flex-shrink: 0;
+}
+
+/* 列表主体内部滚动 */
+.list-body {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.pagination-wrapper {
+  flex-shrink: 0;
+}
+
 .processing-banner {
   display: flex;
   align-items: center;
@@ -1380,9 +1408,6 @@ const onPreviewClose = () => {
   background-color: #F5F7FA;
 }
 
-.list-body {
-  flex: 1;
-}
 
 
 

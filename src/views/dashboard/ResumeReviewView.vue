@@ -6,7 +6,6 @@
         <div class="header-top">
           <div class="title-area">
             <h1>简历审核</h1>
-            <span class="badge">{{ resumes.length }}</span>
           </div>
         </div>
 
@@ -439,7 +438,7 @@
 
 <script setup>
 import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { resumeApi } from '../../api/resume'
 import { positionApi } from '../../api/position'
 import { ElMessage } from 'element-plus'
@@ -450,6 +449,7 @@ import {
 } from '@element-plus/icons-vue'
 
 const router = useRouter()
+const route = useRoute()
 const loading = ref(false)
 const resumes = ref([])
 const currentIndex = ref(0)
@@ -1097,11 +1097,53 @@ const revokeFileUrl = () => {
   // fileUrl 为后端代理 URL，无需 revokeObjectURL，该函数仅用于安全兼容
 }
 
-onMounted(() => fetchResumes())
+onMounted(() => {
+  // 支持从首页跳转带 filter 参数（如 ?filter=PENDING）
+  const filterParam = route.query.filter
+  if (filterParam && ['null', 'PASS', 'PENDING', 'FAIL'].includes(filterParam)) {
+    activeFilter.value = filterParam
+  }
+  fetchResumes()
+})
 onUnmounted(() => revokeFileUrl())
 </script>
 
 <style scoped lang="scss">
+/* 全屏铺满布局 */
+.feishu-page {
+  height: calc(100vh - 60px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.card-container {
+  min-height: 0;
+  flex: 1;
+}
+.header-area {
+  flex-shrink: 0;
+}
+.review-area {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.list-table-wrapper {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.list-body {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+.pagination-wrapper {
+  flex-shrink: 0;
+}
+
 .toolbar {
   display: flex;
   align-items: center;

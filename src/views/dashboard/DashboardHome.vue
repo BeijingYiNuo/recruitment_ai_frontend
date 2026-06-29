@@ -1,39 +1,29 @@
 <template>
   <div class="dashboard-home">
-    <!-- Welcome Card -->
-    <el-card class="welcome-card" shadow="never">
-      <div class="card-content">
-        <div class="welcome-left">
-          <h2>欢迎回来，{{ currentUser?.username || '管理员' }}</h2>
-          <p>{{ todayStr }} · 招聘管理系统</p>
-        </div>
-      </div>
-    </el-card>
-
     <!-- Stats Cards -->
     <div class="stats-grid" v-loading="statsLoading">
-      <div class="stat-card">
+      <div class="stat-card clickable" @click="router.push('/dashboard/cv')">
         <div class="stat-icon total"><el-icon><Document /></el-icon></div>
         <div class="stat-info">
           <span class="stat-value">{{ stats.totalResumes }}</span>
           <span class="stat-label">总体简历数</span>
         </div>
       </div>
-      <div class="stat-card">
+      <div class="stat-card clickable" @click="router.push('/dashboard/resume-review')">
         <div class="stat-icon pending-review"><el-icon><Edit /></el-icon></div>
         <div class="stat-info">
           <span class="stat-value">{{ stats.pendingReview }}</span>
           <span class="stat-label">待审阅简历</span>
         </div>
       </div>
-      <div class="stat-card">
+      <div class="stat-card clickable" @click="router.push('/dashboard/interview-manage')">
         <div class="stat-icon pending-interview"><el-icon><Timer /></el-icon></div>
         <div class="stat-info">
           <span class="stat-value">{{ stats.pendingInterview }}</span>
           <span class="stat-label">待面试人数</span>
         </div>
       </div>
-      <div class="stat-card">
+      <div class="stat-card clickable" @click="router.push('/dashboard/resume-review?filter=PENDING')">
         <div class="stat-icon pending-decision"><el-icon><QuestionFilled /></el-icon></div>
         <div class="stat-info">
           <span class="stat-value">{{ stats.pendingDecision }}</span>
@@ -47,11 +37,11 @@
           <span class="stat-label">今日面试</span>
         </div>
       </div>
-      <div class="stat-card">
+      <div class="stat-card clickable" @click="router.push('/dashboard/positions')">
         <div class="stat-icon completed"><el-icon><CircleCheck /></el-icon></div>
         <div class="stat-info">
-          <span class="stat-value">{{ stats.completedInterviews }}</span>
-          <span class="stat-label">已面试场次</span>
+          <span class="stat-value">{{ stats.totalPositions }}</span>
+          <span class="stat-label">岗位数量</span>
         </div>
       </div>
     </div>
@@ -64,7 +54,7 @@
       </div>
       <div v-loading="calendarLoading" class="calendar-body">
         <el-empty v-if="!calendarLoading && interviewList.length === 0" description="暂无已预约面试安排" style="padding: 40px 0" />
-        <div v-else style="min-height: 600px;">
+        <div v-else class="calendar-grid-wrapper">
           <InterviewCalendar
             :interviews="interviewList"
             :read-only="true"
@@ -101,18 +91,16 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { resumeApi } from '../../api/resume'
 import { interviewApi } from '../../api/interview'
-import { getCurrentUser } from '../../services/authService'
+import { positionApi } from '../../api/position'
 import InterviewCalendar from '../../components/calendar/InterviewCalendar.vue'
 import {
   Document, Edit, Timer, QuestionFilled, Calendar, CircleCheck, CircleClose
 } from '@element-plus/icons-vue'
 
 const router = useRouter()
-const currentUser = ref(getCurrentUser() || { id: 1, username: '管理员' })
 const statsLoading = ref(false)
 const calendarLoading = ref(false)
 const interviewList = ref([])
-const todayStr = ref('')
 
 // 右键菜单状态
 const contextMenuVisible = ref(false)
@@ -197,24 +185,17 @@ const stats = reactive({
   pendingInterview: 0,
   pendingDecision: 0,
   todayInterviews: 0,
-  completedInterviews: 0
+  totalPositions: 0
 })
-
-function formatDate(d) {
-  const dt = d || new Date()
-  const weekdays = ['日', '一', '二', '三', '四', '五', '六']
-  const m = String(dt.getMonth() + 1).padStart(2, '0')
-  const day = String(dt.getDate()).padStart(2, '0')
-  return `${dt.getFullYear()}-${m}-${day} 星期${weekdays[dt.getDay()]}`
-}
 
 async function fetchStats() {
   statsLoading.value = true
   try {
-    // 合并为两个并行请求：一次获取全部简历，一次获取面试列表
-    const [resumesResult, sessions] = await Promise.all([
+    // 合并请求：获取简历、面试列表、岗位列表
+    const [resumesResult, sessions, positions] = await Promise.all([
       resumeApi.getResumes(0, 10000).catch(() => null),
       interviewApi.getUserInterviewSessions({}).catch(() => null),
+      positionApi.list().catch(() => null),
     ])
 
     const allList = Array.isArray(resumesResult) ? resumesResult : (resumesResult?.items || [])
@@ -232,7 +213,6 @@ async function fetchStats() {
 
     let pendingInterview = 0
     let todayCount = 0
-    let completedCount = 0
 
     for (const s of sessionList) {
       if (s.status === 'scheduled') {
@@ -242,14 +222,11 @@ async function fetchStats() {
           todayCount++
         }
       }
-      if (s.status === 'completed' || s.status === 'ongoing') {
-        completedCount++
-      }
     }
 
     stats.pendingInterview = pendingInterview
     stats.todayInterviews = todayCount
-    stats.completedInterviews = completedCount
+    stats.totalPositions = Array.isArray(positions) ? positions.length : (positions?.total || 0)
   } catch (e) {
     console.error('Failed to fetch stats:', e)
   } finally {
@@ -270,7 +247,6 @@ async function fetchInterviewSchedules() {
 }
 
 onMounted(async () => {
-  todayStr.value = formatDate(new Date())
   await Promise.all([fetchStats(), fetchInterviewSchedules()])
   document.addEventListener('click', onDocumentClick)
 })
@@ -283,36 +259,9 @@ onBeforeUnmount(() => {
 <style scoped lang="scss">
 .dashboard-home {
   max-width: 1400px;
-}
-
-.welcome-card {
-  border-radius: 12px;
-  border: 1px solid #dee0e3;
-  margin-bottom: 24px;
-  box-shadow: 0 4px 12px rgba(31, 35, 41, 0.04);
-
-  :deep(.el-card__body) { padding: 0; }
-
-  .card-content {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 24px 28px;
-  }
-
-  .welcome-left {
-    h2 {
-      margin: 0 0 6px 0;
-      font-size: 20px;
-      color: #1f2937;
-      font-weight: 600;
-    }
-    p {
-      margin: 0;
-      font-size: 14px;
-      color: #6b7280;
-    }
-  }
+  height: calc(100vh - 100px);
+  display: flex;
+  flex-direction: column;
 }
 
 /* Stats Grid */
@@ -320,7 +269,8 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
   gap: 16px;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
+  flex-shrink: 0;
 }
 
 .stat-card {
@@ -337,6 +287,12 @@ onBeforeUnmount(() => {
   &:hover {
     transform: translateY(-2px);
     box-shadow: 0 4px 16px rgba(31, 35, 41, 0.08);
+  }
+  &.clickable {
+    cursor: pointer;
+    &:hover {
+      border-color: #3370ff;
+    }
   }
 }
 
@@ -382,15 +338,26 @@ onBeforeUnmount(() => {
   border-radius: 12px;
   border: 1px solid #dee0e3;
   box-shadow: 0 4px 12px rgba(31, 35, 41, 0.04);
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 
-  :deep(.el-card__body) { padding: 0; }
+  :deep(.el-card__body) {
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+  }
 
   .calendar-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 20px 24px;
+    padding: 12px 24px;
     border-bottom: 1px solid #dee0e3;
+    flex-shrink: 0;
 
     h3 {
       margin: 0;
@@ -407,7 +374,15 @@ onBeforeUnmount(() => {
 
   .calendar-body {
     padding: 0;
-    min-height: 600px;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .calendar-grid-wrapper {
+    flex: 1;
+    min-height: 0;
   }
 }
 

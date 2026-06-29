@@ -34,7 +34,7 @@
           <div class="col-check"><el-checkbox v-model="selectAllChecked" @change="handleSelectAll" /></div>
           <div class="col-candidate">候选人</div>
           <div class="col-time">预约面试时间</div>
-          <div class="col-status">计划状态</div>
+          <div class="col-status">面试状态</div>
           <div class="col-type">会议类型</div>
           <div class="col-rounds">面试流程</div>
           <div class="col-action">操作</div>
@@ -88,25 +88,9 @@
             </div>
             
             <div class="col-status" @click.stop>
-              <el-dropdown
-                @command="(val) => handleStatusChange(item, val)"
-                trigger="click"
-              >
-                <span class="lark-tag pointer" :class="'tag-' + getDisplayStatusType(item)">
-                  {{ getDisplayStatusLabel(item) }}
-                  <el-icon class="el-icon--right"><ArrowDown /></el-icon>
-                </span>
-                <template #dropdown>
-                  <el-dropdown-menu>
-                    <el-dropdown-item command="passed" :disabled="item.status === 'passed'">已通过</el-dropdown-item>
-                    <el-dropdown-item command="failed" :disabled="item.status === 'failed'">不通过</el-dropdown-item>
-                    <el-dropdown-item command="pending" divided :disabled="item.status === 'pending'">待定</el-dropdown-item>
-                    <el-dropdown-item command="scheduled" divided :disabled="item.status === 'scheduled'">已预约</el-dropdown-item>
-                    <el-dropdown-item command="ongoing" :disabled="item.status === 'ongoing'">进行中</el-dropdown-item>
-                    <el-dropdown-item command="cancelled" :disabled="item.status === 'cancelled'">已取消</el-dropdown-item>
-                  </el-dropdown-menu>
-                </template>
-              </el-dropdown>
+              <span class="lark-tag" :class="'tag-' + sessionStatusType(item)">
+                {{ sessionStatusLabel(item) }}
+              </span>
             </div>
 
             <div class="col-type">
@@ -119,15 +103,47 @@
               <span v-if="item.status === 'cancelled'" class="text-placeholder" style="font-size: 12px;">已取消</span>
               <div v-else-if="roundsMap[item.id]?.length" class="round-flow">
                 <template v-for="(rd, rIdx) in visibleRounds(item.id)" :key="rd.id">
-                  <div
-                    class="round-node"
-                    :class="'round-' + roundDisplayStatus(item, rd)"
-                    @click.stop="handleRoundClick(item, rd)"
+                  <el-popover
+                    placement="bottom"
+                    :width="200"
+                    :visible="popoverVisible[item.id + '-' + rd.id]"
+                    trigger="manual"
                   >
-                    <div class="round-dot"></div>
-                    <span class="round-label">{{ rd.round_name }}</span>
-                    <span v-if="rIdx < visibleRounds(item.id).length - 1" class="round-connector"></span>
-                  </div>
+                    <template #reference>
+                      <div
+                        class="round-node"
+                        :class="'round-' + roundDisplayStatus(item, rd)"
+                        @click.stop="toggleRoundPopover(item.id, rd.id)"
+                      >
+                        <div class="round-dot"></div>
+                        <span class="round-label">{{ rd.round_name }}</span>
+                      </div>
+                    </template>
+                    <div class="round-popover-actions">
+                      <el-button
+                        size="small"
+                        type="success"
+                        :plain="rd.status !== 'pass'"
+                        :disabled="rd.status === 'pass' || isRoundLocked(rd, roundsMap[item.id])"
+                        @click.stop="handleRoundStatusChange(item, rd, 'pass')"
+                      >通过</el-button>
+                      <el-button
+                        size="small"
+                        type="danger"
+                        :plain="rd.status !== 'fail'"
+                        :disabled="rd.status === 'fail' || isRoundLocked(rd, roundsMap[item.id])"
+                        @click.stop="handleRoundStatusChange(item, rd, 'fail')"
+                      >淘汰</el-button>
+                      <el-button
+                        size="small"
+                        type="warning"
+                        :plain="rd.status !== 'pending_review'"
+                        :disabled="rd.status === 'pending_review' || isRoundLocked(rd, roundsMap[item.id])"
+                        @click.stop="handleRoundStatusChange(item, rd, 'pending_review')"
+                      >待定</el-button>
+                    </div>
+                  </el-popover>
+                  <span v-if="rIdx < visibleRounds(item.id).length - 1" class="round-connector"></span>
                 </template>
                 <el-tooltip
                   v-if="hiddenRounds(item.id).length > 0"
@@ -181,9 +197,9 @@
       <el-descriptions border :column="1" size="small" v-if="sessionDetail" class="lark-descriptions">
         <el-descriptions-item label="面试 ID">{{ sessionDetail.id }}</el-descriptions-item>
         <el-descriptions-item label="候选人">{{ sessionDetail.candidate_name }}</el-descriptions-item>
-        <el-descriptions-item label="计划状态">
-          <span class="lark-tag" :class="'tag-' + getStatusType(sessionDetail.status)">
-            {{ getStatusLabel(sessionDetail.status) }}
+        <el-descriptions-item label="面试状态">
+          <span class="lark-tag" :class="'tag-' + sessionStatusType(sessionDetail)">
+            {{ sessionStatusLabel(sessionDetail) }}
           </span>
         </el-descriptions-item>
         <el-descriptions-item label="会议类型">
@@ -308,7 +324,7 @@ import { ref, reactive, computed, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElLoading, ElMessageBox } from 'element-plus'
-import { Search, ArrowDown, View } from '@element-plus/icons-vue'
+import { Search, View } from '@element-plus/icons-vue'
 import { getCurrentUser } from '../../services/authService'
 import { interviewApi } from '../../api/interview'
 import { resumeApi } from '../../api/resume'
@@ -373,6 +389,12 @@ const roundsMap = reactive({})
 const roundDialogVisible = ref(false)
 const currentRound = ref(null)
 const currentSessionForRound = ref(null)
+const popoverVisible = reactive({})
+
+const toggleRoundPopover = (sessionId, roundId) => {
+  const key = sessionId + '-' + roundId
+  popoverVisible[key] = !popoverVisible[key]
+}
 
 // 面试评估弹窗
 const evaluationDialogVisible = ref(false)
@@ -462,6 +484,31 @@ const getStatusLabel = (status) => {
   return map[status] || status
 }
 
+// 根据轮次结果推导面试状态展示（已完成 → 通过/未通过）
+const sessionStatusLabel = (session) => {
+  if (session.status === 'completed') {
+    const rounds = roundsMap[session.id]
+    if (rounds && rounds.length > 0) {
+      const last = rounds[rounds.length - 1]
+      if (last.status === 'pass') return '已通过'
+      if (last.status === 'fail' || last.status === 'skip') return '未通过'
+    }
+  }
+  return getStatusLabel(session.status)
+}
+
+const sessionStatusType = (session) => {
+  if (session.status === 'completed') {
+    const rounds = roundsMap[session.id]
+    if (rounds && rounds.length > 0) {
+      const last = rounds[rounds.length - 1]
+      if (last.status === 'pass') return 'success'
+      if (last.status === 'fail' || last.status === 'skip') return 'danger'
+    }
+  }
+  return getStatusType(session.status)
+}
+
 const getStatusType = (status) => {
   const map = {
     'scheduled': 'warning',
@@ -474,35 +521,6 @@ const getStatusType = (status) => {
     'pending': 'warning'
   }
   return map[status] || 'info'
-}
-
-// 列表行展示：'已完成' 按最后一个轮次结果显示
-const getDisplayStatusLabel = (session) => {
-  if (session.status === 'completed') {
-    const rounds = roundsMap[session.id]
-    if (rounds && rounds.length > 0) {
-      return roundStatusLabel(rounds[rounds.length - 1].status)
-    }
-  }
-  return getStatusLabel(session.status)
-}
-
-const getDisplayStatusType = (session) => {
-  if (session.status === 'completed') {
-    const rounds = roundsMap[session.id]
-    if (rounds && rounds.length > 0) {
-      const typeMap = {
-        'pending': 'info',
-        'pass': 'success',
-        'fail': 'danger',
-        'pending_review': 'warning',
-        'skip': 'info',
-        'completed': 'info'
-      }
-      return typeMap[rounds[rounds.length - 1].status] || 'info'
-    }
-  }
-  return getStatusType(session.status)
 }
 
 // 轮次相关函数
@@ -545,6 +563,61 @@ const roundDisplayStatus = (session, round) => {
     return map[session.status] || round.status
   }
   return round.status
+}
+
+// 检查轮次是否被锁定（后续轮次已开始则不可更改当前轮次）
+const isRoundLocked = (round, allRounds) => {
+  if (!allRounds || allRounds.length <= 1) return false
+  const currentIdx = allRounds.findIndex(r => r.id === round.id)
+  if (currentIdx === -1) return false
+  for (let i = currentIdx + 1; i < allRounds.length; i++) {
+    if (allRounds[i].status !== 'pending') return true
+  }
+  return false
+}
+
+// 行内切换轮次状态（通过/淘汰/待定）
+const handleRoundStatusChange = async (item, round, newStatus) => {
+  if (round.status === newStatus) return
+  const loading = ElLoading.service({ lock: true, text: '更新轮次状态...' })
+  try {
+    const updated = await interviewApi.updateSessionRound(item.id, round.id, { status: newStatus })
+    const rounds = roundsMap[item.id]
+    if (rounds) {
+      const idx = rounds.findIndex(r => r.id === round.id)
+      if (idx !== -1) rounds[idx] = updated
+
+      // 淘汰时自动跳过后续轮次
+      if (newStatus === 'fail' && idx < rounds.length - 1) {
+        for (let i = idx + 1; i < rounds.length; i++) {
+          if (rounds[i].status === 'pending') {
+            const skipped = await interviewApi.updateSessionRound(item.id, rounds[i].id, { status: 'skip' })
+            rounds[i] = skipped
+          }
+        }
+      }
+
+      // 根据最后一个非 pending 轮次同步面试状态
+      for (let i = rounds.length - 1; i >= 0; i--) {
+        if (rounds[i].status !== 'pending') {
+          const map = { 'pass': 'passed', 'fail': 'failed', 'pending_review': 'pending' }
+          const planStatus = map[rounds[i].status]
+          if (planStatus && item.status !== planStatus) {
+            await interviewApi.updateReserveSession(item.id, { status: planStatus })
+            item.status = planStatus // 本地同步更新状态
+          }
+          break
+        }
+      }
+    }
+    // 关闭弹窗
+    popoverVisible[item.id + '-' + round.id] = false
+    ElMessage.success('轮次状态已更新')
+  } catch (err) {
+    ElMessage.error('更新失败: ' + (err?.detail || err?.message || '未知错误'))
+  } finally {
+    loading.close()
+  }
 }
 
 const handleRoundClick = (session, round) => {
@@ -730,8 +803,8 @@ onMounted(async () => {
     await nextTick() // 确保列表已渲染
     if (highlightedEl.value) {
       highlightedEl.value.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      // 3 秒后移除高亮
-      setTimeout(() => { highlightId.value = null }, 3000)
+      // 10 秒后移除高亮
+      setTimeout(() => { highlightId.value = null }, 10000)
     }
   }
 })
@@ -916,34 +989,6 @@ const handleCancel = (item) => {
   }).catch(() => {})
 }
 
-const handleStatusChange = async (item, newStatus) => {
-  if (item.status === newStatus) return
-  try {
-    // 先更新计划状态
-    await interviewApi.updateReserveSession(item.id, { status: newStatus })
-
-    // 同步最后一个轮次状态，保持与计划状态一致
-    const rounds = roundsMap[item.id]
-    if (rounds && rounds.length > 0) {
-      const roundStatusMap = {
-        'passed': 'pass',
-        'failed': 'fail',
-        'pending': 'pending_review'
-      }
-      const roundStatus = roundStatusMap[newStatus]
-      if (roundStatus) {
-        const lastRound = rounds[rounds.length - 1]
-        await interviewApi.updateSessionRound(item.id, lastRound.id, { status: roundStatus })
-      }
-    }
-
-    ElMessage.success('状态已更新')
-    fetchInterviews()
-  } catch (err) {
-    ElMessage.error('状态更新失败: ' + (err?.detail || err?.message || '网络连接异常'))
-  }
-}
-
 const handleCreateSession = (session) => {
   const roundId = currentRound.value?.id
   if (!roundId) {
@@ -999,7 +1044,10 @@ const handleSyncRounds = async (sessionId) => {
 .feishu-page {
   background-color: #F5F6F7;
   padding: 16px 24px;
-  min-height: calc(100vh - 60px);
+  height: calc(100vh - 60px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   font-family: "Lark Sans", "Lark Unicode", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -1010,7 +1058,8 @@ const handleSyncRounds = async (sessionId) => {
   background-color: #FFFFFF;
   border-radius: 8px;
   border: 1px solid #DEE0E3;
-  min-height: 80vh;
+  min-height: 0;
+  flex: 1;
   box-shadow: 0 2px 8px rgba(31, 35, 41, 0.04);
   display: flex;
   flex-direction: column;
@@ -1020,6 +1069,7 @@ const handleSyncRounds = async (sessionId) => {
 .header-area {
   padding: 20px 24px;
   border-bottom: 1px solid #DEE0E3;
+  flex-shrink: 0;
 }
 
 .header-top {
@@ -1092,6 +1142,7 @@ const handleSyncRounds = async (sessionId) => {
 /* 列表渲染 */
 .list-area {
   flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
 }
@@ -1111,6 +1162,12 @@ const handleSyncRounds = async (sessionId) => {
 
 .list-body {
   flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.pagination-wrapper {
+  flex-shrink: 0;
 }
 
 .list-row {
@@ -1272,6 +1329,17 @@ const handleSyncRounds = async (sessionId) => {
   flex-shrink: 0;
   transition: all 0.2s;
   &:hover { background: #E1EAFF; color: #3370FF; }
+}
+
+/* 轮次状态切换弹出按钮组 */
+.round-popover-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  padding: 4px 0;
+}
+.round-popover-actions .el-button {
+  flex: 1;
 }
 
 /* 轮次状态标签 */
