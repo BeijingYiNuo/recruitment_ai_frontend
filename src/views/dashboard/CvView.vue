@@ -121,6 +121,7 @@
               :class="{ 'row-selected': selectedIds.includes(resume.id) }"
               v-for="resume in resumeStore.resumes"
               :key="resume.id"
+              @dblclick="openDrawer(resume.id)"
             >
               <div class="col-check" @click.stop>
                 <el-checkbox

@@ -94,7 +94,7 @@
               :key="r.id"
               class="list-row"
               :class="{ even: i % 2 === 0 }"
-              @dblclick="enterDetail(i)"
+              @click="handleRowClick(i)"
             >
               <div class="col-name">
                 <el-avatar :size="32" class="row-avatar">{{ r.candidate_name?.charAt(0) || '?' }}</el-avatar>
@@ -574,6 +574,30 @@ function enterDetail(index) {
   viewMode.value = 'detail'
   loadCurrent()
   fetchPositions()
+}
+
+// 双击检测：300ms 内再次点击同一行则为双击
+let lastClickIndex = -1
+let clickTimer = null
+function handleRowClick(index) {
+  if (lastClickIndex === index) {
+    // 双击
+    if (clickTimer) {
+      clearTimeout(clickTimer)
+      clickTimer = null
+    }
+    lastClickIndex = -1
+    enterDetail(index)
+  } else {
+    lastClickIndex = index
+    if (clickTimer) {
+      clearTimeout(clickTimer)
+    }
+    clickTimer = setTimeout(() => {
+      lastClickIndex = -1
+      clickTimer = null
+    }, 300)
+  }
 }
 
 function formatTimeRange() {
