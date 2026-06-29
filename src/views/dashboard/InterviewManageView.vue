@@ -22,8 +22,8 @@
                 <el-icon><Search /></el-icon>
               </template>
             </el-input>
-            <el-button type="primary" class="lark-btn-primary" @click="interviewStore.openModal('online')">新增线上面试</el-button>
-            <el-button class="lark-btn-ghost" @click="interviewStore.openModal('offline')">新增线下面试</el-button>
+            <el-button type="primary" class="lark-btn-primary" @click="handleOpenModal('online')">新增线上面试</el-button>
+            <el-button class="lark-btn-ghost" @click="handleOpenModal('offline')">新增线下面试</el-button>
           </div>
         </div>
       </div>
@@ -696,26 +696,44 @@ const fetchInterviews = async () => {
 
     interviewStore.interviews = list
 
-    // 并行获取并同步所有有关联岗位的面试轮次（与岗位最新设置对齐）
-    const roundPromises = list
-      .filter(item => item.position_id)
-      .map(item =>
-        interviewApi.syncSessionRounds(item.id).then(rounds => {
-          roundsMap[item.id] = Array.isArray(rounds) ? rounds : (rounds?.data || [])
-        }).catch(() => {
-          // 同步失败时回退到普通获取
-          interviewApi.getSessionRounds(item.id).then(rounds => {
-            roundsMap[item.id] = Array.isArray(rounds) ? rounds : (rounds?.data || [])
-          }).catch(() => {
-            roundsMap[item.id] = []
-          })
-        })
-      )
-    await Promise.all(roundPromises)
+    // 从列表响应中直接提取轮次数据（后端已批量加载，消除 N+1 查询）
+    list.forEach(item => {
+      if (item.rounds && item.rounds.length > 0) {
+        roundsMap[item.id] = item.rounds
+      } else if (item.position_id) {
+        // 后端未返回 rounds（如旧后端），后台异步懒加载兜底
+        roundsMap[item.id] = roundsMap[item.id] || []
+        loadSessionRounds(item.id)
+      } else {
+        roundsMap[item.id] = []
+      }
+    })
   } catch (error) {
     ElMessage.error('获取面试列表失败: ' + (error?.detail || error?.message || '未知错误'))
   } finally {
     listLoading.value = false
+  }
+}
+
+// 懒加载轮次数据（兜底：当后端未返回 rounds 时按需获取 + 同步）
+const roundsLoadingSet = new Set()
+const loadSessionRounds = async (sessionId) => {
+  if (roundsMap[sessionId] && roundsMap[sessionId].length > 0) return
+  if (roundsLoadingSet.has(sessionId)) return
+  roundsLoadingSet.add(sessionId)
+  try {
+    // 先尝试同步（与岗位最新配置对齐），失败则回退到普通读取
+    const rounds = await interviewApi.syncSessionRounds(sessionId)
+    roundsMap[sessionId] = Array.isArray(rounds) ? rounds : (rounds?.data || [])
+  } catch {
+    try {
+      const rounds = await interviewApi.getSessionRounds(sessionId)
+      roundsMap[sessionId] = Array.isArray(rounds) ? rounds : (rounds?.data || [])
+    } catch {
+      roundsMap[sessionId] = roundsMap[sessionId] || []
+    }
+  } finally {
+    roundsLoadingSet.delete(sessionId)
   }
 }
 
@@ -762,6 +780,18 @@ const fetchPositionsSilent = async () => {
   }
 }
 
+// 辅助数据懒加载：仅在弹窗打开时才去拉取（减少首屏请求数）
+const ensureAuxiliaryData = () => {
+  if (resumeStore.resumes.length === 0) fetchResumesSilent()
+  if (knowledgeBases.value.length === 0) fetchKnowledgeBasesSilent()
+  if (positions.value.length === 0) fetchPositionsSilent()
+}
+
+const handleOpenModal = (type) => {
+  ensureAuxiliaryData()
+  interviewStore.openModal(type)
+}
+
 onMounted(async () => {
   const hasHighlight = !!route.query.highlight
 
@@ -782,14 +812,10 @@ onMounted(async () => {
     fetchInterviews()
   }
 
-  fetchResumesSilent()
-  fetchKnowledgeBasesSilent()
-  fetchPositionsSilent()
-
   // 从简历审核页跳转过来时，自动打开新增弹窗并预填数据
   if (route.query.createInterview === '1' && route.query.resumeId) {
     const type = route.query.sessionType || 'online'
-    interviewStore.openModal(type)
+    handleOpenModal(type)
     interviewStore.interviewForm.resume_id = parseInt(route.query.resumeId)
     if (route.query.candidateName) {
       interviewStore.interviewForm.candidate_name = route.query.candidateName
@@ -998,11 +1024,12 @@ const handleCreateSession = (session) => {
   router.push(`/interview-assistant/${session.id}/${roundId}`)
 }
 
-const handleStartASR = (item) => {
+const handleStartASR = async (item) => {
   if (!item.session_id) {
     ElMessage.warning('请先创建面试会话')
     return
   }
+  await loadSessionRounds(item.id)
   // 取第一个轮次的ID作为默认轮次
   const rounds = roundsMap[item.id]
   const roundId = rounds?.[0]?.id
@@ -1013,7 +1040,8 @@ const handleStartASR = (item) => {
   router.push(`/interview/${item.session_id}/${roundId}`)
 }
 
-const handleViewReport = (item) => {
+const handleViewReport = async (item) => {
+  await loadSessionRounds(item.id)
   // 跳转到报告生成页面，传递 session_id 和 round_id
   const rounds = roundsMap[item.id]
   const roundId = rounds?.[0]?.id
