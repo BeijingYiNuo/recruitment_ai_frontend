@@ -44,7 +44,7 @@
               style="width: 300px; margin-left: 12px;"
               @change="handleSearch"
             />
-            <el-button style="margin-left: 12px;" size="small" type="primary" plain @click="openBatchAiReview" :disabled="batchAiReviewRunning">
+            <el-button style="margin-left: 12px;" size="small" type="primary" plain @click="openBatchAiReview" :loading="batchAiReviewRunning">
               <el-icon><MagicStick /></el-icon> 批量 AI 审核
             </el-button>
           </div>
@@ -107,7 +107,7 @@
                 <span class="lark-tag" :class="statusTagClass(r.review_status)">{{ statusLabel(r.review_status) }}</span>
               </div>
               <div class="col-ai-review">
-                <span v-if="getAiSuggestion(r)" class="lark-tag ai-suggestion-tag" :class="resultTagClass(getAiSuggestion(r))" style="cursor:pointer;" @click.stop="viewAiReviewDetail(r)">{{ statusLabel(getAiSuggestion(r)) }}</span>
+                <span v-if="getAiSuggestion(r)" class="lark-tag ai-suggestion-tag" :class="resultTagClass(getAiSuggestion(r))" style="cursor:pointer;" @click.stop="viewAiReviewDetail(r)">{{ aiSuggestionLabel(getAiSuggestion(r)) }}</span>
               </div>
               <div class="col-time">{{ fmtDateTime(r.created_at) }}</div>
               <div class="col-action">
@@ -204,7 +204,7 @@
               <div v-if="currentResumeAiReview" class="ai-review-summary">
                 <div class="ai-review-summary-header">
                   <el-icon><MagicStick /></el-icon> AI 审核意见
-                  <span class="lark-tag" :class="resultTagClass(currentResumeAiReview.suggestion)" style="margin-left: 6px;">{{ statusLabel(currentResumeAiReview.suggestion) }}</span>
+                  <span class="lark-tag" :class="resultTagClass(currentResumeAiReview.suggestion)" style="margin-left: 6px;">{{ aiSuggestionLabel(currentResumeAiReview.suggestion) }}</span>
                 </div>
                 <div class="ai-review-summary-body">{{ currentResumeAiReview.reason }}</div>
                 <div v-if="currentResumeAiReview.matched_points?.length" class="ai-review-points">
@@ -337,15 +337,10 @@
     </el-dialog>
 
     <!-- 批量 AI 审核弹窗 -->
-    <el-dialog v-model="batchAiReviewVisible" title="批量 AI 审核" width="600px" destroy-on-close @close="batchAiReviewResults = []; batchAiReviewRunning = false">
-      <template v-if="!batchAiReviewRunning && batchAiReviewResults.length === 0">
-        <div style="margin-bottom: 12px; font-size: 14px; color: #1f2329; display: flex; align-items: center; justify-content: space-between;">
-          <span>待审核简历 <strong>{{ pendingReviewResumes.length }}</strong> 份，已选 <strong>{{ batchSelectedResumeIds.length }}</strong> 份</span>
-          <el-checkbox
-            :indeterminate="batchSelectedResumeIds.length > 0 && batchSelectedResumeIds.length < pendingReviewResumes.length"
-            :model-value="batchSelectedResumeIds.length === pendingReviewResumes.length"
-            @change="toggleBatchSelectAll"
-          >全选</el-checkbox>
+    <el-dialog v-model="batchAiReviewVisible" title="批量 AI 审核" width="600px" destroy-on-close @close="batchPendingResumes = []">
+      <template v-if="batchAiReviewResults.length === 0">
+        <div style="margin-bottom: 12px; font-size: 14px; color: #1f2329;">
+          <span>待审核简历 <strong>{{ batchPendingResumes.length }}</strong> 份，已选 <strong>{{ batchSelectedResumeIds.length }}</strong> 份</span>
         </div>
         <el-form label-width="100px" label-position="top" style="padding: 0 4px;">
           <el-form-item label="岗位名称">
@@ -364,7 +359,17 @@
           </el-form-item>
         </el-form>
         <div style="max-height: 250px; overflow-y: auto; border: 1px solid #dee0e3; border-radius: 6px; margin-top: 8px;">
-          <div v-for="(r, i) in pendingReviewResumes" :key="r.id" class="batch-review-row" :class="{ even: i % 2 === 0 }" @click="toggleBatchSelect(r.id)" style="cursor: pointer;">
+          <div class="batch-review-header">
+            <el-checkbox
+              :indeterminate="batchSelectedResumeIds.length > 0 && batchSelectedResumeIds.length < batchPendingResumes.length"
+              :model-value="batchSelectedResumeIds.length === batchPendingResumes.length"
+              @change="toggleBatchSelectAll"
+              size="small"
+              style="margin-right: 8px;"
+            >全选</el-checkbox>
+            <span style="color:#646a73;font-size:12px;">共 {{ batchPendingResumes.length }} 人</span>
+          </div>
+          <div v-for="(r, i) in batchPendingResumes" :key="r.id" class="batch-review-row" :class="{ even: i % 2 === 0 }" @click="toggleBatchSelect(r.id)" style="cursor: pointer;">
             <el-checkbox :model-value="batchSelectedResumeIds.includes(r.id)" style="margin-right: 8px; pointer-events: none;" />
             <el-avatar :size="24" class="batch-review-avatar">{{ r.candidate_name?.charAt(0) || '?' }}</el-avatar>
             <span class="batch-review-name">{{ r.candidate_name }}</span>
@@ -373,16 +378,13 @@
         </div>
       </template>
       <template v-else>
-        <div style="margin-bottom: 16px;">
-          <el-progress :percentage="batchReviewProgress" :stroke-width="12" :text-inside="true" />
-        </div>
         <div style="max-height: 350px; overflow-y: auto; border: 1px solid #dee0e3; border-radius: 6px;">
           <div v-for="(item, i) in batchAiReviewResults" :key="item.resume_id" class="batch-review-row batch-review-result-row" :class="{ even: i % 2 === 0 }">
             <div class="batch-review-result-left">
               <span class="batch-review-index">{{ i + 1 }}.</span>
               <span class="batch-review-name">{{ item.candidate_name || ('简历 ' + item.resume_id) }}</span>
               <span v-if="item.error" class="lark-tag tag-red">失败</span>
-              <span v-else class="lark-tag" :class="resultTagClass(item.result?.suggestion)">{{ statusLabel(item.result?.suggestion) }}</span>
+              <span v-else class="lark-tag" :class="resultTagClass(item.result?.suggestion)">{{ aiSuggestionLabel(item.result?.suggestion) }}</span>
               <span v-if="item.result?.reason" class="batch-review-reason" :title="item.result.reason">{{ item.result.reason.slice(0, 50) }}{{ item.result.reason.length > 50 ? '...' : '' }}</span>
             </div>
             <div v-if="!item.error && !item._reviewed" class="batch-review-result-actions">
@@ -397,8 +399,9 @@
         </div>
       </template>
       <template #footer>
-        <el-button @click="batchAiReviewVisible = false">关闭</el-button>
-        <el-button v-if="!batchAiReviewRunning && batchAiReviewResults.length === 0" type="primary" class="lark-btn-primary" :loading="batchAiReviewRunning" @click="startBatchAiReview">开始审核</el-button>
+        <el-button @click="batchAiReviewVisible = false; batchAiReviewResults = []">关闭</el-button>
+        <el-button v-if="batchAiReviewResults.length === 0" type="primary" class="lark-btn-primary" :loading="batchAiReviewRunning" @click="startBatchAiReview">开始审核</el-button>
+        <el-button v-else type="primary" class="lark-btn-primary" @click="resetBatchReview">开始新审核</el-button>
       </template>
     </el-dialog>
 
@@ -486,8 +489,8 @@ const batchAiReviewRunning = ref(false)
 const batchAiReviewForm = reactive({ position: '', jd: '', custom_requirements: '', headcount: 1 })
 const batchSelectedPositionId = ref(null)
 const batchSelectedResumeIds = ref([])
+const batchPendingResumes = ref([])
 const batchAiReviewResults = ref([])
-const batchReviewProgress = ref(0)
 
 const pendingReviewResumes = computed(() =>
   resumes.value.filter(r => !r.review_status || r.review_status === 'null')
@@ -534,6 +537,10 @@ const emptyDetail = computed(() =>
 
 function statusLabel(status) {
   return ({ PASS: '已通过', PENDING: '待定', FAIL: '已淘汰' })[status] || '待审核'
+}
+
+function aiSuggestionLabel(suggestion) {
+  return ({ PASS: '通过', PENDING: '待定', FAIL: '淘汰' })[suggestion] || '待审核'
 }
 
 function statusTagClass(status) {
@@ -838,9 +845,18 @@ function handleBatchPositionChange(positionId) {
   }
 }
 
-function openBatchAiReview() {
-  if (pendingReviewResumes.value.length === 0) {
-    ElMessage.warning('当前没有待审核的简历')
+async function openBatchAiReview() {
+  // 从服务端拉取所有待审核简历（不限于当前分页）
+  try {
+    const res = await resumeApi.getResumes(0, 10000, 'null', '', '', '')
+    const list = Array.isArray(res) ? res : (res?.items || res?.data || [])
+    if (list.length === 0) {
+      ElMessage.warning('当前没有待审核的简历')
+      return
+    }
+    batchPendingResumes.value = list
+  } catch (e) {
+    ElMessage.error('获取待审核简历列表失败')
     return
   }
   batchAiReviewForm.position = ''
@@ -850,14 +866,13 @@ function openBatchAiReview() {
   batchSelectedPositionId.value = null
   batchSelectedResumeIds.value = []
   batchAiReviewResults.value = []
-  batchReviewProgress.value = 0
   batchAiReviewVisible.value = true
   fetchPositions()
 }
 
 function toggleBatchSelectAll(checked) {
   batchSelectedResumeIds.value = checked
-    ? pendingReviewResumes.value.map(r => r.id)
+    ? batchPendingResumes.value.map(r => r.id)
     : []
 }
 
@@ -877,22 +892,13 @@ async function startBatchAiReview() {
   }
   batchAiReviewRunning.value = true
   batchAiReviewResults.value = []
-  batchReviewProgress.value = 0
 
   const ids = [...batchSelectedResumeIds.value]
   const total = ids.length
 
-  // 平滑进度动画：API 调用期间从 0 逐渐涨到 90
-  let progressTimer = null
-  let p = 0
-  const animateProgress = () => {
-    if (p >= 90) return
-    const step = Math.max(0.5, (90 - p) / 30) // 越靠近 90 步长越小
-    p = Math.min(90, p + step)
-    batchReviewProgress.value = Math.round(p * 10) / 10
-    progressTimer = setTimeout(animateProgress, 600)
-  }
-  animateProgress()
+  // 关闭弹窗，允许用户进行其他操作
+  batchAiReviewVisible.value = false
+  ElMessage.info(`已提交 ${total} 份简历的批量 AI 审核，后台处理中...`)
 
   try {
     const extra = batchAiReviewForm.custom_requirements || ''
@@ -903,26 +909,29 @@ async function startBatchAiReview() {
       custom_requirements: extra,
       headcount: batchAiReviewForm.headcount || 1,
     })
-    clearTimeout(progressTimer)
-    batchReviewProgress.value = 95
-    // 给 DOM 一点刷新时间，避免从 90 直接卡到 100
-    await new Promise(r => setTimeout(r, 150))
     const results = (res.results || []).map(item => ({
       resume_id: item.resume_id,
-      candidate_name: item.candidate_name || pendingReviewResumes.value.find(r => r.id === item.resume_id)?.candidate_name || '',
+      candidate_name: item.candidate_name || batchPendingResumes.value.find(r => r.id === item.resume_id)?.candidate_name || '',
       result: item.result,
       error: item.error,
     }))
     batchAiReviewResults.value = results
-    batchReviewProgress.value = 100
-    ElMessage.success(`批量 AI 横向比较审核完成，共处理 ${total} 份简历`)
+    // 审核完成，弹出结果弹窗
+    batchAiReviewVisible.value = true
+    ElMessage.success(`批量 AI 审核完成，共处理 ${total} 份简历`)
   } catch (e) {
-    clearTimeout(progressTimer)
     ElMessage.error('批量 AI 审核失败: ' + (e?.detail || e?.message || '请重试'))
   } finally {
     batchAiReviewRunning.value = false
     fetchResumes()
   }
+}
+
+function resetBatchReview() {
+  batchAiReviewResults.value = []
+  batchSelectedResumeIds.value = []
+  batchPendingResumes.value = []
+  openBatchAiReview()
 }
 
 async function batchApplyReview(item, decision) {
@@ -1494,6 +1503,19 @@ onUnmounted(() => revokeFileUrl())
 }
 
 /* 批量 AI 审核 */
+.batch-review-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  font-size: 13px;
+  border-bottom: 1px solid #dee0e3;
+  background: #fafafa;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
 .batch-review-row {
   display: flex;
   align-items: center;
