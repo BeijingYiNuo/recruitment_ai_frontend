@@ -38,7 +38,7 @@
 
         <div v-else class="folder-grid">
           <div
-            v-for="group in candidateGroups"
+            v-for="group in paginatedGroups"
             :key="group.candidate_name"
             class="folder-card"
             @click="enterCandidate(group.candidate_name)"
@@ -55,6 +55,18 @@
               {{ formatDate(group.latest_report_at) }}
             </div>
           </div>
+        </div>
+        <!-- 分页 -->
+        <div class="pagination-wrapper" v-if="totalCandidatePages > 1" style="padding: 16px 0 0; display: flex; justify-content: center;">
+          <el-pagination
+            :current-page="candidatePage"
+            v-model:page-size="candidatePageSize"
+            :total="candidateGroups.length"
+            layout="total, prev, pager, next"
+            background
+            small
+            @current-change="handleCandidatePageChange"
+          />
         </div>
       </div>
     </template>
@@ -549,6 +561,23 @@ const searchKeyword = ref('')
 const loadingRoot = ref(false)
 const candidateGroups = ref([])
 
+// 分页
+const candidatePage = ref(1)
+const candidatePageSize = ref(21)
+
+const paginatedGroups = computed(() => {
+  const start = (candidatePage.value - 1) * candidatePageSize.value
+  return candidateGroups.value.slice(start, start + candidatePageSize.value)
+})
+
+const totalCandidatePages = computed(() =>
+  Math.ceil(candidateGroups.value.length / candidatePageSize.value)
+)
+
+function handleCandidatePageChange(page) {
+  candidatePage.value = page
+}
+
 // Candidate view state
 const loadingCandidate = ref(false)
 const currentCandidate = ref('')
@@ -604,6 +633,7 @@ onBeforeUnmount(() => {
 
 // ========== Root View ==========
 async function fetchCandidateGroups() {
+  candidatePage.value = 1
   loadingRoot.value = true
   try {
     const params = {}

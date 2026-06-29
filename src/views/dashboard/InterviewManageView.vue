@@ -124,21 +124,21 @@
                         size="small"
                         type="success"
                         :plain="rd.status !== 'pass'"
-                        :disabled="rd.status === 'pass' || isRoundLocked(rd, roundsMap[item.id])"
+                        :disabled="rd.status === 'pass' || isRoundLocked(rd, roundsMap[item.id]) || item.status === 'expired'"
                         @click.stop="handleRoundStatusChange(item, rd, 'pass')"
                       >通过</el-button>
                       <el-button
                         size="small"
                         type="danger"
                         :plain="rd.status !== 'fail'"
-                        :disabled="rd.status === 'fail' || isRoundLocked(rd, roundsMap[item.id])"
+                        :disabled="rd.status === 'fail' || isRoundLocked(rd, roundsMap[item.id]) || item.status === 'expired'"
                         @click.stop="handleRoundStatusChange(item, rd, 'fail')"
                       >淘汰</el-button>
                       <el-button
                         size="small"
                         type="warning"
                         :plain="rd.status !== 'pending_review'"
-                        :disabled="rd.status === 'pending_review' || isRoundLocked(rd, roundsMap[item.id])"
+                        :disabled="rd.status === 'pending_review' || isRoundLocked(rd, roundsMap[item.id]) || item.status === 'expired'"
                         @click.stop="handleRoundStatusChange(item, rd, 'pending_review')"
                       >待定</el-button>
                     </div>
@@ -269,7 +269,7 @@
           <el-button type="primary" v-if="canStartCurrentRound() && currentSessionForRound?.status !== 'cancelled'" @click="handleCreateSession(currentSessionForRound)">
             开始面试
           </el-button>
-          <el-button type="success" v-if="!canStartCurrentRound() && currentSessionForRound && currentSessionForRound.session_id && currentSessionForRound.status !== 'completed' && currentSessionForRound.status !== 'cancelled'" @click="handleStartASR(currentSessionForRound)">
+          <el-button type="success" v-if="!canStartCurrentRound() && currentSessionForRound && currentSessionForRound.session_id && currentSessionForRound.status !== 'completed' && currentSessionForRound.status !== 'cancelled' && currentSessionForRound.status !== 'expired'" @click="handleStartASR(currentSessionForRound)">
             启动 ASR
           </el-button>
         </div>
@@ -579,6 +579,10 @@ const isRoundLocked = (round, allRounds) => {
 // 行内切换轮次状态（通过/淘汰/待定）
 const handleRoundStatusChange = async (item, round, newStatus) => {
   if (round.status === newStatus) return
+  if (item.status === 'expired') {
+    ElMessage.warning('面试已过期，无法修改轮次状态')
+    return
+  }
   const loading = ElLoading.service({ lock: true, text: '更新轮次状态...' })
   try {
     const updated = await interviewApi.updateSessionRound(item.id, round.id, { status: newStatus })
@@ -708,10 +712,43 @@ const fetchInterviews = async () => {
         roundsMap[item.id] = []
       }
     })
+
+    // 前端过期校验：检测已预约但已过结束时间的面试
+    checkExpiredInterviews()
   } catch (error) {
     ElMessage.error('获取面试列表失败: ' + (error?.detail || error?.message || '未知错误'))
   } finally {
     listLoading.value = false
+  }
+}
+
+// 检测并标记已过期的面试
+const checkExpiredInterviews = async () => {
+  const now = new Date()
+  const expiredItems = interviewStore.interviews.filter(item => {
+    if (item.status !== 'scheduled') return false
+    if (!item.scheduled_end_at) return false
+    const endTime = new Date(item.scheduled_end_at.replace(' ', 'T'))
+    const isExpired = endTime <= now
+    if (isExpired) {
+      console.log('检测到过期面试:', item.candidate_name, item.id, item.scheduled_end_at, '结束时间:', endTime, '当前时间:', now)
+    }
+    return isExpired
+  })
+
+  if (expiredItems.length === 0) {
+    console.log('未检测到过期面试，当前时间:', now, '面试总数:', interviewStore.interviews.length, '状态:', interviewStore.interviews.map(i => ({ name: i.candidate_name, status: i.status, end: i.scheduled_end_at })))
+    return
+  }
+
+  for (const item of expiredItems) {
+    try {
+      await interviewApi.updateReserveSession(item.id, { status: 'expired' })
+      item.status = 'expired'
+      console.log('已标记面试过期:', item.candidate_name, item.id)
+    } catch (e) {
+      console.warn('标记面试 ' + item.id + ' 过期失败:', e)
+    }
   }
 }
 

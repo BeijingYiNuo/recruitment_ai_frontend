@@ -9,7 +9,7 @@
             <!-- 子页面时显示返回按钮 -->
             <el-button v-if="currentSessionId" class="back-btn" @click="goBackToRoot" :icon="ArrowLeft" circle size="small" />
             <h1>{{ currentSessionId ? currentSessionName : '文件管理' }}</h1>
-            <span class="badge" v-if="displayFiles.length > 0">{{ displayFiles.length }}</span>
+            <span class="badge" v-if="totalCount > 0">{{ totalCount }}</span>
           </div>
           <div class="action-btn-group">
           </div>
@@ -49,7 +49,7 @@
             <template v-if="!currentSessionId">
               <!-- 会话目录行 -->
               <div
-                v-for="folder in sessionFolders"
+                v-for="folder in paginatedSessionFolders"
                 :key="'folder-' + folder.sessionId"
                 class="list-row folder-row"
                 @click="enterSession(folder.sessionId)"
@@ -80,7 +80,7 @@
 
               <!-- 独立文件（session_id 为 0 或空） -->
               <div
-                v-for="file in independentFiles"
+                v-for="file in paginatedIndependentFiles"
                 :key="file.id"
                 class="list-row file-row"
               >
@@ -114,7 +114,7 @@
             <!-- ====== 子页面视图：某个会话内的文件列表 ====== -->
             <template v-else>
               <div
-                v-for="file in sessionFiles"
+                v-for="file in paginatedSessionFiles"
                 :key="file.id"
                 class="list-row file-row"
               >
@@ -146,6 +146,18 @@
             </template>
           </div>
         </template>
+        <!-- 分页 -->
+        <div class="pagination-wrapper" v-if="totalCount > 0" style="padding: 16px 24px; display: flex; justify-content: flex-end; border-top: 1px solid #DEE0E3;">
+          <el-pagination
+            :current-page="currentPage"
+            v-model:page-size="pageSize"
+            :total="totalCount"
+            layout="total, prev, pager, next"
+            background
+            small
+            @current-change="handlePageChange"
+          />
+        </div>
       </div>
     </div>
 
@@ -185,10 +197,23 @@ const currentSessionId = ref(null) // null = 根视图，有值 = 会话子页�
 
 const enterSession = (sessionId) => {
   currentSessionId.value = sessionId
+  currentPage.value = 1
+  updateTotalAndReset()
 }
 
 const goBackToRoot = () => {
   currentSessionId.value = null
+  currentPage.value = 1
+  updateTotalAndReset()
+}
+
+// --- 分页状态 ---
+const currentPage = ref(1)
+const pageSize = ref(10)
+const totalCount = ref(0)
+
+function handlePageChange(page) {
+  currentPage.value = page
 }
 
 // --- 文件列表数据 ---
@@ -198,6 +223,7 @@ const fetchFileList = async () => {
   try {
     const res = await fileApi.getFileList({ skip: 0, limit: 9999, file_type: 'voice,dialogue' })
     let list = res.data || []
+    const allTotal = res.total || list.length
     
     // 按更新时间降序排列，最新的在最上面
     list.sort((a, b) => {
@@ -259,6 +285,7 @@ const fetchFileList = async () => {
     console.error('获取文件列表失败:', error)
     ElMessage.error(error.message || '获取文件列表失败')
   }
+  updateTotalAndReset()
 }
 
 // --- 计算属性：分离会话目录和独立文件 ---
@@ -322,6 +349,46 @@ const displayFiles = computed(() => {
   if (currentSessionId.value) return sessionFiles.value
   return files.value
 })
+
+// 分页计算：根视图 = sessionFolders + independentFiles，子页面视图 = sessionFiles
+const paginatedSessionFolders = computed(() => {
+  const itemCount = sessionFolders.value.length + independentFiles.value.length
+  const start = (currentPage.value - 1) * pageSize.value
+  const end = start + pageSize.value
+  if (start >= sessionFolders.value.length) return []
+  return sessionFolders.value.slice(start, Math.min(end, sessionFolders.value.length))
+})
+
+const paginatedIndependentFiles = computed(() => {
+  const folderCount = sessionFolders.value.length
+  const start = (currentPage.value - 1) * pageSize.value
+  let remaining = start - folderCount
+  if (remaining < 0) {
+    const foldersEnd = Math.min(start + pageSize.value, folderCount)
+    const foldersUsed = foldersEnd - start
+    remaining = pageSize.value - foldersUsed
+    if (remaining <= 0) return []
+  }
+  return independentFiles.value.slice(Math.max(0, remaining), Math.max(0, remaining) + pageSize.value)
+})
+
+const paginatedSessionFiles = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  return sessionFiles.value.slice(start, start + pageSize.value)
+})
+
+// 重置 page 到第一页（当列表变更时）
+function updateTotalAndReset() {
+  if (currentSessionId.value) {
+    totalCount.value = sessionFiles.value.length
+  } else {
+    totalCount.value = sessionFolders.value.length + independentFiles.value.length
+  }
+  const maxPage = Math.max(1, Math.ceil(totalCount.value / pageSize.value))
+  if (currentPage.value > maxPage) {
+    currentPage.value = 1
+  }
+}
 
 onMounted(() => {
   fetchFileList()
@@ -445,7 +512,69 @@ const onPreviewClose = () => {
 </script>
 
 <style scoped lang="scss">
-/* 列定义（仅负责布局） */
+/* 页面布局 - flex 撑满 */
+.feishu-page {
+  height: calc(100vh - 60px);
+  padding: 8px 24px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.card-container {
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.list-area {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.header-area {
+  flex-shrink: 0;
+  padding: 10px 0;
+}
+
+/* 列表头部 */
+.list-header-row {
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  height: 44px;
+  flex-shrink: 0;
+  color: #646A73;
+  font-size: 14px;
+  font-weight: 500;
+  border-bottom: 1px solid #DEE0E3;
+  background-color: #FFFFFF;
+}
+
+/* 列表行 */
+.list-row {
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  height: 56px;
+  border-bottom: 1px solid #f5f5f5;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+
+/* 批量操作栏 */
+.batch-action-bar {
+  display: flex;
+  align-items: center;
+  padding: 8px 24px;
+  background: #FFF4E5;
+  border-bottom: 1px solid #FFE0B2;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+/* 列定义 */
 .col-name { flex: 2; min-width: 200px; display: flex; align-items: center; padding-right: 16px; }
 .col-type { flex: 0.6; min-width: 80px; display: flex; align-items: center; }
 .col-owner { flex: 1; min-width: 100px; display: flex; align-items: center; }
@@ -516,7 +645,7 @@ const onPreviewClose = () => {
   }
 
   .file-name-text {
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 600;
     color: #1f2329;
   }
@@ -525,7 +654,7 @@ const onPreviewClose = () => {
     font-size: 12px;
     color: #8F959E;
     background: #F0F1F5;
-    padding: 2px 8px;
+    padding: 1px 6px;
     border-radius: 4px;
   }
 
@@ -554,9 +683,9 @@ const onPreviewClose = () => {
     align-items: center;
     flex-shrink: 0;
   }
-  
+
   .file-name-text {
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 500;
     color: #1f2329;
     white-space: nowrap;
@@ -575,16 +704,16 @@ const onPreviewClose = () => {
       color: #ffffff;
       display: flex; align-items: center; justify-content: center;
       font-size: 11px;
-      margin-right: 8px;
+      margin-right: 6px;
       flex-shrink: 0;
     }
     .owner-name {
-      font-size: 14px; color: #1f2329;
+      font-size: 13px; color: #1f2329;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
   }
 
-  .col-time, .size-text { font-size: 14px; color: #646a73; white-space: nowrap; }
+  .col-time, .size-text { font-size: 13px; color: #646a73; white-space: nowrap; }
   .size-text { transition: opacity 0.2s; }
 
   .quick-actions {
@@ -595,14 +724,14 @@ const onPreviewClose = () => {
     transition: opacity 0.2s;
     background-color: #F0F4FF;
     padding: 0; border-radius: 6px;
-    
+
     .action-btn {
       display: flex; align-items: center; justify-content: center;
       width: 28px; height: 28px;
       border: none; background: transparent;
       border-radius: 4px; color: #3370ff;
-      cursor: pointer; transition: all 0.2s; font-size: 16px;
-      
+      cursor: pointer; transition: all 0.2s; font-size: 15px;
+
       &:hover { background-color: #e1eaff; }
       &.delete-btn { color: #f56c6c; }
       &.delete-btn:hover { background-color: #fef0f0; }
@@ -620,16 +749,16 @@ const onPreviewClose = () => {
     background-color: #3370ff;
     color: #ffffff;
     display: flex; align-items: center; justify-content: center;
-    font-size: 11px; margin-right: 8px; flex-shrink: 0;
+    font-size: 11px; margin-right: 6px; flex-shrink: 0;
   }
   .owner-name {
-    font-size: 14px; color: #1f2329;
+    font-size: 13px; color: #1f2329;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
 }
 .list-row.folder-row .col-time,
 .list-row.folder-row .size-text {
-  font-size: 14px; color: #646a73; white-space: nowrap;
+  font-size: 13px; color: #646a73; white-space: nowrap;
 }
 .list-row.folder-row .size-text {
   transition: opacity 0.2s;
@@ -648,7 +777,7 @@ const onPreviewClose = () => {
     width: 28px; height: 28px;
     border: none; background: transparent;
     border-radius: 4px; color: #3370ff;
-    cursor: pointer; transition: all 0.2s; font-size: 16px;
+    cursor: pointer; transition: all 0.2s; font-size: 15px;
 
     &:hover { background-color: #e1eaff; }
     &.delete-btn { color: #f56c6c; }
