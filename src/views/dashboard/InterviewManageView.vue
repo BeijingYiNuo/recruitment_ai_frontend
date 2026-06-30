@@ -189,6 +189,7 @@
       :knowledge-bases="knowledgeBases"
       :positions="positions"
       :all-interviews="interviewStore.interviews"
+      :search-resumes="searchAllResumes"
       @save="handleSave"
     />
 
@@ -805,7 +806,8 @@ const handlePageChange = (page) => {
 
 const fetchResumesSilent = async () => {
   try {
-    const data = await resumeApi.getResumes()
+    // 默认只加载审核通过的简历
+    const data = await resumeApi.getResumes(0, 100, 'PASS')
     const list = Array.isArray(data) ? data : (data.items || data.data || [])
     resumeStore.setResumes(list)
   } catch (e) {
@@ -813,10 +815,21 @@ const fetchResumesSilent = async () => {
   }
 }
 
-// 仅排除已淘汰的简历（PASS/PENDING/NULL 均可用于面试）
+// 仅显示审核通过的简历
 const approvedResumes = computed(() => {
-  return resumeStore.resumes.filter(r => r.review_status !== 'FAIL')
+  return resumeStore.resumes.filter(r => r.review_status === 'PASS')
 })
+
+// 搜索所有简历（不仅限审核通过），供弹窗远程搜索使用
+const searchAllResumes = async (keyword) => {
+  try {
+    const data = await resumeApi.getResumes(0, 100, null, keyword)
+    return Array.isArray(data) ? data : (data.items || data.data || [])
+  } catch (e) {
+    console.warn('搜索简历失败', e)
+    return []
+  }
+}
 
 const fetchKnowledgeBasesSilent = async () => {
   try {

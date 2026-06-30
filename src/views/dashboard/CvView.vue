@@ -50,10 +50,10 @@
         </div>
       </div>
 
-      <!-- 后台处理中提示 -->
+      <!-- 后台处理中提示 - 轻量化横幅 -->
       <div v-if="showProcessingBanner" class="processing-banner">
-        <el-icon class="is-loading" style="margin-right: 8px;"><Loading /></el-icon>
-        <span>正在后台解析简历，请稍候...</span>
+        <el-icon class="is-loading" style="margin-right: 6px; font-size: 14px;"><Loading /></el-icon>
+        <span>后台解析中，列表数据实时刷新</span>
       </div>
 
       <!-- Main List Area -->
@@ -81,11 +81,13 @@
         </div>
 
         <div class="list-body">
-          <el-empty
-            v-if="(!resumeStore.resumes || resumeStore.resumes.length === 0) && batchImportPlaceholders.length === 0 && !listLoading"
-            description="暂无简历，请点击上方按钮添加导入"
-            style="padding: 60px 0"
-          />
+          <!-- 无数据空状态 -->
+          <div v-if="(!resumeStore.resumes || resumeStore.resumes.length === 0) && batchImportPlaceholders.length === 0 && !listLoading" class="empty-placeholder">
+            <div class="empty-icon">
+              <svg width="48" height="48" viewBox="0 0 48 48" fill="none"><rect width="48" height="48" rx="8" fill="#F5F6F7"/><path d="M16 18h16M16 24h16M16 30h10" stroke="#D0D3D8" stroke-width="2" stroke-linecap="round"/><path d="M32 14h-4a2 2 0 00-2 2v2a2 2 0 002 2h4a2 2 0 002-2v-2a2 2 0 00-2-2z" fill="#E8E9ED"/></svg>
+            </div>
+            <div class="empty-text">暂无简历，请点击上方按钮添加导入</div>
+          </div>
 
           <div v-else>
             <!-- 批量导入占位行（显示在最上面） -->
@@ -142,8 +144,8 @@
 
               <div class="col-status">
                 <div class="status-indicator">
-                  <span class="dot" :class="isAnalyzing(resume.status) ? 'dot-loading' : 'dot-success'"></span>
-                  <span>{{ getStatusLabel(resume.status) }}</span>
+                  <span class="dot" :class="statusDotClass(resume.status)"></span>
+                  <span :class="statusTextClass(resume.status)">{{ getStatusLabel(resume.status) }}</span>
                 </div>
               </div>
 
@@ -162,11 +164,10 @@
           </div>
         </div>
 
-        <!-- 分页 -->
-        <div class="pagination-wrapper" v-if="totalCount > 0" style="padding: 16px 24px; display: flex; justify-content: flex-end; border-top: 1px solid #DEE0E3;">
+        <!-- 分页 - 始终渲染，联动筛选/搜索/批量操作 -->
+        <div class="pagination-wrapper">
           <el-pagination
             :current-page="currentPage"
-            v-model:page-size="pageSize"
             :total="totalCount"
             layout="total, prev, pager, next"
             background
@@ -564,7 +565,6 @@ const checkAndStartPolling = (force = false) => {
                 const inStore = resumeStore.resumes.some(r => r.id === match.id)
                 if (!inStore) {
                   resumeStore.resumes.unshift(match)
-                  totalCount.value++
                 }
               }
             } else {
@@ -585,6 +585,9 @@ const checkAndStartPolling = (force = false) => {
           if (hadAnalyzing) {
             ElMessage.success('简历解析完成')
           }
+          // 刷新列表，恢复正确的分页数据
+          resumeStore.invalidateCache()
+          fetchResumes()
         }
       } catch (error) {
         console.error('状态轮询失败:', error)
@@ -616,6 +619,10 @@ const fetchResumes = async () => {
     checkAndStartPolling()
   } catch (error) {
     ElMessage.error('获取简历列表失败: ' + (error?.detail || error?.message || '未知错误'))
+    // 兜底：API 失败时用 store 已有数据来维持分页
+    if (totalCount.value === 0 && resumeStore.resumes.length > 0) {
+      totalCount.value = resumeStore.resumes.length
+    }
   } finally {
     listLoading.value = false
   }
@@ -647,6 +654,24 @@ const getStatusLabel = (status) => {
   if (s === 'uploaded' || s === 'processed' || s === 'analyzing' || s === 'parsing' || s === 'pending_upload') return '解析中...'
   if (s === 'failed_analysis' || s === 'failed' || s === 'error') return '解析失败'
   return status
+}
+
+// 状态标识圆点样式
+const statusDotClass = (status) => {
+  if (!status) return 'dot-muted'
+  const s = status.toLowerCase()
+  if (s === 'analyzed' || s === 'success' || s === 'completed') return 'dot-success'
+  if (s === 'failed_analysis' || s === 'failed' || s === 'error') return 'dot-danger'
+  return 'dot-loading'
+}
+
+// 状态文字样式
+const statusTextClass = (status) => {
+  if (!status) return ''
+  const s = status.toLowerCase()
+  if (s === 'analyzed' || s === 'success' || s === 'completed') return 'text-success'
+  if (s === 'failed_analysis' || s === 'failed' || s === 'error') return 'text-danger'
+  return 'text-loading'
 }
 
 const reviewLabel = (status) => {
@@ -1350,6 +1375,8 @@ const onPreviewClose = () => {
 }
 
 .card-container {
+  display: flex;
+  flex-direction: column;
   min-height: 0;
   flex: 1;
 }
@@ -1357,6 +1384,33 @@ const onPreviewClose = () => {
 .header-area {
   padding: 10px 24px;
   flex-shrink: 0;
+}
+
+/* 标题总数徽标 */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 7px;
+  margin-left: 8px;
+  border-radius: 11px;
+  background: #3370FF;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 22px;
+}
+
+/* 列表容器 - 弹性列布局 */
+.list-area {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  background: #FFFFFF;
+  border-radius: 6px;
 }
 
 /* 列表主体内部滚动 */
@@ -1455,10 +1509,15 @@ const onPreviewClose = () => {
 }
 .dot-success { background-color: #13A248; }
 .dot-loading { background-color: #3370FF; animation: blink 1s infinite alternate; }
+.dot-danger { background-color: #F53F3F; }
+.dot-muted { background-color: #D0D3D8; }
 @keyframes blink {
   from { opacity: 0.4; }
   to { opacity: 1; }
 }
+.text-success { color: #13A248; }
+.text-danger { color: #F53F3F; }
+.text-loading { color: #3370FF; }
 
 /* 详情侧滑抽屉样式 (Drawer) */
 .lark-drawer-overlay {
@@ -1795,6 +1854,23 @@ const onPreviewClose = () => {
   line-height: 18px;
 }
 
+/* ====== 列表行样式 ====== */
+.list-row {
+  display: flex;
+  align-items: center;
+  padding: 14px 24px;
+  border-bottom: 1px solid #F0F1F5;
+  background: #FFFFFF;
+  transition: background 0.15s;
+  cursor: default;
+}
+.list-row:hover {
+  background-color: #F5F7FA;
+}
+.list-row:first-child {
+  border-radius: 6px 6px 0 0;
+}
+
 /* 批量导入占位列样式 */
 .list-row-placeholder {
   border-bottom: 1px dashed #DEE0E3 !important;
@@ -1802,6 +1878,67 @@ const onPreviewClose = () => {
 }
 .list-row-placeholder:hover {
   background-color: #F0F2F5 !important;
+}
+
+/* ====== 分页栏样式 ====== */
+.pagination-wrapper {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 14px 24px;
+  border-top: 1px solid #DEE0E3;
+  flex-shrink: 0;
+}
+.pagination-wrapper .el-pagination.is-background .el-pager li {
+  border-radius: 6px;
+  min-width: 28px;
+  height: 28px;
+  line-height: 28px;
+  font-size: 13px;
+  transition: all 0.15s;
+}
+.pagination-wrapper .el-pagination.is-background .el-pager li:hover {
+  color: #3370FF;
+  background-color: #EEF2FE;
+}
+.pagination-wrapper .el-pagination.is-background .el-pager li.is-active {
+  color: #FFFFFF;
+  background-color: #3370FF;
+  font-weight: 600;
+}
+.pagination-wrapper .el-pagination .el-pagination__sizes .el-select .el-input {
+  --el-input-border-radius: 6px;
+}
+
+/* ====== 轻量化解析提示 ====== */
+.processing-banner {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 16px;
+  margin-bottom: 10px;
+  background: #EEF2FE;
+  border-radius: 6px;
+  color: #3370FF;
+  font-size: 13px;
+  line-height: 1;
+}
+
+/* ====== 空状态提示 ====== */
+.empty-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 0 60px;
+  color: #8F959E;
+}
+.empty-placeholder .empty-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  color: #D0D3D8;
+}
+.empty-placeholder .empty-text {
+  font-size: 14px;
 }
 
 </style>

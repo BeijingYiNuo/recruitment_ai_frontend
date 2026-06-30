@@ -31,13 +31,13 @@
           </el-form-item>
 
           <el-form-item label="关联简历材料">
-            <el-select v-model="form.resume_id" placeholder="-- 不关联或暂无简历 --" style="width: 100%" clearable filterable @change="handleResumeChange">
-              <el-option v-for="r in resumes" :key="r.id" :value="r.id" :label="`${r.candidate_name} - ${r.created_at?.slice(0, 16).replace('T', ' ') || ''}`">
+            <el-select v-model="form.resume_id" placeholder="-- 不关联或暂无简历 --" style="width: 100%" clearable filterable remote :remote-method="handleRemoteSearch" @change="handleResumeChange">
+              <el-option v-for="r in displayOptions" :key="r.id" :value="r.id" :label="`${r.candidate_name} - ${r.created_at?.slice(0, 16).replace('T', ' ') || ''}`">
                 <span style="flex: 1">{{ r.candidate_name }} - {{ r.created_at?.slice(0, 16).replace('T', ' ') || '' }}</span>
                 <span :style="`font-size: 12px; margin-left: auto; color: ${statusColor(r.review_status)};`">{{ statusLabel(r.review_status) }}</span>
               </el-option>
             </el-select>
-            <div v-if="resumes.length === 0" class="form-hint">
+            <div v-if="displayOptions.length === 0" class="form-hint">
               提示: 当前还没有上传过简历，如需强力匹配请先去简历管理页上传。
             </div>
           </el-form-item>
@@ -107,7 +107,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import InterviewCalendar from './calendar/InterviewCalendar.vue'
 
 const props = defineProps({
@@ -118,10 +118,25 @@ const props = defineProps({
   knowledgeBases: { type: Array, default: () => [] },
   positions: { type: Array, default: () => [] },
   /** 所有已有面试列表，用于在日历上展示占用情况 */
-  allInterviews: { type: Array, default: () => [] }
+  allInterviews: { type: Array, default: () => [] },
+  /** 远程搜索简历函数，接收 keyword 返回 Promise<resume[]> */
+  searchResumes: { type: Function, default: null }
 })
 
 const calendarRef = ref(null)
+const searchResults = ref([])  // 远程搜索结果
+
+// 有搜索结果时展示搜索结果，否则展示默认的 resumes（仅审核通过）
+const displayOptions = computed(() => {
+  return searchResults.value.length > 0 ? searchResults.value : props.resumes
+})
+
+// 初始化搜索结果为默认 resumes
+watch(() => props.resumes, (val) => {
+  if (val.length > 0 && searchResults.value.length === 0) {
+    searchResults.value = [...val]
+  }
+}, { immediate: true })
 
 /** 编辑模式下排除当前面试的 ID，新增模式为 null */
 const editingId = computed(() => props.isEditMode ? props.form.id : null)
@@ -147,10 +162,24 @@ const durationText = computed(() => {
 
 const handleResumeChange = (val) => {
   if (val) {
-    const matched = props.resumes.find(r => r.id === val)
+    const matched = displayOptions.value.find(r => r.id === val)
     if (matched && matched.candidate_name) {
       props.form.candidate_name = matched.candidate_name
     }
+  }
+}
+
+const handleRemoteSearch = async (query) => {
+  if (!query || !query.trim()) {
+    searchResults.value = []
+    return
+  }
+  if (!props.searchResumes) return
+  try {
+    const results = await props.searchResumes(query.trim())
+    searchResults.value = results || []
+  } catch (e) {
+    console.warn('远程搜索简历失败', e)
   }
 }
 
