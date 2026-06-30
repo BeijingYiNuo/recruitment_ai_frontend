@@ -813,9 +813,9 @@ const fetchResumesSilent = async () => {
   }
 }
 
-// 仅显示已通过的简历
+// 仅排除已淘汰的简历（PASS/PENDING/NULL 均可用于面试）
 const approvedResumes = computed(() => {
-  return resumeStore.resumes.filter(r => r.review_status === 'PASS')
+  return resumeStore.resumes.filter(r => r.review_status !== 'FAIL')
 })
 
 const fetchKnowledgeBasesSilent = async () => {

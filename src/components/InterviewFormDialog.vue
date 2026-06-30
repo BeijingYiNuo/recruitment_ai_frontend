@@ -34,7 +34,7 @@
             <el-select v-model="form.resume_id" placeholder="-- 不关联或暂无简历 --" style="width: 100%" clearable filterable @change="handleResumeChange">
               <el-option v-for="r in resumes" :key="r.id" :value="r.id" :label="`${r.candidate_name} - ${r.created_at?.slice(0, 16).replace('T', ' ') || ''}`">
                 <span style="flex: 1">{{ r.candidate_name }} - {{ r.created_at?.slice(0, 16).replace('T', ' ') || '' }}</span>
-                <span style="color: #13a248; font-size: 12px; margin-left: auto;">通过</span>
+                <span :style="`font-size: 12px; margin-left: auto; color: ${statusColor(r.review_status)};`">{{ statusLabel(r.review_status) }}</span>
               </el-option>
             </el-select>
             <div v-if="resumes.length === 0" class="form-hint">
@@ -152,6 +152,16 @@ const handleResumeChange = (val) => {
       props.form.candidate_name = matched.candidate_name
     }
   }
+}
+
+const statusLabel = (status) => {
+  const map = { PASS: '通过', PENDING: '待定', FAIL: '淘汰' }
+  return map[status] || '未审核'
+}
+
+const statusColor = (status) => {
+  const map = { PASS: '#13a248', PENDING: '#f59e0b', FAIL: '#f56c6c' }
+  return map[status] || '#8f959e'
 }
 
 /**
