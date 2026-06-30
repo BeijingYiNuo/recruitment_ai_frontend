@@ -13,6 +13,11 @@ export const useResumeStore = defineStore('resume', () => {
   const detailCache = reactive({})
   const DETAIL_CACHE_TTL = 60000 // 60 秒
 
+  // ========== 专项缓存（教育/工作/技能/项目） ==========
+  // key: `${resumeId}:${type}`, value: { data, cachedAt }
+  const sectionCache = reactive({})
+  const SECTION_CACHE_TTL = 120000 // 2 分钟
+
   // ----- 带缓存的获取列表（fetchFn 需返回 { items, total }）-----
   const getCachedResumes = async (fetchFn) => {
     const now = Date.now()
@@ -40,13 +45,31 @@ export const useResumeStore = defineStore('resume', () => {
     return data
   }
 
+  // ----- 带缓存的获取专项数据 -----
+  const getCachedSection = async (resumeId, type, fetchFn) => {
+    const key = `${resumeId}:${type}`
+    const now = Date.now()
+    const cached = sectionCache[key]
+    if (cached && now - cached.cachedAt < SECTION_CACHE_TTL) {
+      return cached.data
+    }
+    const data = await fetchFn()
+    sectionCache[key] = { data, cachedAt: now }
+    return data
+  }
+
   // ----- 清除缓存（增删改后调用） -----
   const invalidateCache = (resumeId) => {
     lastFetchTime.value = 0
     if (resumeId) {
       delete detailCache[resumeId]
+      // 清理该简历的专项缓存
+      Object.keys(sectionCache).forEach(k => {
+        if (k.startsWith(`${resumeId}:`)) delete sectionCache[k]
+      })
     } else {
       Object.keys(detailCache).forEach(k => delete detailCache[k])
+      Object.keys(sectionCache).forEach(k => delete sectionCache[k])
     }
   }
 
@@ -83,6 +106,7 @@ export const useResumeStore = defineStore('resume', () => {
     detailCache,
     getCachedResumes,
     getCachedDetail,
+    getCachedSection,
     invalidateCache,
     setResumes,
     addResume,

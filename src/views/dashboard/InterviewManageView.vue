@@ -375,7 +375,8 @@ const handleBatchDelete = () => {
       await Promise.all(selectedIds.value.map(id => interviewApi.deleteReserveSession(id)))
       ElMessage.success(`成功删除 ${selectedIds.value.length} 条面试记录`)
       selectedIds.value = []
-      fetchInterviews()
+      interviewStore.invalidateSessionCache()
+      fetchInterviews(true)
     } catch (err) {
       ElMessage.error('批量删除失败: ' + (err?.detail || err?.message || '网络连接异常'))
     } finally {
@@ -462,7 +463,8 @@ const submitEvaluation = async () => {
     }
     ElMessage.success('评估提交成功！')
     evaluationDialogVisible.value = false
-    fetchInterviews() // 刷新面试列表以更新计划状态
+    interviewStore.invalidateSessionCache()
+    fetchInterviews(true) // 刷新面试列表以更新计划状态
   } catch (error) {
     ElMessage.error('评估提交失败: ' + (error?.detail || error?.message || '未知错误'))
   } finally {
@@ -688,15 +690,31 @@ const handleUpdateRound = async (status) => {
   }
 }
 
-const fetchInterviews = async () => {
+const fetchInterviews = async (forceRefresh = false) => {
   listLoading.value = true
   try {
     const skip = (currentPage.value - 1) * pageSize.value
     const params = { skip, limit: pageSize.value }
     if (searchKeyword.value) params.keyword = searchKeyword.value
-    const data = await interviewApi.getUserInterviewSessions(params)
-    let list = Array.isArray(data) ? data : (data.items || data.data || [])
-    totalCount.value = data.total || list.length
+
+    // 仅在首页无搜索时使用缓存，翻页/搜索/增删改时 forceRefresh 绕过缓存
+    let data, list
+    const shouldUseCache = !forceRefresh && !searchKeyword.value && currentPage.value === 1
+
+    if (shouldUseCache) {
+      const cached = await interviewStore.getCachedSessions(async () => {
+        const result = await interviewApi.getUserInterviewSessions(params)
+        const items = Array.isArray(result) ? result : (result.items || result.data || [])
+        const total = result.total || items.length
+        return { items, total }
+      })
+      list = cached.items
+      totalCount.value = cached.total
+    } else {
+      data = await interviewApi.getUserInterviewSessions(params)
+      list = Array.isArray(data) ? data : (data.items || data.data || [])
+      totalCount.value = data.total || list.length
+    }
 
     interviewStore.interviews = list
 
@@ -776,12 +794,12 @@ const loadSessionRounds = async (sessionId) => {
 
 const handleSearch = () => {
   currentPage.value = 1
-  fetchInterviews()
+  fetchInterviews(true)
 }
 
 const handlePageChange = (page) => {
   currentPage.value = page
-  fetchInterviews()
+  fetchInterviews(true)
 }
 
 const fetchResumesSilent = async () => {
@@ -940,7 +958,8 @@ const handleSave = async () => {
     }
     
     interviewStore.showModal = false
-    fetchInterviews() // 无论增改，重新拉取列表同步最新后台视图
+    interviewStore.invalidateSessionCache()
+    fetchInterviews(true) // 无论增改，重新拉取列表同步最新后台视图
   } catch (error) {
     if (Array.isArray(error?.detail)) {
         const msgs = error.detail.map(e => e.msg).join('; ')
@@ -965,7 +984,8 @@ const handleSaveNotes = async () => {
     const updated = await interviewApi.updateSessionNotes(sessionDetail.value.id, { notes: editableNotes.value })
     sessionDetail.value = updated
     ElMessage.success('备注保存成功')
-    fetchInterviews()
+    interviewStore.invalidateSessionCache()
+    fetchInterviews(true)
   } catch (error) {
     ElMessage.error('备注保存失败: ' + (error?.detail || error?.message || '未知错误'))
   } finally {
@@ -976,7 +996,7 @@ const handleSaveNotes = async () => {
 const handleViewDetail = async (id) => {
   const loading = ElLoading.service({ lock: true, text: '正在拉取预约详情...' })
   try {
-    const res = await interviewApi.getReserveSession(id)
+    const res = await interviewStore.getCachedSessionDetail(id, () => interviewApi.getReserveSession(id))
     sessionDetail.value = res
     editableNotes.value = res.notes || ''
     detailDialogVisible.value = true
@@ -1023,7 +1043,8 @@ const handleDelete = (id) => {
     try {
       await interviewApi.deleteReserveSession(id)
       ElMessage.success('面试安排删除成功！')
-      fetchInterviews()
+      interviewStore.invalidateSessionCache()
+      fetchInterviews(true)
     } catch (err) {
       ElMessage.error('无法删除此面试安排: ' + (err?.detail || err?.message || '网络连接异常'))
     } finally {
@@ -1045,7 +1066,8 @@ const handleCancel = (item) => {
     try {
       await interviewApi.updateReserveSession(item.id, { status: 'cancelled' })
       ElMessage.success('已取消面试安排')
-      fetchInterviews()
+      interviewStore.invalidateSessionCache()
+      fetchInterviews(true)
     } catch (err) {
       ElMessage.error('取消失败: ' + (err?.detail || err?.message || '网络连接异常'))
     }

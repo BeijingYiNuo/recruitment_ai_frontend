@@ -987,11 +987,12 @@ const handleFetchSpecialInDrawer = async (type, titleName) => {
   specialWorkList.value = []
   specialSkillList.value = []
   specialDataStr.value = '正在提取并由智能分析模型组装中...'
-  
+
   try {
     let data;
     if (type === 'educations') {
-      data = await resumeApi.getResumeEducations(currentDetail.value.id)
+      data = await resumeStore.getCachedSection(currentDetail.value.id, 'educations',
+        () => resumeApi.getResumeEducations(currentDetail.value.id))
       const list = Array.isArray(data) ? data : []
       // 过滤掉无核心内容的记录
       specialEduList.value = list
@@ -999,7 +1000,8 @@ const handleFetchSpecialInDrawer = async (type, titleName) => {
         .sort((a, b) => new Date(b.end_date) - new Date(a.end_date))
     }
     else if (type === 'work-experiences') {
-      data = await resumeApi.getResumeWorkExperiences(currentDetail.value.id)
+      data = await resumeStore.getCachedSection(currentDetail.value.id, 'work-experiences',
+        () => resumeApi.getResumeWorkExperiences(currentDetail.value.id))
       const list = Array.isArray(data) ? data : []
       // 过滤掉无核心内容的记录
       specialWorkList.value = list
@@ -1007,11 +1009,13 @@ const handleFetchSpecialInDrawer = async (type, titleName) => {
         .sort((a, b) => new Date(b.end_date) - new Date(a.end_date))
     }
     else if (type === 'skills') {
-      data = await resumeApi.getResumeSkills(currentDetail.value.id)
+      data = await resumeStore.getCachedSection(currentDetail.value.id, 'skills',
+        () => resumeApi.getResumeSkills(currentDetail.value.id))
       specialSkillList.value = Array.isArray(data) ? data : []
     }
     else if (type === 'projects') {
-      data = await resumeApi.getResumeProjects(currentDetail.value.id)
+      data = await resumeStore.getCachedSection(currentDetail.value.id, 'projects',
+        () => resumeApi.getResumeProjects(currentDetail.value.id))
       const list = Array.isArray(data) ? data : []
       // 过滤掉无核心内容的记录（项目名、描述、角色均为空）
       specialProjectList.value = list

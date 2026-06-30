@@ -1,13 +1,53 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
-import { useResumeStore } from './resumeStore'
+import { ref, reactive } from 'vue'
 
 export const useInterviewStore = defineStore('interview', () => {
-  // ----- State -----
+  // ========== 列表缓存 ==========
   const interviews = ref([])
+  const cachedSessionTotal = ref(0)
+  const sessionListLastFetchTime = ref(0)
+  const SESSION_LIST_CACHE_TTL = 30000 // 30 秒
+
+  // ========== 详情缓存 ==========
+  // key: sessionId, value: { data, cachedAt }
+  const sessionDetailCache = reactive({})
+  const SESSION_DETAIL_CACHE_TTL = 300000 // 5 分钟
+
+  // ========== 弹窗状态 ==========
   const showModal = ref(false)
   const isEditMode = ref(false)
   const interviewForm = ref(createEmptyForm())
+
+  // ----- 带缓存的获取面试列表 -----
+  const getCachedSessions = async (fetchFn) => {
+    const now = Date.now()
+    if (now - sessionListLastFetchTime.value < SESSION_LIST_CACHE_TTL && interviews.value.length > 0) {
+      return { items: interviews.value, total: cachedSessionTotal.value }
+    }
+    const result = await fetchFn()
+    interviews.value = result.items
+    cachedSessionTotal.value = result.total
+    sessionListLastFetchTime.value = now
+    return result
+  }
+
+  // ----- 带缓存的获取面试详情 -----
+  const getCachedSessionDetail = async (sessionId, fetchFn) => {
+    const now = Date.now()
+    const cached = sessionDetailCache[sessionId]
+    if (cached && now - cached.cachedAt < SESSION_DETAIL_CACHE_TTL) {
+      return cached.data
+    }
+    const data = await fetchFn()
+    sessionDetailCache[sessionId] = { data, cachedAt: now }
+    return data
+  }
+
+  // ----- 清除面试缓存（增删改后调用） -----
+  const invalidateSessionCache = () => {
+    sessionListLastFetchTime.value = 0
+    Object.keys(sessionDetailCache).forEach(k => delete sessionDetailCache[k])
+  }
 
   // ----- Helpers -----
   function createEmptyForm(type = 'online') {
@@ -128,6 +168,12 @@ export const useInterviewStore = defineStore('interview', () => {
     showModal,
     isEditMode,
     interviewForm,
+    cachedSessionTotal,
+    sessionListLastFetchTime,
+    sessionDetailCache,
+    getCachedSessions,
+    getCachedSessionDetail,
+    invalidateSessionCache,
     openModal,
     editInterview,
     closeModal,
