@@ -1330,7 +1330,7 @@ const handlePreview = async (resume) => {
   // PDF 文件：直接使用后端预览 URL，浏览器 HTTP 缓存自动处理内容缓存
   if (previewType.value === 'pdf') {
     const token = localStorage.getItem('token')
-    previewUrl.value = `/api/resumes/preview/${resume.id}?token=${token}`
+    previewUrl.value = `/api/resumes/preview/${resume.id}/image?token=${token}`
   }
 }
 

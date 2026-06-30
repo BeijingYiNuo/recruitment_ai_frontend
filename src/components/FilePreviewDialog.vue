@@ -10,12 +10,19 @@
     @close="$emit('close')"
   >
     <div class="preview-container" v-loading="loading">
-      <!-- PDF 预览 -->
-      <iframe
-        v-if="type === 'pdf' && url"
-        :src="url"
-        class="preview-iframe"
-      />
+      <!-- PDF 预览（后端转图片，绕过 Chrome PDF Viewer） -->
+      <div v-if="type === 'pdf' && previewImageUrl" class="pdf-viewer-wrap">
+        <img :src="previewImageUrl" class="preview-img" alt="简历预览" />
+        <div class="pdf-page-bar" v-if="pdfPageCount > 1">
+          <el-button size="small" text :disabled="pdfCurrentPage <= 1" @click="goToPdfPage(pdfCurrentPage - 1)">
+            <el-icon><ArrowLeft /></el-icon> 上一页
+          </el-button>
+          <span class="pdf-page-info">{{ pdfCurrentPage }} / {{ pdfPageCount }}</span>
+          <el-button size="small" text :disabled="pdfCurrentPage >= pdfPageCount" @click="goToPdfPage(pdfCurrentPage + 1)">
+            下一页 <el-icon><ArrowRight /></el-icon>
+          </el-button>
+        </div>
+      </div>
       <!-- 图像预览 -->
       <div v-else-if="isImage && url" class="preview-image-wrapper">
         <img :src="url" alt="预览图" class="preview-img" />
@@ -39,7 +46,7 @@
 
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { Document, Download } from '@element-plus/icons-vue'
+import { Document, Download, ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import MarkdownIt from 'markdown-it'
 
 const props = defineProps({
@@ -63,7 +70,41 @@ const isImage = computed(() => {
   return ['png', 'jpg', 'jpeg', 'gif'].includes(props.type.toLowerCase())
 })
 
-// 监听 URL 变化，如果是 MD 文件则获取内容并渲染
+// ========== PDF 多页支持 ==========
+const pdfPageCount = ref(0)
+const pdfCurrentPage = ref(1)
+const pdfBaseUrl = ref('')  // 不含 page 参数的原始 URL
+
+/** 从图片 URL 推导 page-count 接口地址，获取总页数 */
+async function loadPdfPageCount(imageUrl) {
+  pdfPageCount.value = 0
+  pdfCurrentPage.value = 1
+  pdfBaseUrl.value = imageUrl
+  try {
+    const countUrl = imageUrl.replace('/image?', '/page-count?')
+    const res = await fetch(countUrl)
+    if (res.ok) {
+      const data = await res.json()
+      pdfPageCount.value = data.total_pages || 1
+    }
+  } catch { /* 单页 PDF 无额外接口时静默降级 */ }
+}
+
+/** 翻页时更新图片 URL */
+function goToPdfPage(page) {
+  if (page < 1 || page > pdfPageCount.value) return
+  pdfCurrentPage.value = page
+  // 替换或追加 page 参数
+  const base = pdfBaseUrl.value
+  if (base.includes('page=')) {
+    previewImageUrl.value = base.replace(/page=\d+/, `page=${page}`)
+  } else {
+    previewImageUrl.value = base + `&page=${page}`
+  }
+}
+
+const previewImageUrl = ref('')
+// 监听 url 变化
 watch(() => props.url, async (newUrl) => {
   if (props.type === 'md' && newUrl) {
     try {
@@ -76,6 +117,15 @@ watch(() => props.url, async (newUrl) => {
     }
   } else {
     renderedMarkdown.value = ''
+  }
+  // PDF 图片预览：加载页数 + 显示第一页
+  if (props.type === 'pdf' && newUrl) {
+    previewImageUrl.value = newUrl
+    loadPdfPageCount(newUrl)
+  } else {
+    previewImageUrl.value = ''
+    pdfPageCount.value = 0
+    pdfCurrentPage.value = 1
   }
 }, { immediate: true })
 </script>
@@ -101,6 +151,38 @@ watch(() => props.url, async (newUrl) => {
   width: 100%;
   height: 100%;
   flex: 1;
+}
+
+/* PDF 多页预览 */
+.pdf-viewer-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow: auto;
+  padding: 16px;
+}
+.pdf-viewer-wrap .preview-img {
+  max-width: 100%;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  background: #fff;
+}
+.pdf-page-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 6px 16px;
+  background: #fff;
+  border-radius: 6px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+  flex-shrink: 0;
+}
+.pdf-page-info {
+  font-size: 13px;
+  color: #646A73;
+  min-width: 60px;
+  text-align: center;
 }
 
 .preview-image-wrapper {

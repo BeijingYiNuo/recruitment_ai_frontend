@@ -307,12 +307,13 @@
 
     <!-- 简历预览弹窗 -->
     <el-dialog v-model="previewDialogVisible" title="简历预览" width="800px" class="lark-dialog">
-      <div v-loading="previewLoading" style="min-height: 400px;">
-        <iframe
-          v-if="previewUrl"
-          :src="previewUrl"
-          style="width: 100%; height: 70vh; border: none; border-radius: 4px;"
-        />
+      <div v-loading="previewLoading" style="min-height: 400px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+        <img v-if="previewUrl" :src="previewUrl" style="max-width: 100%; max-height: 65vh; object-fit: contain; box-shadow: 0 2px 8px rgba(0,0,0,0.15);" alt="简历预览" />
+        <div v-if="previewUrl && pdfPreviewPageCount > 1" style="display: flex; align-items: center; gap: 12px; margin-top: 12px;">
+          <el-button size="small" :disabled="pdfPreviewPage <= 1" @click="goToPdfPreviewPage(pdfPreviewPage - 1)">上一页</el-button>
+          <span style="font-size: 13px; color: #646A73;">{{ pdfPreviewPage }} / {{ pdfPreviewPageCount }}</span>
+          <el-button size="small" :disabled="pdfPreviewPage >= pdfPreviewPageCount" @click="goToPdfPreviewPage(pdfPreviewPage + 1)">下一页</el-button>
+        </div>
         <el-empty v-else-if="!previewLoading" description="暂无简历" />
       </div>
     </el-dialog>
@@ -1011,22 +1012,42 @@ const handleViewDetail = async (id) => {
 const previewDialogVisible = ref(false)
 const previewLoading = ref(false)
 const previewUrl = ref('')
+const pdfPreviewPage = ref(1)
+const pdfPreviewPageCount = ref(0)
+const pdfPreviewResumeId = ref(null)
 
 const handlePreviewResume = async (item) => {
   if (!item.resume_id) return
   previewDialogVisible.value = true
   previewLoading.value = true
   previewUrl.value = ''
+  pdfPreviewPage.value = 1
+  pdfPreviewPageCount.value = 0
   try {
     const token = localStorage.getItem('token')
-    // 直接使用后端预览 URL，浏览器 HTTP 缓存自动处理内容缓存
-    previewUrl.value = `/api/resumes/preview/${item.resume_id}?token=${token}`
+    // 获取 PDF 页数
+    try {
+      const res = await fetch(`/api/resumes/preview/${item.resume_id}/page-count?token=${token}`)
+      const data = await res.json()
+      pdfPreviewPageCount.value = data.total_pages || 1
+    } catch {
+      pdfPreviewPageCount.value = 1
+    }
+    pdfPreviewResumeId.value = item.resume_id
+    previewUrl.value = `/api/resumes/preview/${item.resume_id}/image?page=1&token=${token}`
   } catch (error) {
     ElMessage.error('简历预览加载失败')
     previewDialogVisible.value = false
   } finally {
     previewLoading.value = false
   }
+}
+
+function goToPdfPreviewPage(page) {
+  if (page < 1 || page > pdfPreviewPageCount.value || !pdfPreviewResumeId.value) return
+  pdfPreviewPage.value = page
+  const token = localStorage.getItem('token')
+  previewUrl.value = `/api/resumes/preview/${pdfPreviewResumeId.value}/image?page=${page}&token=${token}`
 }
 
 const handleDelete = (id) => {

@@ -1,7 +1,7 @@
 <template>
   <div class="file-manager feishu-page">
     <div class="card-container">
-      
+
       <!-- 标准顶部操作栏 -->
       <div class="header-area">
         <div class="header-top">
@@ -224,7 +224,7 @@ const fetchFileList = async () => {
     const res = await fileApi.getFileList({ skip: 0, limit: 9999, file_type: 'voice,dialogue' })
     let list = res.data || []
     const allTotal = res.total || list.length
-    
+
     // 按更新时间降序排列，最新的在最上面
     list.sort((a, b) => {
       const timeA = new Date(a.updated_at || 0).getTime()
@@ -243,7 +243,7 @@ const fetchFileList = async () => {
       const ext = item.file_name?.split('.').pop()?.toLowerCase() || ''
       let fileIcon = Document
       let fileColor = '#3370FF'
-      
+
       if (['png', 'jpg', 'jpeg', 'gif'].includes(ext)) {
         fileIcon = Picture
         fileColor = '#8F959E'
@@ -260,7 +260,7 @@ const fetchFileList = async () => {
       const kb = sizeBytes / 1024
       const mb = kb / 1024
       const sizeStr = mb > 1 ? mb.toFixed(2) + ' MB' : kb.toFixed(2) + ' KB'
-      
+
       // 格式化日期
       const timeStr = item.updated_at ? item.updated_at.replace('T', ' ') : '未知'
 
@@ -406,10 +406,10 @@ const deleteFile = async (fileId) => {
         type: 'warning',
       }
     )
-    
+
     await fileApi.deleteFile(fileId)
     ElMessage.success('删除成功')
-    
+
     fetchFileList()
   } catch (error) {
     if (error !== 'cancel') {
@@ -447,7 +447,7 @@ const deleteFile = async (fileId) => {
 const handleDownload = async (file) => {
   try {
     const response = await fileApi.downloadFile(file.id)
-    
+
     // 创建 blob 链接并下载
     const url = window.URL.createObjectURL(new Blob([response]))
     const link = document.createElement('a')
@@ -455,11 +455,11 @@ const handleDownload = async (file) => {
     link.setAttribute('download', file.name)
     document.body.appendChild(link)
     link.click()
-    
+
     // 清理
     document.body.removeChild(link)
     window.URL.revokeObjectURL(url)
-    
+
     ElMessage.success('开始下载')
   } catch (error) {
     console.error('下载失败:', error)
@@ -475,16 +475,16 @@ const handlePreview = async (file) => {
   previewTitle.value = `${file.name || '文件'} - 预览`
   previewType.value = (file.name?.split('.').pop() || '').toLowerCase()
   previewDialogVisible.value = true
-  
+
   previewUrl.value = ''
 
   const supportBlobPreview = ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'md'].includes(previewType.value)
-  
+
   if (supportBlobPreview) {
     previewLoading.value = true
     try {
       const response = await fileApi.downloadFile(file.id)
-      
+
       let mimeType = 'application/octet-stream'
       if (previewType.value === 'pdf') mimeType = 'application/pdf'
       else if (['png', 'jpg', 'jpeg', 'gif'].includes(previewType.value)) mimeType = `image/${previewType.value === 'jpg' ? 'jpeg' : previewType.value}`
@@ -670,7 +670,7 @@ const onPreviewClose = () => {
 .list-row.file-row {
   cursor: pointer;
   position: relative;
-  
+
   &:hover {
     .size-text { opacity: 0; }
     .quick-actions { opacity: 1; pointer-events: auto; }
@@ -692,11 +692,11 @@ const onPreviewClose = () => {
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  
+
   .owner-info {
     display: flex;
     align-items: center;
-    
+
     .owner-avatar {
       width: 22px; height: 22px;
       border-radius: 50%;
@@ -789,7 +789,7 @@ const onPreviewClose = () => {
 .empty-state {
   display: flex; flex-direction: column;
   align-items: center; justify-content: center; height: 100%;
-  
+
   .empty-icon-wrapper {
     width: 160px; height: 160px;
     background-color: #F8F9FA; border-radius: 50%;
