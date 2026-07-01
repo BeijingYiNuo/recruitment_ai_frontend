@@ -157,9 +157,10 @@
             </div>
             
             <div class="col-action">
+              <el-button type="primary" link size="small" v-if="item.status === 'scheduled'" @click.stop="handleStartInterview(item)">开始面试</el-button>
               <el-button type="success" link size="small" v-if="item.session_id && item.status !== 'completed' && item.status !== 'cancelled'" @click.stop="handleStartASR(item)">启动 ASR</el-button>
               <el-button type="primary" link size="small" v-if="item.status === 'completed'" @click.stop="handleViewReport(item)">查看面试报告</el-button>
-              <el-button type="primary" link size="small" v-if="item.status !== 'completed' && item.status !== 'cancelled'" @click.stop="interviewStore.editInterview(item)">编辑</el-button>
+              <el-button type="primary" link size="small" v-if="item.status !== 'completed'" @click.stop="interviewStore.editInterview(item)">编辑</el-button>
               <el-button type="danger" link size="small" @click.stop="handleDelete(item.id)">删除</el-button>
             </div>
           </div>
@@ -948,8 +949,8 @@ const handleSave = async () => {
         scheduled_end_at: form.scheduled_end_at,
         notes: form.notes || ''
       }
-      // 已过期的面试更新预约时间后自动恢复为已预约
-      if (form.status === 'expired') {
+      // 已过期或已取消的面试更新预约时间后自动恢复为已预约
+      if (form.status === 'expired' || form.status === 'cancelled') {
         editPayload.status = 'scheduled'
       }
       await interviewApi.updateReserveSession(form.id, editPayload)
@@ -1115,6 +1116,25 @@ const handleCreateSession = (session) => {
     return
   }
   router.push(`/interview-assistant/${session.id}/${roundId}`)
+}
+
+const handleStartInterview = async (item) => {
+  // 确保轮次数据已加载
+  if (!roundsMap[item.id] || roundsMap[item.id].length === 0) {
+    await loadSessionRounds(item.id)
+  }
+  const rounds = roundsMap[item.id]
+  if (!rounds || rounds.length === 0) {
+    ElMessage.warning('该面试尚无面试轮次，请先设置面试流程')
+    return
+  }
+  // 找到第一个待面试的轮次
+  const firstPending = rounds.find(r => r.status === 'pending')
+  if (!firstPending) {
+    ElMessage.warning('所有轮次已完成或已跳过，无法开始面试')
+    return
+  }
+  router.push(`/interview-assistant/${item.id}/${firstPending.id}`)
 }
 
 const handleStartASR = async (item) => {

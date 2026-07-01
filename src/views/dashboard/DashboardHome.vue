@@ -163,9 +163,6 @@
       class="context-menu"
       :style="{ left: contextMenuX + 'px', top: contextMenuY + 'px' }"
     >
-      <div class="context-menu-item" @click="handleContextAction('edit')">
-        <el-icon><Edit /></el-icon><span>编辑</span>
-      </div>
       <div
         v-if="contextInterview?.status === 'scheduled' || contextInterview?.status === 'ongoing'"
         class="context-menu-item context-menu-item-danger"
@@ -194,12 +191,14 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { resumeApi } from '../../api/resume'
 import { interviewApi } from '../../api/interview'
 import { positionApi } from '../../api/position'
+import { useInterviewStore } from '../../stores/interviewStore'
 import {
   Document, Edit, Timer, QuestionFilled, Calendar, Briefcase,
   CircleCheck, CircleClose, Plus
 } from '@element-plus/icons-vue'
 
 const router = useRouter()
+const interviewStore = useInterviewStore()
 
 // ============================================================
 //  常量 / 配置
@@ -574,9 +573,6 @@ async function handleContextAction(action) {
   closeContextMenu()
 
   switch (action) {
-    case 'edit':
-      router.push(`/dashboard/appointment?edit=${interview.id}`)
-      break
     case 'cancel':
       if (interview.status === 'cancelled') {
         ElMessage.info('该面试已取消')
@@ -590,6 +586,7 @@ async function handleContextAction(action) {
         )
         await interviewApi.updateReserveSession(interview.id, { status: 'cancelled' })
         ElMessage.success('已取消面试安排')
+        interviewStore.invalidateSessionCache()
         fetchInterviewSchedules()
         fetchStats()
       } catch (e) {
@@ -607,6 +604,7 @@ async function handleContextAction(action) {
         )
         await interviewApi.updateReserveSession(interview.id, { status: 'scheduled' })
         ElMessage.success('已恢复预约')
+        interviewStore.invalidateSessionCache()
         fetchInterviewSchedules()
         fetchStats()
       } catch (e) {

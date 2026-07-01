@@ -79,6 +79,7 @@ export const useInterviewStore = defineStore('interview', () => {
     interviewForm.value = {
       id: item.id,
       candidate_name: item.candidate_name,
+      status: item.status,
       // 将后端返回的 0 转换为 null 以便 el-select 显示占位符
       resume_id: item.resume_id || null,
       position_id: item.position_id || null,

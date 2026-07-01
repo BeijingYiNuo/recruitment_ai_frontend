@@ -43,7 +43,7 @@ const currentUser = ref(getCurrentUser() || { id: 1 })
 const fetchInterviewSchedules = async () => {
   loading.value = true
   try {
-    const data = await interviewApi.getUserInterviewSessions(currentUser.value.id)
+    const data = await interviewApi.getUserInterviewSessions({})
     interviewList.value = Array.isArray(data) ? data : (data.items || data.data || [])
   } catch (error) {
     ElMessage.error('获取面试安排失败: ' + (error?.detail || error?.message || '未知错误'))
