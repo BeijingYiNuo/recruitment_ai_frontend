@@ -45,10 +45,12 @@
         </div>
 
         <div class="feishu-social-wrapper">
-          <SocialButtons />
+          <SocialButtons @wechat-login="showWeChatDialog = true" />
         </div>
       </form>
     </div>
+
+    <WeChatCodeDialog v-model="showWeChatDialog" @login-success="onWeChatLoginSuccess" />
 
     <!-- 规避 unused var 警告 -->
     <template v-if="false">
@@ -67,6 +69,7 @@ import authService from '../services/authService'
 import AuthLayout from '../components/AuthLayout.vue'
 import AuthCard from '../components/AuthCard.vue'
 import SocialButtons from '../components/SocialButtons.vue'
+import WeChatCodeDialog from '../components/WeChatCodeDialog.vue'
 
 const router = useRouter()
 const username = ref('')
@@ -74,6 +77,7 @@ const password = ref('')
 const showPassword = ref(false)
 const loading = ref(false)
 const error = ref('')
+const showWeChatDialog = ref(false)
 
 import heroImage from '../assets/login.jpg'
 const loginGradient = 'linear-gradient(135deg,#6366f1 0%,#8b5cf6 50%,#d946ef 100%)'
@@ -93,6 +97,10 @@ async function handleLogin () {
   } finally {
     loading.value = false
   }
+}
+
+function onWeChatLoginSuccess () {
+  router.push('/dashboard')
 }
 </script>
 

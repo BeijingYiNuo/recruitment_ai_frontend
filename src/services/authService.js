@@ -31,6 +31,22 @@ const authService = {
     return await authApi.resetPassword(token, newPassword)
   },
 
+  // 微信验证码登录
+  wechatLogin: async (code) => {
+    const response = await authApi.verifyWeChatCode(code)
+    if (response.access_token) {
+      localStorage.setItem('token', response.access_token)
+      if (response.user !== undefined && response.user !== null) {
+        localStorage.setItem('user', JSON.stringify(response.user))
+      } else {
+        // 用响应中的用户信息构建 user 对象
+        const user = { id: response.user_id, username: response.username }
+        localStorage.setItem('user', JSON.stringify(user))
+      }
+    }
+    return response
+  },
+
   // 登出
   logout: () => {
     localStorage.removeItem('token')
