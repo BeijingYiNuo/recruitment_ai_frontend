@@ -107,7 +107,7 @@ const props = defineProps({
   },
   appName: {
     type: String,
-    default: '面试助手',
+    default: 'xu的求职经验分享',
   },
 })
 
