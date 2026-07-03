@@ -57,6 +57,11 @@
           <span>系统设置</span>
         </el-menu-item> -->
       </el-menu>
+      <div class="sidebar-footer">
+        <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">
+          京ICP备2026039578号
+        </a>
+      </div>
     </el-aside>
 
     <el-container class="main-wrapper">
@@ -200,6 +205,7 @@ const handleMenuSelect = (index) => {
   flex-direction: column;
   transition: width 0.3s;
   border-right: 1px solid #dee0e3;
+  position: relative;
 
   .logo {
     height: 60px;
@@ -241,6 +247,22 @@ const handleMenuSelect = (index) => {
       }
       &:hover:not(.is-active):not(.is-disabled) {
         background-color: #f5f6f7 !important;
+      }
+    }
+  }
+
+  .sidebar-footer {
+    flex-shrink: 0;
+    padding: 12px 16px;
+    border-top: 1px solid #f0f0f0;
+    text-align: left;
+
+    a {
+      font-size: 11px;
+      color: #bbb;
+      text-decoration: none;
+      &:hover {
+        color: #3370ff;
       }
     }
   }
