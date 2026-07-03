@@ -333,6 +333,7 @@ import { interviewApi } from '../../api/interview'
 import { resumeApi } from '../../api/resume'
 import { knowledgeApi } from '../../api/knowledge'
 import { positionApi } from '../../api/position'
+import { accountApi } from '../../api/account'
 import { useInterviewStore } from '../../stores/interviewStore'
 import { useResumeStore } from '../../stores/resumeStore'
 import InterviewFormDialog from '../../components/InterviewFormDialog.vue'
@@ -1109,13 +1110,47 @@ const handleCancel = (item) => {
   }).catch(() => {})
 }
 
-const handleCreateSession = (session) => {
+const handleCreateSession = async (session) => {
   const roundId = currentRound.value?.id
   if (!roundId) {
     ElMessage.warning('未选中面试轮次')
     return
   }
+
+  // 余额校验
+  const { sufficient, balance, price } = await checkBalanceBeforeStart()
+  if (!sufficient) {
+    ElMessageBox.confirm(
+      `当前余额 ¥${balance.toFixed(2)}，不足以支付面试费用（¥${price.toFixed(2)}），请先充值。`,
+      '余额不足',
+      {
+        confirmButtonText: '去充值',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    ).then(() => {
+      router.push('/dashboard/recharge')
+    }).catch(() => {})
+    return
+  }
+
   router.push(`/interview-assistant/${session.id}/${roundId}`)
+}
+
+const checkBalanceBeforeStart = async () => {
+  try {
+    const [balanceRes, pricingRes] = await Promise.all([
+      accountApi.getBalance(),
+      accountApi.getPricing(),
+    ])
+    const balance = balanceRes.balance ?? 0
+    const interviewPricing = pricingRes.items?.find(p => p.service_type === 'interview_reserve')
+    const price = interviewPricing?.price ?? 5
+    return { sufficient: balance >= price, balance, price }
+  } catch {
+    // 支付模块不可用时放行
+    return { sufficient: true, balance: 0, price: 0 }
+  }
 }
 
 const handleStartInterview = async (item) => {
@@ -1134,6 +1169,24 @@ const handleStartInterview = async (item) => {
     ElMessage.warning('所有轮次已完成或已跳过，无法开始面试')
     return
   }
+
+  // 余额校验
+  const { sufficient, balance, price } = await checkBalanceBeforeStart()
+  if (!sufficient) {
+    ElMessageBox.confirm(
+      `当前余额 ¥${balance.toFixed(2)}，不足以支付面试费用（¥${price.toFixed(2)}），请先充值。`,
+      '余额不足',
+      {
+        confirmButtonText: '去充值',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    ).then(() => {
+      router.push('/dashboard/recharge')
+    }).catch(() => {})
+    return
+  }
+
   router.push(`/interview-assistant/${item.id}/${firstPending.id}`)
 }
 

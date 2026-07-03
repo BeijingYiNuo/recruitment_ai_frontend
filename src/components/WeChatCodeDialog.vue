@@ -11,13 +11,12 @@
       <!-- 微信图标头部 -->
       <div class="dialog-header">
         <div class="wechat-icon-wrap">
-          <svg viewBox="0 0 120 120" width="44" height="44">
-            <path fill="#07C160" d="M42.5 10C22.12 10 6 23.65 6 40c0 9.12 5.32 17.28 13.5 22.5L16 72l11.28-5.64A38.66 38.66 0 0 0 42.5 70c7.56 0 14.6-1.88 20.66-5.14A26.5 26.5 0 0 1 62 57c0-13.25 11.75-24 26.5-24h.86C85.75 21.83 66.5 10 42.5 10z"/>
-            <circle cx="26" cy="36" r="5" fill="#FFF"/>
-            <circle cx="52" cy="36" r="5" fill="#FFF"/>
-            <path fill="#07C160" d="M88.5 38C71.46 38 57 50.1 57 65s14.46 27 31.5 27c3.12 0 6.14-.42 8.96-1.2L112 100l-4.08-10.12C115.2 86.42 120 79.94 120 72c0-14.9-14.46-34-31.5-34z"/>
-            <circle cx="78" cy="66" r="5" fill="#FFF"/>
-            <circle cx="102" cy="66" r="5" fill="#FFF"/>
+          <svg viewBox="0 0 300 300" width="44" height="44">
+            <path fill="#2DC100" d="M300 255c0 24.854-20.147 45-45 45H45c-24.854 0-45-20.146-45-45V45C0 20.147 20.147 0 45 0h210c24.853 0 45 20.147 45 45v210z"/>
+            <g fill="#FFF">
+              <path d="M200.803 111.88c-24.213 1.265-45.268 8.605-62.362 25.188-17.271 16.754-25.155 37.284-23 62.734-9.464-1.172-18.084-2.462-26.753-3.192-2.994-.252-6.547.106-9.083 1.537-8.418 4.75-16.488 10.113-26.053 16.092 1.755-7.938 2.891-14.889 4.902-21.575 1.479-4.914.794-7.649-3.733-10.849-29.066-20.521-41.318-51.232-32.149-82.85 8.483-29.25 29.315-46.989 57.621-56.236 38.635-12.62 82.054.253 105.547 30.927 8.485 11.08 13.688 23.516 15.063 38.224zm-111.437-9.852c.223-5.783-4.788-10.993-10.74-11.167-6.094-.179-11.106 4.478-11.284 10.483-.18 6.086 4.475 10.963 10.613 11.119 6.085.154 11.186-4.509 11.411-10.435zm58.141-11.171c-5.974.11-11.022 5.198-10.916 11.004.109 6.018 5.061 10.726 11.204 10.652 6.159-.074 10.83-4.832 10.772-10.977-.051-6.032-4.981-10.79-11.06-10.679z"/>
+              <path d="M255.201 262.83c-7.667-3.414-14.7-8.536-22.188-9.318-7.459-.779-15.3 3.524-23.104 4.322-23.771 2.432-45.067-4.193-62.627-20.432-33.397-30.89-28.625-78.254 10.014-103.568 34.341-22.498 84.704-14.998 108.916 16.219 21.129 27.24 18.646 63.4-7.148 86.284-7.464 6.623-10.15 12.073-5.361 20.804.884 1.612.985 3.653 1.498 5.689zm-87.274-84.499c4.881.005 8.9-3.815 9.085-8.636.195-5.104-3.91-9.385-9.021-9.406-5.06-.023-9.299 4.318-9.123 9.346.166 4.804 4.213 8.69 9.059 8.696zm56.261-18.022c-4.736-.033-8.76 3.844-8.953 8.629-.205 5.117 3.772 9.319 8.836 9.332 4.898.016 8.768-3.688 8.946-8.562.19-5.129-3.789-9.364-8.829-9.399z"/>
+            </g>
           </svg>
         </div>
         <h3 class="dialog-title">微信验证码登录</h3>
@@ -29,7 +28,7 @@
         <div class="instruction-card">
           <div class="instruction-step">
             <span class="step-num">1</span>
-            <span class="step-text">打开微信，向公众号发送「<strong>登录</strong>」</span>
+            <span class="step-text">打开微信，向公众号发送"<strong>登录</strong>"</span>
           </div>
           <div class="instruction-step">
             <span class="step-num">2</span>
@@ -43,14 +42,21 @@
 
         <div class="code-section">
           <label class="code-label">验证码</label>
-          <el-input
-            v-model="code"
-            placeholder="请输入 6 位数字验证码"
-            maxlength="6"
-            size="large"
-            class="code-input"
-            @input="onCodeInput"
-          />
+          <div class="code-boxes">
+            <input
+              v-for="i in 6"
+              :key="i"
+              :ref="el => { if (el) codeInputs[i - 1] = el }"
+              v-model="codeArr[i - 1]"
+              type="text"
+              maxlength="1"
+              class="code-box"
+              :class="{ filled: codeArr[i - 1] }"
+              @input="onBoxInput(i - 1)"
+              @keydown.delete="onBoxDelete(i - 1)"
+              @paste="onBoxPaste"
+            />
+          </div>
           <p v-if="error" class="error-text">{{ error }}</p>
         </div>
 
@@ -58,7 +64,7 @@
           type="primary"
           size="large"
           class="submit-btn"
-          :disabled="code.length !== 6 || loading"
+          :disabled="!codeFull || loading"
           :loading="loading"
           @click="handleVerify"
         >
@@ -73,8 +79,15 @@
         </p>
 
         <div v-if="showFollowTips" class="follow-tips">
-          <p>在微信搜索「<strong>{{ appName }}</strong>」或扫码关注后，发送「登录」即可获取验证码</p>
+          <p>在微信搜索 <strong>{{ appName }}</strong> 或 <span class="scan-link" @click="showQrDialog = true"><strong>扫码关注</strong></span> 后，发送"<strong>登录</strong>"即可获取验证码</p>
         </div>
+
+        <!-- 二维码弹窗 -->
+        <el-dialog v-model="showQrDialog" title="扫码关注" width="320px" class="qr-dialog">
+          <div class="qr-body">
+            <img :src="qrcodeImg" alt="公众号二维码" class="qr-image" />
+          </div>
+        </el-dialog>
       </div>
 
       <!-- 步骤 2: 登录成功 -->
@@ -97,6 +110,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import authService from '../services/authService'
+import qrcodeImg from '../assets/公众号二维码.png'
 
 const emit = defineEmits(['login-success', 'update:modelValue'])
 
@@ -115,23 +129,52 @@ const visible = computed({
   get: () => props.modelValue,
   set: (val) => emit('update:modelValue', val),
 })
-const code = ref('')
+const codeArr = ref(['', '', '', '', '', ''])
+const codeInputs = ref([])
 const step = ref('input')
 const loading = ref(false)
 const error = ref('')
 const showFollowTips = ref(false)
+const showQrDialog = ref(false)
 
-function onCodeInput(value) {
-  code.value = value.replace(/\D/g, '')
+const codeFull = computed(() => codeArr.value.every(d => d !== ''))
+
+function onBoxInput(idx) {
+  // 只保留数字
+  codeArr.value[idx] = codeArr.value[idx].replace(/\D/g, '')
+  // 自动跳到下一个输入框
+  if (codeArr.value[idx] && idx < 5) {
+    codeInputs.value[idx + 1]?.focus()
+  }
+}
+
+function onBoxDelete(idx) {
+  if (!codeArr.value[idx] && idx > 0) {
+    codeInputs.value[idx - 1]?.focus()
+  }
+}
+
+function onBoxPaste(e) {
+  const text = (e.clipboardData?.getData('text') || '').replace(/\D/g, '').slice(0, 6)
+  if (!text) return
+  e.preventDefault()
+  for (let i = 0; i < 6; i++) {
+    codeArr.value[i] = text[i] || ''
+  }
+  // 粘贴后聚焦到下一个空框或最后一个
+  const nextEmpty = codeArr.value.findIndex(d => !d)
+  const focusIdx = nextEmpty > 0 ? nextEmpty : 5
+  codeInputs.value[focusIdx]?.focus()
 }
 
 async function handleVerify() {
-  if (code.value.length !== 6) return
+  const code = codeArr.value.join('')
+  if (code.length !== 6) return
   loading.value = true
   error.value = ''
 
   try {
-    await authService.wechatLogin(code.value)
+    await authService.wechatLogin(code)
     step.value = 'success'
     setTimeout(() => {
       emit('login-success')
@@ -139,7 +182,8 @@ async function handleVerify() {
     }, 1200)
   } catch (err) {
     error.value = err?.detail || '验证码无效或已过期，请重新获取'
-    code.value = ''
+    codeArr.value = ['', '', '', '', '', '']
+    codeInputs.value[0]?.focus()
   } finally {
     loading.value = false
   }
@@ -149,7 +193,7 @@ function handleClose() {
   visible.value = false
   emit('update:modelValue', false)
   setTimeout(() => {
-    code.value = ''
+    codeArr.value = ['', '', '', '', '', '']
     step.value = 'input'
     error.value = ''
     showFollowTips.value = false
@@ -284,31 +328,33 @@ function handleClose() {
   line-height: 20px;
 }
 
-.code-input :deep(.el-input__wrapper) {
-  height: 44px;
-  border-radius: 6px;
+.code-boxes {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.code-box {
+  width: 44px;
+  height: 48px;
   border: 1px solid #dee0e3;
-  box-shadow: none;
-  padding: 0 12px;
-  font-size: 20px;
-  letter-spacing: 6px;
+  border-radius: 8px;
   text-align: center;
+  font-size: 22px;
+  font-weight: 600;
+  outline: none;
+  transition: all 0.2s;
+  caret-color: #3370FF;
 }
 
-.code-input :deep(.el-input__wrapper:hover) {
-  border-color: #bbbfc4;
-}
-
-.code-input :deep(.el-input__wrapper.is-focus) {
+.code-box:focus {
   border-color: #3370FF;
   box-shadow: 0 0 0 2px rgba(51, 112, 255, 0.2);
 }
 
-.code-input :deep(.el-input__inner) {
-  height: 42px;
-  font-size: 20px;
-  letter-spacing: 6px;
-  text-align: center;
+.code-box.filled {
+  border-color: #3370FF;
+  background: #F0F5FF;
 }
 
 /* 错误提示 */
@@ -350,6 +396,38 @@ function handleClose() {
 
 .follow-tips p {
   margin: 0;
+}
+
+.scan-link {
+  color: #3370FF;
+  cursor: pointer;
+  font-size: 13px;
+  margin-left: 4px;
+  user-select: none;
+}
+
+.scan-link:hover {
+  text-decoration: underline;
+}
+
+/* 二维码弹窗 */
+.qr-dialog :deep(.el-dialog__body) {
+  padding: 16px;
+}
+
+.qr-body {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 8px;
+}
+
+.qr-image {
+  width: 240px;
+  height: 240px;
+  display: block;
+  border-radius: 4px;
+  object-fit: contain;
 }
 
 /* ===== 成功状态 ===== */

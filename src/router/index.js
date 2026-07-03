@@ -87,6 +87,16 @@ const routes = [
         path: 'resume-review',
         name: 'resumeReview',
         component: () => import('../views/dashboard/ResumeReviewView.vue')
+      },
+      {
+        path: 'recharge',
+        name: 'recharge',
+        component: () => import('../views/dashboard/RechargeView.vue')
+      },
+      {
+        path: 'transactions',
+        name: 'transactions',
+        component: () => import('../views/dashboard/TransactionsView.vue')
       }
     ]
   },

@@ -100,9 +100,11 @@
         </div>
 
         <div class="feishu-social-wrapper">
-          <SocialButtons />
+          <SocialButtons @wechat-login="showWeChatDialog = true" />
         </div>
       </form>
+
+      <WeChatCodeDialog v-model="showWeChatDialog" @login-success="onWeChatLoginSuccess" />
     </div>
 
     <!-- 规避 unused var 警告 -->
@@ -121,6 +123,7 @@ import authService from '../services/authService'
 import AuthLayout from '../components/AuthLayout.vue'
 import AuthCard from '../components/AuthCard.vue'
 import SocialButtons from '../components/SocialButtons.vue'
+import WeChatCodeDialog from '../components/WeChatCodeDialog.vue'
 
 const router = useRouter()
 const form = reactive({ username: '', email: '', phone: '', role: '', password: '', confirmPassword: '' })
@@ -130,6 +133,11 @@ const agree = ref(false)
 const loading = ref(false)
 const error = ref('')
 const success = ref('')
+const showWeChatDialog = ref(false)
+
+function onWeChatLoginSuccess() {
+  router.push('/dashboard')
+}
 
 const registerGradient = 'linear-gradient(135deg,#ec4899 0%,#a855f7 50%,#6366f1 100%)'
 

@@ -98,25 +98,129 @@
       </div>
 
       <!-- 编辑个人信息弹窗组件 -->
-      <UserEditModal 
+      <UserEditModal
         v-model:visible="editDialogVisible"
         :user-data="userProfile"
         :show-role="false"
         title="修改个人信息"
         @success="fetchProfile"
       />
+
+      <!-- 充值与消费卡片 -->
+      <div class="feishu-card" style="margin-top: 16px;">
+        <div class="card-header">
+          <h2 class="card-title">充值与消费</h2>
+          <router-link to="/dashboard/transactions" class="lark-link">查看全部</router-link>
+        </div>
+
+        <!-- 余额概览 -->
+        <div class="balance-overview">
+          <div class="balance-info">
+            <span class="balance-label">当前余额</span>
+            <span class="balance-amount">¥{{ accountInfo.balance.toFixed(2) }}</span>
+          </div>
+          <button class="lark-btn-primary small-btn" @click="goRecharge">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px;">
+              <path d="M12 5v14M5 12h14" stroke-linecap="round"/>
+            </svg>
+            去充值
+          </button>
+        </div>
+
+        <div class="lark-section-divider"></div>
+
+        <!-- 充值记录折叠 -->
+        <div style="margin-top: 16px;">
+          <span class="lark-toggle" @click="showRecharge = !showRecharge">
+            {{ showRecharge ? '收起' : '展开' }}充值记录
+            <svg :class="['chevron', { open: showRecharge }]" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M6 9l6 6 6-6"/>
+            </svg>
+          </span>
+          <div v-show="showRecharge" style="margin-top: 12px;">
+            <div v-if="recentRecharges.length === 0" class="empty-hint">暂无充值记录</div>
+            <table v-else class="lark-table">
+              <thead>
+                <tr>
+                  <th>订单号</th>
+                  <th>金额</th>
+                  <th>方式</th>
+                  <th>时间</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="tx in recentRecharges" :key="tx.order_no">
+                  <td class="font-mono">{{ tx.order_no }}</td>
+                  <td class="amount-cell">¥{{ Math.abs(tx.amount).toFixed(2) }}</td>
+                  <td>
+                    <span :class="['pay-badge', tx.payment_method]">
+                      {{ paymentMethodLabel(tx.payment_method) }}
+                    </span>
+                  </td>
+                  <td class="text-tertiary">{{ formatTime(tx.paid_at || tx.created_at) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 消费记录折叠 -->
+        <div style="margin-top: 12px;">
+          <span class="lark-toggle" @click="showConsume = !showConsume">
+            {{ showConsume ? '收起' : '展开' }}消费记录
+            <svg :class="['chevron', { open: showConsume }]" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M6 9l6 6 6-6"/>
+            </svg>
+          </span>
+          <div v-show="showConsume" style="margin-top: 12px;">
+            <div v-if="recentConsumes.length === 0" class="empty-hint">暂无消费记录</div>
+            <table v-else class="lark-table">
+              <thead>
+                <tr>
+                  <th>面试详情</th>
+                  <th>服务</th>
+                  <th>金额</th>
+                  <th>时间</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="tx in recentConsumes" :key="tx.order_no">
+                  <td>
+                    <div class="session-info">
+                      <span class="session-candidate">{{ tx.session_info?.candidate_name || '--' }}</span>
+                      <span class="session-round">{{ tx.session_info ? `第${tx.session_info.round_number}轮 · ${tx.session_info.round_name}` : '--' }}</span>
+                    </div>
+                  </td>
+                  <td>
+                    <el-tag size="small" :type="tx.service_type === 'interview_reserve' ? 'primary' : 'warning'" effect="plain">
+                      {{ serviceTypeLabel(tx.service_type) }}
+                    </el-tag>
+                  </td>
+                  <td class="amount-cell consume">-¥{{ Math.abs(tx.amount).toFixed(2) }}</td>
+                  <td class="text-tertiary">{{ formatTime(tx.created_at) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     </main>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
+import { useRouter } from 'vue-router'
 import { authApi } from '../api/auth'
+import { accountApi } from '../api/account'
 import { getCurrentUser } from '../services/authService'
 import UserEditModal from '../components/UserEditModal.vue'
 
+const router = useRouter()
 const editDialogVisible = ref(false)
+const showConsume = ref(false)
+const showRecharge = ref(false)
 
 const userProfile = ref({
   id: '--',
@@ -129,9 +233,39 @@ const userProfile = ref({
   last_login_at: '--'
 })
 
+const accountInfo = ref({
+  balance: 0,
+  total_recharged: 0,
+  total_consumed: 0,
+})
+
+const allTransactions = ref([])
+
+const recentRecharges = computed(() =>
+  allTransactions.value.filter(tx => tx.type === 'RECHARGE' && tx.status === 'PAID').slice(0, 5)
+)
+
+const recentConsumes = computed(() =>
+  allTransactions.value.filter(tx => tx.type === 'CONSUME').slice(0, 10)
+)
+
 const formatTime = (timeStr) => {
   if (!timeStr || timeStr === '--') return '--'
   return timeStr.replace('T', ' ').substring(0, 19)
+}
+
+const paymentMethodLabel = (method) => {
+  const map = { wxpay: '微信支付', alipay: '支付宝', qqpay: 'QQ钱包', tenpay: '财付通', balance: '余额' }
+  return map[method] || method || '--'
+}
+
+const serviceTypeLabel = (type) => {
+  const map = { interview_reserve: '面试', report_generate: '报告' }
+  return map[type] || type || '--'
+}
+
+const goRecharge = () => {
+  router.push('/dashboard/recharge')
 }
 
 const fetchProfile = async () => {
@@ -140,11 +274,10 @@ const fetchProfile = async () => {
     if (!currentUser || !currentUser.id) {
       throw new Error('未获取到当前登录用户的 ID，请重新登录。')
     }
-    
-    const res = await authApi.getUserProfile(currentUser.id) // 请求后端个人信息数据
-    
+
+    const res = await authApi.getUserProfile(currentUser.id)
+
     let data;
-    // 兼容取出返回的数据：按你给定的结构是包在一个数组内
     if (Array.isArray(res) && res.length > 0) {
       data = res[0]
     } else if (res && !Array.isArray(res)) {
@@ -168,12 +301,32 @@ const fetchProfile = async () => {
   }
 }
 
+const fetchAccount = async () => {
+  try {
+    const balanceRes = await accountApi.getBalance()
+    accountInfo.value = {
+      balance: balanceRes.balance ?? 0,
+      total_recharged: balanceRes.total_recharged ?? 0,
+      total_consumed: balanceRes.total_consumed ?? 0,
+    }
+
+    const txRes = await accountApi.getTransactions({ page: 1, page_size: 20 })
+    allTransactions.value = txRes.items || []
+  } catch (error) {
+    // 账户/支付模块尚未启用时静默处理
+    if (error?.code !== 'INSUFFICIENT_BALANCE') {
+      console.warn('获取账户信息失败（可忽略）:', error?.detail || error?.message || error)
+    }
+  }
+}
+
 const handleEdit = () => {
   editDialogVisible.value = true
 }
 
 onMounted(() => {
   fetchProfile()
+  fetchAccount()
 })
 </script>
 
@@ -419,9 +572,150 @@ $border-color: #dee0e3;
   margin: 32px 0;
 }
 
+/* --- 充值消费卡片 --- */
+.balance-overview {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 0 8px;
+}
+
+.balance-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.balance-label {
+  font-size: 14px;
+  color: #646a73;
+}
+
+.balance-amount {
+  font-size: 28px;
+  font-weight: 700;
+  color: #1f2329;
+  letter-spacing: -0.5px;
+}
+
+.lark-link {
+  font-size: 14px;
+  color: #3370ff;
+  text-decoration: none;
+  cursor: pointer;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.lark-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+
+  th {
+    text-align: left;
+    padding: 8px 12px;
+    color: #8f959e;
+    font-weight: 500;
+    border-bottom: 1px solid #dee0e3;
+  }
+
+  td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #f5f6f7;
+  }
+
+  tbody tr:hover {
+    background-color: #fafafa;
+  }
+}
+
+.amount-cell {
+  font-weight: 600;
+  color: #13a248;
+
+  &.consume {
+    color: #f54a45;
+  }
+}
+
+.pay-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+
+  &.wxpay {
+    background-color: #e8f5e9;
+    color: #13a248;
+  }
+
+  &.alipay {
+    background-color: #e3f2fd;
+    color: #3370ff;
+  }
+}
+
+.session-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.session-candidate {
+  font-weight: 600;
+  color: #1f2329;
+  font-size: 14px;
+}
+
+.session-round {
+  font-size: 12px;
+  color: #8f959e;
+}
+
+.empty-hint {
+  padding: 24px 0;
+  text-align: center;
+  color: #8f959e;
+  font-size: 14px;
+}
+
+.lark-toggle {
+  font-size: 14px;
+  color: #3370ff;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  user-select: none;
+
+  .chevron {
+    transition: transform 0.2s;
+
+    &.open {
+      transform: rotate(180deg);
+    }
+  }
+}
+
 @media (max-width: 768px) {
   .lark-descriptions {
     grid-template-columns: 1fr;
+  }
+
+  .lark-table {
+    font-size: 12px;
+
+    th, td {
+      padding: 6px 8px;
+    }
+  }
+
+  .balance-amount {
+    font-size: 22px;
   }
 }
 </style>
