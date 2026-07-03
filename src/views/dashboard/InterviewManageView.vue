@@ -157,7 +157,7 @@
             </div>
             
             <div class="col-action">
-              <el-button type="primary" link size="small" v-if="item.status === 'scheduled'" @click.stop="handleStartInterview(item)">开始面试</el-button>
+              <el-button type="primary" link size="small" v-if="getFirstStartableRound(item.id)" @click.stop="handleStartInterview(item)">开始面试</el-button>
               <el-button type="success" link size="small" v-if="item.session_id && item.status !== 'completed' && item.status !== 'cancelled'" @click.stop="handleStartASR(item)">启动 ASR</el-button>
               <el-button type="primary" link size="small" v-if="item.status === 'completed'" @click.stop="handleViewReport(item)">查看面试报告</el-button>
               <el-button type="primary" link size="small" v-if="item.status !== 'completed'" @click.stop="interviewStore.editInterview(item)">编辑</el-button>
@@ -437,17 +437,18 @@ const submitEvaluation = async () => {
         rounds[idx] = updated
         currentRound.value = { ...updated }
       }
-      // 最后一个轮次更新时同步计划状态
-      if (idx === rounds.length - 1) {
-        const planStatusMap = {
-          'pass': 'passed',
-          'fail': 'failed',
-          'pending_review': 'pending'
-        }
-        const planStatus = planStatusMap[evaluationForm.status]
-        if (planStatus && currentSessionForRound.value.status !== planStatus) {
-          await interviewApi.updateReserveSession(currentSessionForRound.value.id, { status: planStatus })
-        }
+      // 根据所有轮次状态推导面试状态（不再仅看最后一轮）
+      const allStatuses = rounds.map(r => r.status)
+      let planStatus = null
+      if (allStatuses.some(s => s === 'fail')) {
+        planStatus = 'failed'
+      } else if (allStatuses.every(s => s === 'pass' || s === 'skip')) {
+        planStatus = 'passed'
+      } else if (allStatuses.every(s => s !== 'pending') && allStatuses.some(s => s === 'pending_review')) {
+        planStatus = 'pending'
+      }
+      if (planStatus && currentSessionForRound.value.status !== planStatus) {
+        await interviewApi.updateReserveSession(currentSessionForRound.value.id, { status: planStatus })
       }
 
       // 中间轮次不通过 → 后续轮次跳过 + 计划状态同步
@@ -490,27 +491,30 @@ const getStatusLabel = (status) => {
   return map[status] || status
 }
 
-// 根据轮次结果推导面试状态展示（已完成 → 通过/未通过）
+// 根据所有轮次结果推导面试状态展示（不再仅看最后一轮）
 const sessionStatusLabel = (session) => {
-  if (session.status === 'completed') {
-    const rounds = roundsMap[session.id]
-    if (rounds && rounds.length > 0) {
-      const last = rounds[rounds.length - 1]
-      if (last.status === 'pass') return '已通过'
-      if (last.status === 'fail' || last.status === 'skip') return '未通过'
-    }
+  const rounds = roundsMap[session.id]
+  if (rounds && rounds.length > 0) {
+    // 有任一失败 → 未通过
+    if (rounds.some(r => r.status === 'fail')) return '未通过'
+    // 全部通过/跳过 → 已通过
+    if (rounds.every(r => r.status === 'pass' || r.status === 'skip')) return '已通过'
+    // 所有轮次都有结论（含 pending_review，无 pending）→ 待定
+    if (rounds.every(r => r.status !== 'pending') && rounds.some(r => r.status === 'pending_review')) return '待定'
+    // 全是 pending → 沿用计划状态
+    if (rounds.every(r => r.status === 'pending')) return getStatusLabel(session.status)
+    // 部分已评估部分待开始 → 沿用原有状态
   }
   return getStatusLabel(session.status)
 }
 
 const sessionStatusType = (session) => {
-  if (session.status === 'completed') {
-    const rounds = roundsMap[session.id]
-    if (rounds && rounds.length > 0) {
-      const last = rounds[rounds.length - 1]
-      if (last.status === 'pass') return 'success'
-      if (last.status === 'fail' || last.status === 'skip') return 'danger'
-    }
+  const rounds = roundsMap[session.id]
+  if (rounds && rounds.length > 0) {
+    if (rounds.some(r => r.status === 'fail')) return 'danger'
+    if (rounds.every(r => r.status === 'pass' || r.status === 'skip')) return 'success'
+    if (rounds.every(r => r.status !== 'pending') && rounds.some(r => r.status === 'pending_review')) return 'warning'
+    if (rounds.every(r => r.status === 'pending')) return getStatusType(session.status)
   }
   return getStatusType(session.status)
 }
@@ -607,17 +611,19 @@ const handleRoundStatusChange = async (item, round, newStatus) => {
         }
       }
 
-      // 根据最后一个非 pending 轮次同步面试状态
-      for (let i = rounds.length - 1; i >= 0; i--) {
-        if (rounds[i].status !== 'pending') {
-          const map = { 'pass': 'passed', 'fail': 'failed', 'pending_review': 'pending' }
-          const planStatus = map[rounds[i].status]
-          if (planStatus && item.status !== planStatus) {
-            await interviewApi.updateReserveSession(item.id, { status: planStatus })
-            item.status = planStatus // 本地同步更新状态
-          }
-          break
-        }
+      // 根据所有轮次状态推导面试状态（不再仅看最后一个非 pending 轮次）
+      const allStatuses = rounds.map(r => r.status)
+      let planStatus = null
+      if (allStatuses.some(s => s === 'fail')) {
+        planStatus = 'failed'
+      } else if (allStatuses.every(s => s === 'pass' || s === 'skip')) {
+        planStatus = 'passed'
+      } else if (allStatuses.every(s => s !== 'pending') && allStatuses.some(s => s === 'pending_review')) {
+        planStatus = 'pending'
+      }
+      if (planStatus && item.status !== planStatus) {
+        await interviewApi.updateReserveSession(item.id, { status: planStatus })
+        item.status = planStatus // 本地同步更新状态
       }
     }
     // 关闭弹窗
@@ -638,8 +644,8 @@ const handleRoundClick = (session, round) => {
 
 const canStartCurrentRound = () => {
   if (!currentRound.value || !currentSessionForRound.value) return false
-  // 只有计划状态为"已预约"时才能开始面试
-  if (currentSessionForRound.value.status !== 'scheduled') return false
+  // 已预约或进行中时允许开始新的轮次
+  if (currentSessionForRound.value.status !== 'scheduled' && currentSessionForRound.value.status !== 'ongoing') return false
   if (currentRound.value.status !== 'pending') return false
 
   const rounds = roundsMap[currentSessionForRound.value.id]
@@ -654,6 +660,31 @@ const canStartCurrentRound = () => {
   // 检查前一轮状态，前一轮通过、跳过或已完成（ASR停止）即可开始当前轮
   const prevRound = rounds[currentIdx - 1]
   return prevRound.status === 'pass' || prevRound.status === 'skip' || prevRound.status === 'completed'
+}
+
+// 获取第一个可开始的轮次：前置轮次都已通过/跳过/完成，且当前轮为 pending
+const getFirstStartableRound = (sessionId) => {
+  const rounds = roundsMap[sessionId]
+  if (!rounds || rounds.length === 0) return null
+
+  for (let i = 0; i < rounds.length; i++) {
+    const round = rounds[i]
+    if (round.status !== 'pending') continue
+
+    // 第一轮 pending 即可开始
+    if (i === 0) return round
+
+    // 前一轮通过、跳过或已完成（ASR停止）才能开始当前轮
+    const prevRound = rounds[i - 1]
+    if (prevRound.status === 'pass' || prevRound.status === 'skip' || prevRound.status === 'completed') {
+      return round
+    }
+
+    // 前一轮未通过，后续轮次不可开始
+    return null
+  }
+
+  return null
 }
 
 const MAX_VISIBLE_ROUNDS = 3
@@ -969,6 +1000,7 @@ const handleSave = async () => {
         scheduled_end_at: form.scheduled_end_at,
         notes: form.notes || ''
       }
+      console.log('[创建面试] 发送载荷:', JSON.stringify(createPayload, null, 2))
       await interviewApi.reserveSession(createPayload)
       ElMessage.success('面试安排预定成功！')
     }
@@ -1163,10 +1195,10 @@ const handleStartInterview = async (item) => {
     ElMessage.warning('该面试尚无面试轮次，请先设置面试流程')
     return
   }
-  // 找到第一个待面试的轮次
-  const firstPending = rounds.find(r => r.status === 'pending')
-  if (!firstPending) {
-    ElMessage.warning('所有轮次已完成或已跳过，无法开始面试')
+  // 找到第一个可开始的轮次（前置轮次均已通过/跳过/完成）
+  const firstStartable = getFirstStartableRound(item.id)
+  if (!firstStartable) {
+    ElMessage.warning('无可开始的轮次，请确认前置轮次均已通过')
     return
   }
 
@@ -1187,7 +1219,7 @@ const handleStartInterview = async (item) => {
     return
   }
 
-  router.push(`/interview-assistant/${item.id}/${firstPending.id}`)
+  router.push(`/interview-assistant/${item.id}/${firstStartable.id}`)
 }
 
 const handleStartASR = async (item) => {

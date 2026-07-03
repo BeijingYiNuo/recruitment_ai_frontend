@@ -20,8 +20,8 @@
 
     <div class="page-content">
       <section class="left-column">
-        <ResumePreviewPanel 
-          :url="resumePreviewUrl" 
+        <ResumePreviewPanel
+          :resume-id="resumeId"
           :loading="isResumeLoading"
         />
       </section>
@@ -55,7 +55,7 @@
         <div style="display: flex; justify-content: center; gap: 16px;">
           <el-button type="success" size="large" style="width: 100px;" @click="handleResultConfirm('pass')">通过</el-button>
           <el-button type="danger" size="large" style="width: 100px;" @click="handleResultConfirm('fail')">不通过</el-button>
-          <el-button size="large" style="width: 100px;" @click="handleResultConfirm('pending')">待定</el-button>
+          <el-button size="large" style="width: 100px;" @click="handleResultConfirm('pending_review')">待定</el-button>
         </div>
       </div>
     </el-dialog>
@@ -121,7 +121,6 @@ let mockHandle: MockAsrHandle | null = null
 const USE_MOCK = false// 设为 true 启用 Mock 模式，后端可用时改为 false
 
 // ========== 简历预览数据 ==========
-const resumePreviewUrl = ref<string | null>(null)
 const isResumeLoading = ref(false)
 const resumeId = ref<number | null>(null)
 
@@ -353,24 +352,8 @@ const requestMicPermission = async (): Promise<boolean> => {
   }
 
   try {
-    await ElMessageBox.confirm(
-      '为了进行语音识别，面试助手需要开启麦克风权限。是否现在开启？',
-      '权限申请',
-      {
-        confirmButtonText: '开启',
-        cancelButtonText: '暂不开启',
-        type: 'info'
-      }
-    )
-  } catch {
-    // 用户点取消 / ESC / 遮罩层关闭，静默返回
-    return false
-  }
-
-  try {
     mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true })
     console.log('Microphone permission granted')
-    ElMessage.success('麦克风权限已获取')
     return true
   } catch (err: any) {
     // 根据具体错误类型给出针对性提示
@@ -511,9 +494,7 @@ const fetchInterviewDetails = async () => {
 const fetchResumePreview = async (id: number) => {
   isResumeLoading.value = true
   try {
-    const token = localStorage.getItem('token')
-    // 直接使用后端预览 URL，浏览器 HTTP 缓存自动处理内容缓存
-    resumePreviewUrl.value = `/api/resumes/preview/${id}?token=${token}`
+    resumeId.value = id
   } catch (err) {
     console.error('Failed to fetch resume preview:', err)
     ElMessage.error('简历预览加载失败')
@@ -544,7 +525,6 @@ onBeforeUnmount(() => {
     sysStream.getTracks().forEach(track => track.stop())
     sysStream = null
   }
-  resumePreviewUrl.value = null
   // 仅在 ASR 会话仍活跃时清理后端
   if (isAsrActive.value) {
     interviewApi.stopASR(sessionId, roundId).catch(() => {})
@@ -933,9 +913,9 @@ async function handleResultConfirm(result: string) {
     // 更新轮次状态
     await interviewApi.updateSessionRound(sessionId, roundId, { status: result })
     // 同步更新面试计划状态
-    const statusMap: Record<string, string> = { pass: 'passed', fail: 'failed', pending: 'pending' }
+    const statusMap: Record<string, string> = { pass: 'passed', fail: 'failed', pending_review: 'pending' }
     await interviewApi.updateReserveSession(Number(sessionId), { status: statusMap[result] })
-    const labelMap: Record<string, string> = { pass: '通过', fail: '不通过', pending: '待定' }
+    const labelMap: Record<string, string> = { pass: '通过', fail: '不通过', pending_review: '待定' }
     ElMessage.success('面试结果: ' + labelMap[result])
 
     // 自动触发报告生成（携带 round_id，不等待完成）
