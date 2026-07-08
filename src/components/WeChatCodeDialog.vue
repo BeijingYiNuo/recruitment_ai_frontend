@@ -79,15 +79,11 @@
         </p>
 
         <div v-if="showFollowTips" class="follow-tips">
-          <p>在微信搜索 <strong>{{ appName }}</strong> 或 <span class="scan-link" @click="showQrDialog = true"><strong>扫码关注</strong></span> 后，发送"<strong>登录</strong>"即可获取验证码</p>
-        </div>
-
-        <!-- 二维码弹窗 -->
-        <el-dialog v-model="showQrDialog" title="扫码关注" width="320px" class="qr-dialog">
-          <div class="qr-body">
+          <p>在微信搜索 <strong>{{ appName }}</strong> 或扫码关注后，发送"<strong>登录</strong>"即可获取验证码</p>
+          <div class="qr-inline">
             <img :src="qrcodeImg" alt="公众号二维码" class="qr-image" />
           </div>
-        </el-dialog>
+        </div>
       </div>
 
       <!-- 步骤 2: 登录成功 -->
@@ -135,7 +131,6 @@ const step = ref('input')
 const loading = ref(false)
 const error = ref('')
 const showFollowTips = ref(false)
-const showQrDialog = ref(false)
 
 const codeFull = computed(() => codeArr.value.every(d => d !== ''))
 
@@ -387,10 +382,10 @@ function handleClose() {
 .follow-tips {
   margin-top: 12px;
   padding: 12px 16px;
-  background: #F0F5FF;
+  background: #F7F8FA;
   border-radius: 6px;
   font-size: 13px;
-  color: #3370FF;
+  color: #646A73;
   line-height: 1.5;
 }
 
@@ -398,36 +393,22 @@ function handleClose() {
   margin: 0;
 }
 
-.scan-link {
-  color: #3370FF;
-  cursor: pointer;
-  font-size: 13px;
-  margin-left: 4px;
-  user-select: none;
-}
-
-.scan-link:hover {
-  text-decoration: underline;
-}
-
-/* 二维码弹窗 */
-.qr-dialog :deep(.el-dialog__body) {
-  padding: 16px;
-}
-
-.qr-body {
+.qr-inline {
   display: flex;
   justify-content: center;
-  align-items: center;
-  padding: 8px;
+  margin-top: 12px;
+  background: #EAECEF;
+  border-radius: 8px;
+  padding: 12px;
 }
 
 .qr-image {
-  width: 240px;
-  height: 240px;
+  width: 180px;
+  height: 180px;
   display: block;
   border-radius: 4px;
   object-fit: contain;
+  mix-blend-mode: multiply;
 }
 
 /* ===== 成功状态 ===== */
