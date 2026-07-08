@@ -23,19 +23,20 @@
           <el-icon><Select /></el-icon>
           <span>简历审核</span>
         </el-menu-item>
+        <el-menu-item index="/dashboard/positions">
+          <el-icon><Setting /></el-icon>
+          <span>岗位设置</span>
+        </el-menu-item>
         <el-menu-item index="/dashboard/interview-manage">
           <el-icon><ChatLineRound /></el-icon>
           <span>面试管理</span>
         </el-menu-item>
         <!-- 约见安排已合并到首页中 -->
-        <el-menu-item index="/dashboard/users">
-          <el-icon><User /></el-icon>
-          <span>用户管理</span>
-        </el-menu-item>
-        <el-menu-item :index="lastKnowledgePath">
+        <!-- 知识库管理已隐藏 -->
+        <!-- <el-menu-item :index="lastKnowledgePath">
           <el-icon><DocumentCopy /></el-icon>
           <span>知识库管理</span>
-        </el-menu-item>
+        </el-menu-item> -->
         <el-menu-item index="/dashboard/file-manager">
           <el-icon><Folder /></el-icon>
           <span>文件管理</span>
@@ -43,10 +44,6 @@
         <el-menu-item index="/dashboard/report-generate">
           <el-icon><Notebook /></el-icon>
           <span>面试报告管理</span>
-        </el-menu-item>
-        <el-menu-item index="/dashboard/positions">
-          <el-icon><Setting /></el-icon>
-          <span>岗位设置</span>
         </el-menu-item>
         <!-- <el-menu-item index="" disabled>
           <el-icon><DataLine /></el-icon>
@@ -87,7 +84,7 @@
               <el-avatar size="small" style="background-color: #3370ff; font-size: 12px; margin-right: 8px;">
                 <!-- {{ currentUser?.username?.charAt(0) || '管' }} -->
               </el-avatar>
-              <span class="username">{{ currentUser?.username || '管理员' }}</span>
+              <span class="username">{{ currentUser?.nickname || currentUser?.username || '管理员' }}</span>
               <el-icon class="dropdown-icon"><ArrowDown /></el-icon>
             </div>
             <template #dropdown>
@@ -115,7 +112,7 @@ import { getCurrentUser } from '../services/authService'
 import authService from '../services/authService'
 import { authApi } from '../api/auth'
 import {
-  House, Document, User, ChatLineRound, ArrowDown, DocumentCopy, Folder, Notebook, Select, Setting
+  House, Document, ChatLineRound, ArrowDown, DocumentCopy, Folder, Notebook, Select, Setting
 } from '@element-plus/icons-vue'
 
 const router = useRouter()
@@ -129,6 +126,7 @@ onMounted(async () => {
       let data = Array.isArray(res) && res.length > 0 ? res[0] : (!Array.isArray(res) ? res : null)
       if (data && data.username) {
         currentUser.value.username = data.username
+        currentUser.value.nickname = data.nickname || data.username
       }
     } catch (e) {
       console.error('Failed to fetch user profile:', e)
@@ -162,8 +160,7 @@ const pageTitleMap = {
   '/dashboard/home': '首页',
   '/dashboard/cv': '简历管理',
   '/dashboard/interview-manage': '面试管理',
-  '/dashboard/users': '用户管理',
-  '/dashboard/knowledge-base': '知识库管理',
+'/dashboard/knowledge-base': '知识库管理',
   '/dashboard/file-manager': '文件管理',
   '/dashboard/report-generate': '面试报告管理',
   '/dashboard/positions': '岗位设置',

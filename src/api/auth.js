@@ -21,4 +21,7 @@ export const authApi = {
 
   // 绑定微信 OpenID 到当前账号
   bindWeChat: (openid) => request.post('/wechat/bind', { openid }),
+
+  // 更新用户信息
+  updateUser: (userId, userData) => request.put(`/users/${userId}`, userData),
 }

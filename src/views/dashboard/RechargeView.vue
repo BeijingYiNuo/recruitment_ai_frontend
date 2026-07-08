@@ -1,7 +1,12 @@
 <template>
   <div class="recharge-page">
     <header class="page-header">
-      <h2>余额充值</h2>
+      <div class="header-top">
+        <button class="back-btn" @click="$router.push('/profile')">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <h2>余额充值</h2>
+      </div>
       <p class="page-desc">选择充值金额和支付方式</p>
     </header>
 
@@ -39,17 +44,6 @@
     <div class="section">
       <h3>支付方式</h3>
       <div class="method-list">
-        <div
-          :class="['method-item', { active: payMethod === 'wxpay' }]"
-          @click="payMethod = 'wxpay'"
-        >
-          <span class="method-icon wx">
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="#07C160">
-              <path d="M22.74 6.58a0.5 0.5 0 0 0 -0.67 -0.09L8.89 15.65a0.69 0.69 0 0 1 -1 -0.23L4.41 9.37a0.7 0.7 0 0 1 0.11 -0.84 0.67 0.67 0 0 1 0.83 -0.12l3.85 2.14a0.51 0.51 0 0 0 0.48 0l10.77 -5.74a0.49 0.49 0 0 0 0.26 -0.39 0.48 0.48 0 0 0 -0.17 -0.42A13.07 13.07 0 0 0 12 1C5.38 1 0 5.5 0 11a9.2 9.2 0 0 0 3.44 7 0.24 0.24 0 0 1 0.09 0.22l-0.43 3.95a0.76 0.76 0 0 0 0.36 0.73 0.76 0.76 0 0 0 0.39 0.1 0.72 0.72 0 0 0 0.42 -0.13c0.11 -0.08 2.58 -1.76 3.43 -2.38a0.24 0.24 0 0 1 0.2 0 22.28 22.28 0 0 0 4.1 0.63c6.62 0 12 -4.5 12 -10a8.75 8.75 0 0 0 -1.26 -4.54Z"/>
-            </svg>
-          </span>
-          <span>微信支付</span>
-        </div>
         <div
           :class="['method-item', { active: payMethod === 'alipay' }]"
           @click="payMethod = 'alipay'"
@@ -106,7 +100,7 @@ import { accountApi } from '../../api/account'
 const presetAmounts = [5, 10, 20, 50, 100]
 const selectedAmount = ref(50)
 const customAmount = ref('')
-const payMethod = ref('wxpay')
+const payMethod = ref('alipay')
 const loading = ref(false)
 const polling = ref(false)
 const payDialogVisible = ref(false)
@@ -224,6 +218,32 @@ onMounted(() => {
 
 .page-header {
   margin-bottom: 24px;
+}
+
+.header-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.back-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background-color: transparent;
+  color: #646a73;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.back-btn:hover {
+  background-color: rgba(31, 35, 41, 0.08);
+  color: #1f2329;
 }
 
 .page-header h2 {

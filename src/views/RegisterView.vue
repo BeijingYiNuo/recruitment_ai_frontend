@@ -11,24 +11,31 @@
 
       <form @submit.prevent="handleRegister" class="feishu-form">
         <div class="feishu-field">
-          <label for="username" class="feishu-label">用户名</label>
+          <label for="username" class="feishu-label">账号</label>
           <div class="feishu-input-box">
-            <input id="username" type="text" v-model="form.username" placeholder="请输入用户名" required class="feishu-input" />
+            <input id="username" type="text" v-model="form.username" placeholder="请输入账号（3-20位）" required maxlength="20" class="feishu-input" />
+          </div>
+        </div>
+
+        <div class="feishu-field">
+          <label for="nickname" class="feishu-label">昵称</label>
+          <div class="feishu-input-box">
+            <input id="nickname" type="text" v-model="form.nickname" placeholder="请输入昵称（选填，最长20位）" maxlength="20" class="feishu-input" />
           </div>
         </div>
 
         <div class="feishu-field">
           <label for="email" class="feishu-label">邮箱</label>
           <div class="feishu-input-box">
-            <input id="email" type="email" v-model="form.email" placeholder="请输入邮箱 (需以 .com 结尾)" required class="feishu-input" />
+            <input id="email" type="email" v-model="form.email" placeholder="请输入邮箱（选填）" maxlength="100" class="feishu-input" />
           </div>
-          <div v-if="form.email && !isEmailValid" class="feishu-error-text">请使用有效的 .com 邮箱地址</div>
+          <div v-if="form.email && !isEmailValid" class="feishu-error-text">请输入有效的邮箱地址</div>
         </div>
 
         <div class="feishu-field">
           <label for="phone" class="feishu-label">手机号</label>
           <div class="feishu-input-box">
-            <input id="phone" type="tel" v-model="form.phone" placeholder="请输入 11 位手机号" required maxlength="11" class="feishu-input" />
+            <input id="phone" type="tel" v-model="form.phone" placeholder="请输入 11 位手机号（选填）" maxlength="11" class="feishu-input" />
           </div>
           <div v-if="form.phone && !isPhoneValid" class="feishu-error-text">请输入 11 位数字手机号</div>
         </div>
@@ -38,7 +45,6 @@
           <div class="feishu-input-box">
             <select id="role" v-model="form.role" required class="feishu-select">
               <option value="" disabled>请选择角色</option>
-              <option value="candidate">候选人 (Candidate)</option>
               <option value="recruiter">招聘官 (Recruiter)</option>
               <option value="admin">管理员 (Admin)</option>
             </select>
@@ -126,7 +132,7 @@ import SocialButtons from '../components/SocialButtons.vue'
 import WeChatCodeDialog from '../components/WeChatCodeDialog.vue'
 
 const router = useRouter()
-const form = reactive({ username: '', email: '', phone: '', role: '', password: '', confirmPassword: '' })
+const form = reactive({ username: '', nickname: '', email: '', phone: '', role: '', password: '', confirmPassword: '' })
 const showPassword = ref(false)
 const showConfirm = ref(false)
 const agree = ref(false)
@@ -148,22 +154,22 @@ const passwordStrength = computed(() => ({
 }))
 
 const isEmailValid = computed(() => {
-  return form.email && form.email.includes('@') && form.email.toLowerCase().endsWith('.com')
+  return form.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)
 })
 
 const isPhoneValid = computed(() => {
   return form.phone && form.phone.length === 11 && /^\d{11}$/.test(form.phone)
 })
 
-const canSubmit = computed(() => 
-  passwordStrength.value.hasLength && 
-  passwordStrength.value.hasNumber && 
-  passwordStrength.value.hasLetter && 
-  isEmailValid.value &&
-  isPhoneValid.value &&
-  form.password === form.confirmPassword && 
-  form.username && 
-  form.role && 
+const canSubmit = computed(() =>
+  passwordStrength.value.hasLength &&
+  passwordStrength.value.hasNumber &&
+  passwordStrength.value.hasLetter &&
+  (!form.email || isEmailValid.value) &&
+  (!form.phone || isPhoneValid.value) &&
+  form.password === form.confirmPassword &&
+  form.username &&
+  form.role &&
   agree.value
 )
 
@@ -174,6 +180,7 @@ async function handleRegister () {
   try {
     const payload = {
       username: form.username,
+      nickname: form.nickname || form.username,
       email: form.email,
       phone: form.phone,
       password: form.password,

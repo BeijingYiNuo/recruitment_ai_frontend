@@ -11,9 +11,9 @@
 
       <form @submit.prevent="handleLogin" class="feishu-form">
         <div class="feishu-field">
-          <label for="email" class="feishu-label">用户名</label>
+          <label for="email" class="feishu-label">账号</label>
           <div class="feishu-input-box">
-            <input id="email" type="text" v-model="username" placeholder="请输入用户名" required class="feishu-input" />
+            <input id="email" type="text" v-model="username" placeholder="请输入账号" required class="feishu-input" />
           </div>
         </div>
 
@@ -93,7 +93,7 @@ async function handleLogin () {
     await authService.login({ username:  username.value, password: password.value })
     router.push('/dashboard')
   } catch (err) {
-    error.value = err?.detail || '登录失败，请检查邮箱和密码'
+    error.value = err?.detail || '登录失败，请检查账号和密码'
   } finally {
     loading.value = false
   }

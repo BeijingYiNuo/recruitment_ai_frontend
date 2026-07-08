@@ -121,7 +121,7 @@
             <div
               class="list-row"
               :class="{ 'row-selected': selectedIds.includes(resume.id) }"
-              v-for="resume in resumeStore.resumes"
+              v-for="resume in pagedResumes"
               :key="resume.id"
               @dblclick="openDrawer(resume.id)"
             >
@@ -480,7 +480,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="uploadDialogVisible = false">取消</el-button>
-          <el-button type="primary" class="lark-btn-primary" :loading="listLoading" @click="submitUpload">确认导入</el-button>
+          <el-button type="primary" class="lark-btn-primary" :loading="uploadLoading" @click="submitUpload">确认导入</el-button>
         </span>
       </template>
     </el-dialog>
@@ -490,7 +490,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
 import { ElMessage, ElLoading, ElMessageBox } from 'element-plus'
-import { UploadFilled, Download, Close, Search, Loading } from '@element-plus/icons-vue'
+import { UploadFilled, Close, Search, Loading } from '@element-plus/icons-vue'
 import { getCurrentUser } from '../../services/authService'
 import { useResumeStore } from '../../stores/resumeStore'
 import { resumeApi } from '../../api/resume'
@@ -500,6 +500,7 @@ import { fileCacheDB } from '../../utils/fileCacheDB'
 const resumeStore = useResumeStore()
 const currentUser = ref(getCurrentUser() || { id: 1, username: '管理员' })
 const listLoading = ref(false)
+const uploadLoading = ref(false)  // 单文件上传独立 loading，避免遮罩列表
 const searchKeyword = ref('')
 const currentPage = ref(1)
 const pageSize = ref(10)
@@ -507,8 +508,10 @@ const totalCount = ref(0)
 
 // List retrieval
 let statusPolling = null
+let pollingActive = true  // 组件卸载后置 false，防止回调更新已销毁的状态
 const showProcessingBanner = ref(false)
 const pollingPending = ref(false)
+const PLACEHOLDER_MIN_AGE = 5 * 60 * 1000  // 占位行最小存活时间 5 分钟，等待 worker 处理
 
 const stopPolling = () => {
   if (statusPolling) {
@@ -524,12 +527,19 @@ const checkAndStartPolling = (force = false) => {
     showProcessingBanner.value = true
     if (statusPolling) return
     statusPolling = setInterval(async () => {
-      if (pollingPending.value) return
+      if (!pollingActive || pollingPending.value) return
       pollingPending.value = true
       try {
         const data = await resumeApi.getResumes(0, 999)
+        // API 调用期间组件可能已卸载
+        if (!pollingActive) return
         let list = Array.isArray(data) ? data : (data.items || data.data || [])
-        const hadAnalyzing = resumeStore.resumes.some(r => isAnalyzing(r.status))
+        const total = data.total || list.length
+        // 同步 totalCount，确保分页信息正确（轮询查全量，total 比 fetchResumes 的 page 1 更准确）
+        if (total > 0) {
+          totalCount.value = total
+        }
+        const hadAnalyzing = list.some(r => isAnalyzing(r.status))
 
         // 只更新已有记录的状态，不替换分页列表（避免轮询冲掉分页）
         // 用最新 API 数据更新所有字段（候选人姓名、解析状态等）
@@ -575,19 +585,25 @@ const checkAndStartPolling = (force = false) => {
         }
 
         if (!list.some(r => isAnalyzing(r.status))) {
-          // 所有记录解析完毕，清理遗留的占位行（无效文件不会生成记录）
+          // 所有记录解析完毕，清理过期的遗留占位行（无效文件不会生成记录）
           if (batchImportPlaceholders.value.length > 0) {
-            ElMessage.warning(`${batchImportPlaceholders.value.length} 份文件不是有效简历，已自动忽略`)
-            batchImportPlaceholders.value = []
+            const elapsed = Date.now() - batchImportCreatedAt.value
+            if (elapsed >= PLACEHOLDER_MIN_AGE) {
+              // 占位行已存在超过 5 分钟仍未匹配到真实记录，视为无效文件
+              ElMessage.warning(`${batchImportPlaceholders.value.length} 份文件不是有效简历，已自动忽略`)
+              batchImportPlaceholders.value = []
+            } else {
+              // 未到最小存活时间：保留占位行，继续轮询等待 worker 处理
+              return
+            }
           }
           stopPolling()
           showProcessingBanner.value = false
           if (hadAnalyzing) {
             ElMessage.success('简历解析完成')
           }
-          // 刷新列表，恢复正确的分页数据
+          // 失效缓存，下次用户操作时自动刷新（避免强制跳回第 1 页）
           resumeStore.invalidateCache()
-          fetchResumes()
         }
       } catch (error) {
         console.error('状态轮询失败:', error)
@@ -688,7 +704,14 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  pollingActive = false
   stopPolling()
+  // 恢复 body 滚动（抽屉打开时组件被强制卸载的场景，如浏览器后退）
+  document.body.style.overflow = ''
+  if (drawerCloseTimer) {
+    clearTimeout(drawerCloseTimer)
+    drawerCloseTimer = null
+  }
 })
 
 // Upload Drawer
@@ -737,11 +760,10 @@ const submitUpload = async () => {
     return
   }
 
-  listLoading.value = true
+  uploadLoading.value = true
   try {
     const response = await resumeApi.uploadResume(currentUser.value.id, file)
 
-    const blobUrl = URL.createObjectURL(file)
     const newResume = Object.assign({
       id: Date.now(),
       user_id: currentUser.value.id,
@@ -752,7 +774,6 @@ const submitUpload = async () => {
       created_at: new Date().toISOString().slice(0, 19).replace('T', ' ')
     }, response)
 
-    newResume.preview_url = blobUrl
     resumeStore.addResume(newResume)
 
     ElMessage.success(`简历 ${file.name} 导入成功！`)
@@ -767,7 +788,7 @@ const submitUpload = async () => {
       ElMessage.error('上传失败: ' + (error?.detail || error?.message || '未知错误'))
     }
   } finally {
-    listLoading.value = false
+    uploadLoading.value = false
   }
 }
 
@@ -779,6 +800,7 @@ const batchFileInputRef = ref(null)
 // 批量导入完成后的追踪（占位行 + 重名检测）
 const batchImportPlaceholders = ref([])
 const preImportIds = ref(new Set())
+const batchImportCreatedAt = ref(0)  // 占位行创建时间戳，用于防止过早清理
 // batchFiles 存储从 IndexedDB 读取的文件元数据 { id, name, size, cachedAt }
 const batchFiles = ref([])
 // IndexedDB 缓存文件进度
@@ -788,6 +810,13 @@ const cachingTotal = ref(0)
 const cachingPercent = computed(() =>
   cachingTotal.value > 0 ? Math.round((cachingCurrent.value / cachingTotal.value) * 100) : 0
 )
+
+// 分页切片：从 store 全量列表中取当前页数据，解决 store 列表被轮询扩充后模板渲染超出 pageSize 的问题
+const pagedResumes = computed(() => {
+  const list = resumeStore.resumes || []
+  const start = (currentPage.value - 1) * pageSize.value
+  return list.slice(start, start + pageSize.value)
+})
 
 const validateBatchFile = (file) => {
   const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
@@ -833,6 +862,7 @@ const handleBatchFileSelect = async (event) => {
 
   if (validFiles.length === 0) {
     ElMessage.warning('没有符合格式要求的文件')
+    event.target.value = ''
     return
   }
 
@@ -902,7 +932,7 @@ const uploadCachedFiles = async () => {
     const result = await resumeApi.batchImportLocal(files)
 
     if (result && result.imported > 0) {
-      // 创建占位行：在列表显示假行，简历为未知待解析状态
+      // 创建占位行：立即在列表顶部显示，避免 fetchResumes 的 loading 遮罩遮挡
       const fileNames = items.map(item => item.name)
       batchImportPlaceholders.value = fileNames.map((name, i) => ({
         id: `placeholder-${Date.now()}-${i}`,
@@ -915,11 +945,12 @@ const uploadCachedFiles = async () => {
         review_status: null,
         updated_at: new Date().toISOString().slice(0, 19).replace('T', ' ')
       }))
-      // 跳转到第 1 页并刷新列表
+      batchImportCreatedAt.value = Date.now()
       currentPage.value = 1
       resumeStore.invalidateCache()
       ElMessage.success(`已上传 ${result.imported} 份简历`)
-      await fetchResumes()
+      // 不调用 fetchResumes()，避免 listLoading 遮罩挡住占位行
+      // 后端已创建 Resume 记录，轮询会在 10s 内自动匹配并替换占位行为真实记录
       checkAndStartPolling(true)
     } else {
       ElMessage.error('批量上传失败，请重试')
@@ -940,6 +971,7 @@ const uploadCachedFiles = async () => {
 // Custom Drawer logic
 const drawerVisible = ref(false)
 const drawerLoading = ref(false)
+let drawerCloseTimer = null  // closeDrawer 的延迟清理 timer，unmount 时清除
 const currentDetail = ref(null)
 const activeTab = ref('basic')
 const specialDataStr = ref('')
@@ -987,7 +1019,9 @@ const openDrawer = async (id) => {
 const closeDrawer = () => {
   editMode.value = false
   drawerVisible.value = false
-  setTimeout(() => {
+  if (drawerCloseTimer) clearTimeout(drawerCloseTimer)
+  drawerCloseTimer = setTimeout(() => {
+    drawerCloseTimer = null
     currentDetail.value = null
     specialDataStr.value = ''
     resumeStore.clearSelection()
@@ -1064,7 +1098,7 @@ const handleRowReparse = async (resume) => {
     await resumeApi.reparseResume(resume.id)
     resumeStore.invalidateCache(resume.id)
     ElMessage.success('重新解析已启动，请稍后查看结果')
-    fetchResumes()
+    checkAndStartPolling(true)
   } catch (error) {
     ElMessage.error('重新解析失败: ' + (error?.detail || error?.message || '未知错误'))
   }
@@ -1079,7 +1113,7 @@ const handleDrawerReparse = async () => {
     resumeStore.invalidateCache(id)
     ElMessage.success('重新解析已启动，请稍后查看结果')
     closeDrawer()
-    fetchResumes()
+    checkAndStartPolling(true)
   } catch (error) {
     ElMessage.error('重新解析失败: ' + (error?.detail || error?.message || '未知错误'))
   }
@@ -1177,10 +1211,14 @@ const saveEdit = async () => {
     specialWorkList.value = editWorkList.value
     specialSkillList.value = editSkillList.value
     specialProjectList.value = editProjectList.value
+    // 同步更新 store 列表中的对应记录
+    const storeIdx = resumeStore.resumes.findIndex(r => r.id === currentDetail.value.id)
+    if (storeIdx !== -1) {
+      resumeStore.resumes[storeIdx].candidate_name = editCandidateName.value
+    }
 
     editMode.value = false
     resumeStore.invalidateCache(currentDetail.value?.id)
-    fetchResumes()
   } catch (error) {
     ElMessage.error('保存失败: ' + (error?.detail || error?.message || '未知错误'))
   } finally {
@@ -1256,6 +1294,10 @@ const handleDelete = (id) => {
       resumeStore.deleteResume(id)
       resumeStore.invalidateCache(id)
       ElMessage.success('物理删除简历成功！')
+      // 如果当前页已无数据且不是第 1 页，回退到上一页
+      if (resumeStore.resumes.length === 0 && currentPage.value > 1) {
+        currentPage.value -= 1
+      }
       fetchResumes()
     } catch (error) {
       ElMessage.error('无法删除此简历: ' + (error?.detail || error?.message || '未知错误'))
@@ -1269,18 +1311,18 @@ const handleDelete = (id) => {
 const selectedIds = ref([])
 
 const isAllSelected = computed(() => {
-  const list = resumeStore.resumes || []
+  const list = pagedResumes.value || []
   return list.length > 0 && selectedIds.value.length === list.length
 })
 
 const isIndeterminate = computed(() => {
-  const list = resumeStore.resumes || []
+  const list = pagedResumes.value || []
   return selectedIds.value.length > 0 && selectedIds.value.length < list.length
 })
 
 const toggleSelectAll = (checked) => {
   if (checked) {
-    selectedIds.value = (resumeStore.resumes || []).map(r => r.id)
+    selectedIds.value = (pagedResumes.value || []).map(r => r.id)
   } else {
     selectedIds.value = []
   }
@@ -1317,6 +1359,10 @@ const handleBatchDelete = () => {
       }
       selectedIds.value = []
       resumeStore.invalidateCache()
+      // 如果当前页已无数据且不是第 1 页，回退到上一页
+      if (resumeStore.resumes.length === 0 && currentPage.value > 1) {
+        currentPage.value -= 1
+      }
       fetchResumes()
     } catch (error) {
       ElMessage.error('批量删除失败: ' + (error?.detail || error?.message || '未知错误'))

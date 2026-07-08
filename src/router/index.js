@@ -53,12 +53,7 @@ const routes = [
         name: 'appointment',
         component: () => import('../views/dashboard/AppointmentView.vue')
       },
-      {
-        path: 'users',
-        name: 'userManage',
-        component: () => import('../views/dashboard/UserManageView.vue')
-      },
-      {
+{
         path: 'knowledge-base',
         name: 'knowledgeBase',
         component: () => import('../views/dashboard/KnowledgeBaseView.vue')

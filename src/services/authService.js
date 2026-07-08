@@ -12,11 +12,8 @@ const authService = {
     const response = await authApi.login(credentials)
     if (response.access_token) {
       localStorage.setItem('token', response.access_token)
-      if (response.user !== undefined && response.user !== null) {
-        localStorage.setItem('user', JSON.stringify(response.user))
-      } else {
-        localStorage.removeItem('user')
-      }
+      const user = { id: response.user_id, username: response.username, nickname: response.nickname || response.username }
+      localStorage.setItem('user', JSON.stringify(user))
     }
     return response
   },
@@ -36,13 +33,8 @@ const authService = {
     const response = await authApi.verifyWeChatCode(code)
     if (response.access_token) {
       localStorage.setItem('token', response.access_token)
-      if (response.user !== undefined && response.user !== null) {
-        localStorage.setItem('user', JSON.stringify(response.user))
-      } else {
-        // 用响应中的用户信息构建 user 对象
-        const user = { id: response.user_id, username: response.username }
-        localStorage.setItem('user', JSON.stringify(user))
-      }
+      const user = { id: response.user_id, username: response.username, nickname: response.nickname || response.username }
+      localStorage.setItem('user', JSON.stringify(user))
     }
     return response
   },
@@ -87,7 +79,7 @@ const authService = {
         // 通常 FastAPI 生成的 JWT，用户唯一标识在 user_id, id, 或者 sub 里面
         const extractedId = payload.user_id ?? payload.id ?? payload.sub
         if (extractedId !== undefined) {
-          return { id: extractedId, username: payload.username ?? payload.sub, role: payload.role }
+          return { id: extractedId, username: payload.username ?? payload.sub }
         }
       } catch (e) {
         console.error('Failed to decode JWT token to extract user ID', e)

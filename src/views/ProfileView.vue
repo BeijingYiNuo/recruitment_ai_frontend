@@ -8,13 +8,6 @@
           </button>
           <h1 class="page-title">个人信息中心</h1>
         </div>
-        <div class="user-info-status">
-          <span class="status-label">当前状态</span>
-          <div :class="['dot-status', userProfile.status === 'activate' ? 'success' : 'danger']">
-            <span class="dot"></span>
-            <span class="text">{{ userProfile.status }}</span>
-          </div>
-        </div>
       </div>
     </header>
 
@@ -27,23 +20,22 @@
         
         <div class="lark-descriptions">
           <div class="lark-desc-item">
-            <div class="lark-desc-label">用户数字 ID</div>
-            <div class="lark-desc-value">
-              <span class="id-text">{{ userProfile.id }}</span>
-            </div>
-          </div>
-          
-          <div class="lark-desc-item">
-            <div class="lark-desc-label">用户名</div>
+            <div class="lark-desc-label">账号</div>
             <div class="lark-desc-value">
               <span class="text-bold">{{ userProfile.username }}</span>
             </div>
           </div>
 
           <div class="lark-desc-item">
-            <div class="lark-desc-label">注册邮箱</div>
-            <div class="lark-desc-value">{{ userProfile.email }}</div>
+            <div class="lark-desc-label">昵称</div>
+            <div class="lark-desc-value">
+              <span class="text-bold">{{ userProfile.nickname || '未设置' }}</span>
+            </div>
           </div>
+
+          <div class="lark-desc-item">
+            <div class="lark-desc-label">注册邮箱</div>
+            <div class="lark-desc-value">{{ userProfile.email || '未绑定邮箱' }}</div>          </div>
           
           <div class="lark-desc-item">
             <div class="lark-desc-label">绑定手机号</div>
@@ -68,21 +60,12 @@
             </div>
           </div>
 
-          <div class="lark-desc-item">
-            <div class="lark-desc-label">账户状态</div>
-            <div class="lark-desc-value">
-              <div :class="['dot-status', userProfile.status === 'activate' ? 'success' : userProfile.status === 'inactivate' ? 'gray' : 'danger']">
-                <span class="dot"></span>
-                <span class="text">{{ userProfile.status === 'activate' ? '正常激活' : userProfile.status === 'inactivate' ? '未激活' : '已注销' }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
+</div>
         
         <div class="lark-section-divider"></div>
         
         <div class="card-header">
-          <h3 class="card-subtitle">安全与时间审计</h3>
+          <h3 class="card-subtitle">用户登录日志</h3>
         </div>
         
         <div class="lark-descriptions format-horizontal">
@@ -91,7 +74,7 @@
             <div class="lark-desc-value text-tertiary font-mono">{{ userProfile.created_at }}</div>
           </div>
           <div class="lark-desc-item">
-            <div class="lark-desc-label">最后登录记录</div>
+            <div class="lark-desc-label">最后登录时间</div>
             <div class="lark-desc-value text-tertiary font-mono">{{ userProfile.last_login_at }}</div>
           </div>
         </div>
@@ -225,10 +208,10 @@ const showRecharge = ref(false)
 const userProfile = ref({
   id: '--',
   username: '加载中...',
+  nickname: '--',
   email: '--',
   phone: '--',
   role: '--',
-  status: '--',
   created_at: '--',
   last_login_at: '--'
 })
@@ -289,10 +272,10 @@ const fetchProfile = async () => {
     userProfile.value = {
       id: data.id ?? '--',
       username: data.username || '未知用户',
-      email: data.email || '--',
+      nickname: data.nickname || '未设置',
+      email: data.email || '未绑定邮箱',
       phone: data.phone || '未绑定手机号',
       role: data.role || '--',
-      status: data.status || '未激活',
       created_at: formatTime(data.created_at),
       last_login_at: formatTime(data.last_login_at)
     }
@@ -400,17 +383,6 @@ $border-color: #dee0e3;
   font-weight: 600;
   color: $text-main;
   margin: 0;
-}
-
-.user-info-status {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  
-  .status-label {
-    font-size: 14px;
-    color: $text-secondary;
-  }
 }
 
 /* Dot Status Indicator */
