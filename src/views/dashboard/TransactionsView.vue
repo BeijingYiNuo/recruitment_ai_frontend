@@ -44,14 +44,17 @@
           <template #default="{ row }">
             <div v-if="row.session_info" class="session-info">
               <span class="session-candidate">{{ row.session_info.candidate_name }}</span>
-              <span class="session-round">第{{ row.session_info.round_number }}轮 · {{ row.session_info.round_name }}</span>
+              <span v-if="row.session_info.round_name" class="session-round">
+                第{{ row.session_info.round_number }}轮 · {{ row.session_info.round_name }}
+              </span>
+              <span v-else class="session-round">{{ row.session_info.service_detail || '--' }}</span>
             </div>
             <span v-else class="text-muted">--</span>
           </template>
         </el-table-column>
         <el-table-column label="服务" width="80">
           <template #default="{ row }">
-            <el-tag :type="row.service_type === 'interview_reserve' ? 'primary' : 'warning'" size="small" effect="plain">
+            <el-tag :type="serviceTagType(row.service_type)" size="small" effect="plain">
               {{ serviceLabel(row.service_type) }}
             </el-tag>
           </template>
@@ -70,8 +73,8 @@
         </el-table-column>
         <el-table-column label="状态" width="90" column-key="status" :filters="statusFilters">
           <template #default="{ row }">
-            <el-tag :type="row.status === 'PAID' ? 'success' : 'danger'" size="small">
-              {{ row.status === 'PAID' ? '完成' : '失败' }}
+            <el-tag :type="statusTagType(row.status)" size="small">
+              {{ statusLabel(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
@@ -115,7 +118,9 @@ const typeFilters = [
 ]
 const statusFilters = [
   { text: '已完成', value: 'PAID' },
+  { text: '待支付', value: 'PENDING' },
   { text: '失败', value: 'FAILED' },
+  { text: '已退款', value: 'REFUNDED' },
 ]
 
 const onFilterChange = (filters) => {
@@ -131,7 +136,29 @@ const onFilterChange = (filters) => {
 
 const formatTime = (t) => t ? t.replace('T', ' ').substring(0, 19) : '--'
 const methodLabel = (m) => ({ wxpay: '微信', alipay: '支付宝', balance: '余额' }[m] || m || '--')
-const serviceLabel = (s) => ({ interview_reserve: '面试', report_generate: '报告' }[s] || s || '--')
+const serviceLabel = (s) => ({
+  interview_reserve: '面试', report_generate: '报告',
+  resume_parse: '简历解析', resume_review: '简历审核'
+}[s] || s || '--')
+const serviceTagType = (s) => {
+  if (s === 'interview_reserve') return 'primary'
+  if (s === 'report_generate') return 'warning'
+  if (s === 'resume_parse') return 'success'
+  if (s === 'resume_review') return 'info'
+  return ''
+}
+
+const statusLabel = (s) => ({
+  PAID: '已完成', PENDING: '待支付', FAILED: '失败', REFUNDED: '已退款'
+}[s] || s || '--')
+
+const statusTagType = (s) => {
+  if (s === 'PAID') return 'success'
+  if (s === 'PENDING') return 'warning'
+  if (s === 'FAILED') return 'danger'
+  if (s === 'REFUNDED') return 'info'
+  return ''
+}
 
 const fetchBalance = async () => {
   try {

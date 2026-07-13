@@ -40,16 +40,6 @@
           <div v-if="form.phone && !isPhoneValid" class="feishu-error-text">请输入 11 位数字手机号</div>
         </div>
 
-        <div class="feishu-field">
-          <label for="role" class="feishu-label">选择角色</label>
-          <div class="feishu-input-box">
-            <select id="role" v-model="form.role" required class="feishu-select">
-              <option value="" disabled>请选择角色</option>
-              <option value="recruiter">招聘官 (Recruiter)</option>
-              <option value="admin">管理员 (Admin)</option>
-            </select>
-          </div>
-        </div>
 
         <div class="feishu-field">
           <label for="password" class="feishu-label">密码</label>
@@ -132,7 +122,7 @@ import SocialButtons from '../components/SocialButtons.vue'
 import WeChatCodeDialog from '../components/WeChatCodeDialog.vue'
 
 const router = useRouter()
-const form = reactive({ username: '', nickname: '', email: '', phone: '', role: '', password: '', confirmPassword: '' })
+const form = reactive({ username: '', nickname: '', email: '', phone: '', role: 'recruiter', password: '', confirmPassword: '' })
 const showPassword = ref(false)
 const showConfirm = ref(false)
 const agree = ref(false)
@@ -169,7 +159,6 @@ const canSubmit = computed(() =>
   (!form.phone || isPhoneValid.value) &&
   form.password === form.confirmPassword &&
   form.username &&
-  form.role &&
   agree.value
 )
 
@@ -322,6 +311,18 @@ async function handleRegister () {
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 12 12' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M6 8.5L2 4.5L2.707 3.793L6 7.086L9.293 3.793L10 4.5L6 8.5Z' fill='%238F959E'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 12px center;
+}
+
+.feishu-role-display {
+  display: flex;
+  align-items: center;
+  height: 40px;
+  padding: 8px 12px;
+  font-size: 14px;
+  color: #1f2329;
+  background-color: #f5f6f7;
+  border: 1px solid #dee0e3;
+  border-radius: 6px;
 }
 
 .feishu-input::-ms-reveal,

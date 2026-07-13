@@ -27,7 +27,7 @@
       <div class="dialog-form">
         <el-form :model="form" label-position="top" size="default">
           <el-form-item label="候选人姓名" required>
-            <el-input v-model="form.candidate_name" placeholder="请输入真实姓名" :disabled="!!form.resume_id"></el-input>
+            <el-input v-model="form.candidate_name" placeholder="选择简历后自动填入" disabled></el-input>
           </el-form-item>
 
           <el-form-item label="关联简历材料">
@@ -38,7 +38,7 @@
               </el-option>
             </el-select>
             <div v-if="displayOptions.length === 0" class="form-hint">
-              提示: 当前还没有上传过简历，如需强力匹配请先去简历管理页上传。
+              提示: 当前还没有通过审核简历，请先去简历审核页面审核简历。
             </div>
           </el-form-item>
           
@@ -48,15 +48,6 @@
             </el-select>
             <div v-if="positions.length === 0" class="form-hint">
               提示: 当前还没有创建岗位，请先去岗位设置页面创建。
-            </div>
-          </el-form-item>
-
-          <el-form-item label="关联知识库 (问答辅助)">
-            <el-select v-model="form.knowledge_id" placeholder="-- 不关联或暂无知识库 --" style="width: 100%" clearable>
-              <el-option v-for="k in knowledgeBases" :key="k.id" :label="k.name" :value="k.id"></el-option>
-            </el-select>
-            <div v-if="knowledgeBases.length === 0" class="form-hint">
-              提示: 当前还没有创建知识库，如需 AI 实时检索辅助请先去知识库模块创建。
             </div>
           </el-form-item>
 
@@ -166,6 +157,8 @@ const handleResumeChange = (val) => {
     if (matched && matched.candidate_name) {
       props.form.candidate_name = matched.candidate_name
     }
+  } else {
+    props.form.candidate_name = ''
   }
 }
 

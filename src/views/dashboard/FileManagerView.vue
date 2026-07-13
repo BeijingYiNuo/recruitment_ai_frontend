@@ -8,7 +8,7 @@
           <div class="title-area">
             <!-- 子页面时显示返回按钮 -->
             <el-button v-if="currentSessionId" class="back-btn" @click="goBackToRoot" :icon="ArrowLeft" circle size="small" />
-            <h1>{{ currentSessionId ? currentSessionName : '文件管理' }}</h1>
+            <h1>{{ currentSessionId ? currentSessionName : '面试记录' }}</h1>
             <span class="badge" v-if="totalCount > 0">{{ totalCount }}</span>
           </div>
           <div class="action-btn-group">
@@ -16,7 +16,7 @@
         </div>
         <!-- 面包屑导航 -->
         <div v-if="currentSessionId" class="breadcrumb-bar">
-          <span class="breadcrumb-item clickable" @click="goBackToRoot">文件管理</span>
+          <span class="breadcrumb-item clickable" @click="goBackToRoot">面试记录</span>
           <span class="breadcrumb-sep">/</span>
           <span class="breadcrumb-item current">{{ currentSessionName }}</span>
         </div>
@@ -37,7 +37,6 @@
           <div class="list-header-row">
             <div class="col-name">文件名</div>
             <div class="col-type">类型</div>
-            <div class="col-owner">所有者</div>
             <div class="col-time">更新时间</div>
             <div class="col-size">大小</div>
           </div>
@@ -63,12 +62,6 @@
                 <div class="col-type">
                   <span class="folder-file-count">{{ folder.fileCount }} 个文件</span>
                 </div>
-                <div class="col-owner">
-                  <div class="owner-info">
-                    <div class="owner-avatar">{{ folder.owner.charAt(0) }}</div>
-                    <span class="owner-name">{{ folder.owner }}</span>
-                  </div>
-                </div>
                 <div class="col-time">{{ folder.latestTime }}</div>
                 <div class="col-size has-actions">
                   <span class="size-text">{{ folder.totalSize }}</span>
@@ -92,12 +85,6 @@
                 </div>
                 <div class="col-type">
                   <span class="file-type-tag" :class="'type-' + file.fileType">{{ file.fileTypeLabel }}</span>
-                </div>
-                <div class="col-owner">
-                  <div class="owner-info">
-                    <div class="owner-avatar">{{ file.owner.charAt(0) }}</div>
-                    <span class="owner-name">{{ file.owner }}</span>
-                  </div>
                 </div>
                 <div class="col-time">{{ file.updateTime }}</div>
                 <div class="col-size has-actions">
@@ -126,12 +113,6 @@
                 </div>
                 <div class="col-type">
                   <span class="file-type-tag" :class="'type-' + file.fileType">{{ file.fileTypeLabel }}</span>
-                </div>
-                <div class="col-owner">
-                  <div class="owner-info">
-                    <div class="owner-avatar">{{ file.owner.charAt(0) }}</div>
-                    <span class="owner-name">{{ file.owner }}</span>
-                  </div>
                 </div>
                 <div class="col-time">{{ file.updateTime }}</div>
                 <div class="col-size has-actions">
@@ -268,7 +249,7 @@ const fetchFileList = async () => {
 
       return {
         id: item.id,
-        name: item.file_name,
+        name: item.display_name || item.file_name,
         sessionId: item.session_id,
         sessionName: item.session_name,
         sizeBytes: sizeBytes,
@@ -535,7 +516,46 @@ const onPreviewClose = () => {
 
 .header-area {
   flex-shrink: 0;
-  padding: 10px 0;
+  padding: 10px 24px;
+}
+
+.header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.title-area {
+  display: flex;
+  align-items: center;
+}
+
+.title-area h1 {
+  font-size: 20px;
+  font-weight: 600;
+  color: #1F2329;
+  margin: 0;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 2px 6px;
+  font-size: 12px;
+  font-weight: 400;
+  color: #646a73;
+  background: #f5f6f7;
+  border-radius: 10px;
+  margin-left: 8px;
+}
+
+.action-btn-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 /* 列表头部 */
@@ -577,7 +597,7 @@ const onPreviewClose = () => {
 /* 列定义 */
 .col-name { flex: 2; min-width: 200px; display: flex; align-items: center; padding-right: 16px; }
 .col-type { flex: 0.6; min-width: 80px; display: flex; align-items: center; }
-.col-owner { flex: 1; min-width: 100px; display: flex; align-items: center; }
+
 .col-time { flex: 1.5; min-width: 140px; display: flex; align-items: center; }
 .col-size { flex: 1; min-width: 120px; position: relative; display: flex; align-items: center; justify-content: space-between; }
 
@@ -693,25 +713,6 @@ const onPreviewClose = () => {
     text-overflow: ellipsis;
   }
 
-  .owner-info {
-    display: flex;
-    align-items: center;
-
-    .owner-avatar {
-      width: 22px; height: 22px;
-      border-radius: 50%;
-      background-color: #3370ff;
-      color: #ffffff;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 11px;
-      margin-right: 6px;
-      flex-shrink: 0;
-    }
-    .owner-name {
-      font-size: 13px; color: #1f2329;
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    }
-  }
 
   .col-time, .size-text { font-size: 13px; color: #646a73; white-space: nowrap; }
   .size-text { transition: opacity 0.2s; }
@@ -739,23 +740,7 @@ const onPreviewClose = () => {
   }
 }
 
-/* 目录行也需要 owner 样式 */
-.list-row.folder-row .owner-info {
-  display: flex;
-  align-items: center;
-  .owner-avatar {
-    width: 22px; height: 22px;
-    border-radius: 50%;
-    background-color: #3370ff;
-    color: #ffffff;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 11px; margin-right: 6px; flex-shrink: 0;
-  }
-  .owner-name {
-    font-size: 13px; color: #1f2329;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  }
-}
+/* 目录行样式定制 */
 .list-row.folder-row .col-time,
 .list-row.folder-row .size-text {
   font-size: 13px; color: #646a73; white-space: nowrap;

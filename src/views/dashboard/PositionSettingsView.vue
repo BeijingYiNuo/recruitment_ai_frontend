@@ -137,7 +137,7 @@
     <!-- 面试流程管理弹窗（可视化树状图） -->
     <el-dialog
       v-model="roundsDialog.visible"
-      :title="`面试流程 - ${roundsDialog.positionName}`"
+      title="面试流程"
       width="720px"
       :close-on-click-modal="false"
       top="5vh"
@@ -208,12 +208,6 @@
                   <span class="node-desc-label">考察内容：</span>
                   <span class="node-desc-text">{{ round.description }}</span>
                 </div>
-                <div class="node-card-footer">
-                  <span class="node-participants">
-                    <el-icon><User /></el-icon>
-                    面试官 × {{ round.round_type === 'HR' ? 1 : round.round_type === 'MANAGER' ? 1 : 2 }}
-                  </span>
-                </div>
               </div>
             </div>
           </template>
@@ -250,7 +244,9 @@
         label-position="left"
       >
         <el-form-item label="轮次名称" prop="round_name">
-          <el-input v-model="roundForm.round_name" placeholder="例如：技术一面" maxlength="4" show-word-limit />
+          <el-select v-model="roundForm.round_name" placeholder="请选择轮次名称" style="width: 100%;">
+            <el-option v-for="n in 10" :key="n" :label="roundNameOptions[n - 1]" :value="roundNameOptions[n - 1]" />
+          </el-select>
         </el-form-item>
         <el-form-item label="面试类型" prop="round_type">
           <el-select v-model="roundForm.round_type" style="width: 100%">
@@ -328,6 +324,12 @@ const roundsDialog = reactive({
   positionId: null,
 })
 
+// 轮次名称枚举：一面 ~ 十面
+const roundNameOptions = Array.from({ length: 10 }, (_, i) => {
+  const chineseNum = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十']
+  return `${chineseNum[i]}面`
+})
+
 // 轮次表单
 const roundFormRef = ref(null)
 const roundForm = reactive({
@@ -338,9 +340,8 @@ const roundForm = reactive({
 })
 const roundFormRules = {
   round_name: [
-      { required: true, message: '请输入轮次名称', trigger: 'blur' },
-      { max: 4, message: '轮次名称不能超过4个字符', trigger: 'blur' },
-    ],
+    { required: true, message: '请选择轮次名称', trigger: 'change' },
+  ],
   round_type: [{ required: true, message: '请选择面试类型', trigger: 'change' }],
 }
 const roundFormDialog = reactive({
@@ -554,6 +555,7 @@ const handleSaveRound = async () => {
     }
     roundFormDialog.visible = false
     positionStore.invalidateCache()
+    loadPositions()
     loadRounds()
   } catch (e) {
     console.error('保存轮次失败:', e)
@@ -572,6 +574,7 @@ const handleDeleteRound = async (round) => {
     })
     await positionApi.deleteRound(roundsDialog.positionId, round.id)
     positionStore.invalidateCache()
+    loadPositions()
     ElMessage.success('轮次已删除')
     loadRounds()
   } catch (e) {

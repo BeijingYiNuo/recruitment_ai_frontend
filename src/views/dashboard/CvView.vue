@@ -22,30 +22,16 @@
                 <el-icon><Search /></el-icon>
               </template>
             </el-input>
-            <el-button type="primary" class="lark-btn-primary" @click="uploadDialogVisible = true">添加简历</el-button>
-            <el-button class="lark-btn-ghost" @click="triggerBatchCache" :disabled="isCachingToDB">批量导入</el-button>
-            <!-- 隐藏的文件选择器，用于批量选择后直接缓存 -->
+            <el-button type="primary" class="lark-btn-primary" @click="triggerBatchImport" :disabled="uploading">批量导入</el-button>
+            <!-- 隐藏的文件选择器 -->
             <input
-              ref="batchFileInputRef"
+              ref="fileInputRef"
               type="file"
               multiple
-              accept=".pdf,.doc,.docx"
+              accept=".pdf"
               style="display: none"
-              @change="handleBatchFileSelect"
+              @change="handleFileSelect"
             />
-            <!-- 缓存进度 -->
-            <div v-if="isCachingToDB" style="display: inline-flex; align-items: center; gap: 8px; margin-left: 8px;">
-              <el-progress
-                type="circle"
-                :percentage="cachingPercent"
-                :width="28"
-                :stroke-width="3"
-                color="#1677ff"
-              />
-              <span style="font-size: 13px; color: #666; white-space: nowrap;">
-                正在缓存 {{ cachingCurrent }}/{{ cachingTotal }}
-              </span>
-            </div>
           </div>
         </div>
       </div>
@@ -54,6 +40,34 @@
       <div v-if="showProcessingBanner" class="processing-banner">
         <el-icon class="is-loading" style="margin-right: 6px; font-size: 14px;"><Loading /></el-icon>
         <span>后台解析中，列表数据实时刷新</span>
+      </div>
+
+      <!-- 上传队列 -->
+      <div v-if="uploadQueue.length > 0" class="upload-queue-area">
+        <div class="upload-queue-header">
+          <span>已选文件（{{ uploadQueue.length }} 个）</span>
+          <el-button
+            v-if="!uploading"
+            type="primary" size="small" @click="startUpload"
+          >
+            开始上传
+          </el-button>
+          <el-button
+            v-else
+            type="primary" size="small" loading disabled
+          >
+            上传中...
+          </el-button>
+        </div>
+        <div
+          v-if="uploading"
+          style="padding: 12px 0;"
+        >
+          <el-progress :percentage="uploadProgress" :stroke-width="6" :status="uploadProgress === 100 ? 'success' : ''" />
+          <div style="text-align: center; margin-top: 8px; font-size: 13px; color: #8F959E;">
+            {{ uploadProgress === 100 ? '上传完成，后台解析中...' : '正在上传至服务器...' }}
+          </div>
+        </div>
       </div>
 
       <!-- Main List Area -->
@@ -406,44 +420,6 @@
       </transition>
     </Teleport>
 
-    <!-- 缓存管理弹窗（仅查看和管理本地缓存文件） -->
-    <el-dialog v-model="batchDialogVisible" title="本地缓存文件管理" width="520px" @opened="loadCachedFiles">
-      <div v-if="batchFiles.length === 0" style="text-align: center; padding: 40px 0; color: #999;">
-        暂无已缓存的文件，点击"批量导入"选择文件自动缓存
-      </div>
-      <div v-else class="batch-file-list">
-        <div class="batch-list-header">
-          <span>已缓存 {{ batchFiles.length }} 份简历</span>
-          <el-button link type="warning" size="small" @click="clearAllCache">清除全部</el-button>
-        </div>
-        <div
-          v-for="(item, index) in batchFiles"
-          :key="item.id"
-          class="batch-file-row"
-        >
-          <span class="batch-file-index">{{ index + 1 }}.</span>
-          <span class="batch-file-name">{{ item.name }}</span>
-          <span class="batch-file-size">{{ formatSize(item.size) }}</span>
-          <el-tag size="small" type="success" effect="plain" style="margin-right: 8px;">已缓存</el-tag>
-          <el-button link type="danger" size="small" @click="removeBatchFile(index)">移除</el-button>
-        </div>
-      </div>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="batchDialogVisible = false">关闭</el-button>
-          <el-button
-            v-if="batchFiles.length > 0"
-            type="primary"
-            class="lark-btn-primary"
-            :loading="cacheUploading"
-            @click="uploadCachedFiles"
-          >
-            {{ cacheUploading ? '上传中...' : '一键上传至服务器' }}
-          </el-button>
-        </span>
-      </template>
-    </el-dialog>
-
     <!-- 简历预览弹窗 -->
     <FilePreviewDialog
       v-model="previewDialogVisible"
@@ -455,52 +431,22 @@
       @download="handleDownload(previewResumeData)"
     />
 
-    <!-- 简历导入弹窗 -->
-    <el-dialog v-model="uploadDialogVisible" title="导入新简历" width="440px" @close="resetUploadForm">
-      <el-form ref="uploadFormRef" :model="uploadForm" label-width="95px">
-        <el-form-item label="简历文件" prop="file">
-          <el-upload
-            ref="uploadRef"
-            class="upload-demo"
-            drag
-            :auto-upload="false"
-            :limit="1"
-            :on-change="handleFileChange"
-            :on-remove="handleFileRemove"
-            accept=".pdf,.doc,.docx"
-            style="width: 100%;"
-          >
-            <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
-            <div class="el-upload__text">
-              拖拽文件到此处或 <em>点击选取</em>
-            </div>
-          </el-upload>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="uploadDialogVisible = false">取消</el-button>
-          <el-button type="primary" class="lark-btn-primary" :loading="uploadLoading" @click="submitUpload">确认导入</el-button>
-        </span>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
-import { ElMessage, ElLoading, ElMessageBox } from 'element-plus'
-import { UploadFilled, Close, Search, Loading } from '@element-plus/icons-vue'
+import { ElMessage, ElLoading, ElMessageBox, ElNotification } from 'element-plus'
+import { Close, Search, Loading } from '@element-plus/icons-vue'
 import { getCurrentUser } from '../../services/authService'
 import { useResumeStore } from '../../stores/resumeStore'
 import { resumeApi } from '../../api/resume'
 import FilePreviewDialog from '../../components/FilePreviewDialog.vue'
-import { fileCacheDB } from '../../utils/fileCacheDB'
+import { calculateSHA256, validatePdfFile } from '../../utils/fileUploadHelper'
 
 const resumeStore = useResumeStore()
 const currentUser = ref(getCurrentUser() || { id: 1, username: '管理员' })
 const listLoading = ref(false)
-const uploadLoading = ref(false)  // 单文件上传独立 loading，避免遮罩列表
 const searchKeyword = ref('')
 const currentPage = ref(1)
 const pageSize = ref(10)
@@ -590,8 +536,15 @@ const checkAndStartPolling = (force = false) => {
             const elapsed = Date.now() - batchImportCreatedAt.value
             if (elapsed >= PLACEHOLDER_MIN_AGE) {
               // 占位行已存在超过 5 分钟仍未匹配到真实记录，视为无效文件
-              ElMessage.warning(`${batchImportPlaceholders.value.length} 份文件不是有效简历，已自动忽略`)
+              const failedCount = batchImportPlaceholders.value.length
               batchImportPlaceholders.value = []
+              // 更新 uploadQueue 中对应文件的错误状态
+              for (const item of uploadQueue.value) {
+                if (item.status === 'done' || item.status === 'skipped') continue
+                item.status = 'error'
+                item.error = '无效文件'
+              }
+              checkUploadComplete()
             } else {
               // 未到最小存活时间：保留占位行，继续轮询等待 worker 处理
               return
@@ -599,9 +552,7 @@ const checkAndStartPolling = (force = false) => {
           }
           stopPolling()
           showProcessingBanner.value = false
-          if (hadAnalyzing) {
-            ElMessage.success('简历解析完成')
-          }
+          checkUploadComplete()
           // 失效缓存，下次用户操作时自动刷新（避免强制跳回第 1 页）
           resumeStore.invalidateCache()
         }
@@ -700,7 +651,6 @@ const reviewTagClass = (status) => {
 
 onMounted(() => {
   fetchResumes()
-  loadCachedFiles()
 })
 
 onUnmounted(() => {
@@ -714,258 +664,249 @@ onUnmounted(() => {
   }
 })
 
-// Upload Drawer
-const uploadDialogVisible = ref(false)
-const uploadFormRef = ref(null)
-const uploadRef = ref(null)
-
-const uploadForm = ref({
-  file: null
-})
-
-const handleFileChange = (uploadFile) => {
-  uploadForm.value.file = uploadFile.raw
-}
-
-const handleFileRemove = () => {
-  uploadForm.value.file = null
-}
-
-const resetUploadForm = () => {
-  uploadForm.value = { file: null }
-  if (uploadRef.value) uploadRef.value.clearFiles()
-  if (uploadFormRef.value) uploadFormRef.value.clearValidate()
-}
-
-const submitUpload = async () => {
-  if (!uploadForm.value.file) {
-    ElMessage.warning('请选择需要上传的简历文件')
-    return
-  }
-
-  const file = uploadForm.value.file
-  const allowedTypes = [
-    'application/pdf',
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-  ]
-
-  if (!allowedTypes.includes(file.type) && !file.name.match(/\.(pdf|doc|docx)$/i)) {
-    ElMessage.error('只支持 PDF 或 Word 格式的简历文件')
-    return
-  }
-
-  if (file.size > 10 * 1024 * 1024) {
-    ElMessage.error('简历文件大小不能超过 10MB')
-    return
-  }
-
-  uploadLoading.value = true
-  try {
-    const response = await resumeApi.uploadResume(currentUser.value.id, file)
-
-    const newResume = Object.assign({
-      id: Date.now(),
-      user_id: currentUser.value.id,
-      candidate_name: '待解析',
-      file_path: '',
-      file_type: file.name.split('.').pop().toLowerCase(),
-      status: 'uploaded',
-      created_at: new Date().toISOString().slice(0, 19).replace('T', ' ')
-    }, response)
-
-    resumeStore.addResume(newResume)
-
-    ElMessage.success(`简历 ${file.name} 导入成功！`)
-    uploadDialogVisible.value = false
-    resumeStore.invalidateCache()
-    fetchResumes() // 这里会触发 checkAndStartPolling
-  } catch (error) {
-    if (Array.isArray(error?.detail)) {
-      const msgs = error.detail.map(e => e.msg).join('; ')
-      ElMessage.error(`上传失败: ${msgs}`)
-    } else {
-      ElMessage.error('上传失败: ' + (error?.detail || error?.message || '未知错误'))
-    }
-  } finally {
-    uploadLoading.value = false
-  }
-}
-
-// ====== 批量导入逻辑（两步式：先缓存浏览器 → 随后上传后端） ======
-const batchDialogVisible = ref(false)
-const cacheUploading = ref(false)
-const cachedCount = ref(0)
-const batchFileInputRef = ref(null)
-// 批量导入完成后的追踪（占位行 + 重名检测）
+// ====== 批量上传流程 ======
+const fileInputRef = ref(null)
+const uploadQueue = ref([])
+const uploadProgress = ref(0)
+const uploading = ref(false)
 const batchImportPlaceholders = ref([])
 const preImportIds = ref(new Set())
-const batchImportCreatedAt = ref(0)  // 占位行创建时间戳，用于防止过早清理
-// batchFiles 存储从 IndexedDB 读取的文件元数据 { id, name, size, cachedAt }
-const batchFiles = ref([])
-// IndexedDB 缓存文件进度
-const isCachingToDB = ref(false)
-const cachingCurrent = ref(0)
-const cachingTotal = ref(0)
-const cachingPercent = computed(() =>
-  cachingTotal.value > 0 ? Math.round((cachingCurrent.value / cachingTotal.value) * 100) : 0
-)
+const batchImportCreatedAt = ref(0)
+const MAX_BATCH_FILES = 10
 
-// 分页切片：从 store 全量列表中取当前页数据，解决 store 列表被轮询扩充后模板渲染超出 pageSize 的问题
+// 分页切片
 const pagedResumes = computed(() => {
   const list = resumeStore.resumes || []
   const start = (currentPage.value - 1) * pageSize.value
   return list.slice(start, start + pageSize.value)
 })
 
-const validateBatchFile = (file) => {
-  const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
-  if (!allowedTypes.includes(file.type) && !file.name.match(/\.(pdf|doc|docx)$/i)) {
-    ElMessage.error(`${file.name}: 只支持 PDF 或 Word 格式`)
-    return false
-  }
-  if (file.size > 10 * 1024 * 1024) {
-    ElMessage.error(`${file.name}: 文件大小不能超过 10MB`)
-    return false
-  }
-  return true
+const formatFileSize = (bytes) => {
+  const mb = bytes / 1024 / 1024
+  return mb >= 1 ? mb.toFixed(1) + 'MB' : (bytes / 1024).toFixed(0) + 'KB'
 }
 
-/** 从 IndexedDB 加载已缓存的文件列表 */
-const loadCachedFiles = async () => {
-  try {
-    batchFiles.value = await fileCacheDB.getFileList()
-    cachedCount.value = batchFiles.value.length
-  } catch (error) {
-    console.error('加载缓存文件列表失败:', error)
-    batchFiles.value = []
-    cachedCount.value = 0
-  }
+/** 点击"批量导入" */
+const triggerBatchImport = () => {
+  uploadQueue.value = []
+  uploadProgress.value = 0
+  fileInputRef.value?.click()
 }
 
-/** 点击"批量导入" → 直接弹出文件选择器 */
-const triggerBatchCache = () => {
-  batchFileInputRef.value?.click()
-}
-
-/** 文件选择后立即缓存到 IndexedDB，不上传后端 */
-const handleBatchFileSelect = async (event) => {
-  const files = event.target.files
-  if (!files || files.length === 0) return
-
-  const validFiles = []
-  for (const file of files) {
-    if (validateBatchFile(file)) {
-      validFiles.push(file)
-    }
-  }
-
-  if (validFiles.length === 0) {
-    ElMessage.warning('没有符合格式要求的文件')
-    event.target.value = ''
-    return
-  }
-
-  // 显示缓存进度
-  isCachingToDB.value = true
-  cachingCurrent.value = 0
-  cachingTotal.value = validFiles.length
-
-  try {
-    await fileCacheDB.saveFiles(validFiles, ({ current, total }) => {
-      cachingCurrent.value = current
-      cachingTotal.value = total
-    })
-    await loadCachedFiles()
-    ElMessage.success(`已缓存 ${validFiles.length} 份简历，即将自动上传至服务器`)
-  } catch (error) {
-    ElMessage.error('缓存文件失败: ' + (error?.message || '未知错误'))
-    event.target.value = ''
-    isCachingToDB.value = false
-    return
-  }
-
-  isCachingToDB.value = false
-
-  // 重置 input
+/** 文件选择后校验并加入队列 */
+const handleFileSelect = (event) => {
+  const files = Array.from(event.target.files || [])
   event.target.value = ''
-  // 缓存完成后自动触发上传
-  await uploadCachedFiles()
-}
 
-/** 一键清空所有缓存 */
-const clearAllCache = async () => {
-  await fileCacheDB.clearAll()
-  batchFiles.value = []
-  cachedCount.value = 0
-  ElMessage.success('已清除全部缓存')
-}
+  if (files.length === 0) return
 
-const removeBatchFile = async (index) => {
-  const removed = batchFiles.value[index]
-  if (removed) {
-    await fileCacheDB.removeFile(removed.id)
-  }
-  await loadCachedFiles()
-}
-
-const formatSize = (bytes) => {
-  const kb = bytes / 1024
-  const mb = kb / 1024
-  return mb > 1 ? mb.toFixed(1) + ' MB' : kb.toFixed(0) + ' KB'
-}
-
-/** 上传所有已缓存文件到后端 */
-const uploadCachedFiles = async () => {
-  const items = await fileCacheDB.getAllFiles()
-  if (items.length === 0) {
-    ElMessage.warning('没有待上传的缓存文件')
+  if (files.length > MAX_BATCH_FILES) {
+    ElMessage.warning(`一次最多选择 ${MAX_BATCH_FILES} 个文件`)
     return
   }
 
-  cacheUploading.value = true
-  try {
-    const files = items.map(item => new File([item.blob], item.name, { type: item.type }))
-    // 记录导入前的简历 ID，用于后续检测重名
-    preImportIds.value = new Set(resumeStore.resumes.map(r => r.id))
-
-    const result = await resumeApi.batchImportLocal(files)
-
-    if (result && result.imported > 0) {
-      // 创建占位行：立即在列表顶部显示，避免 fetchResumes 的 loading 遮罩遮挡
-      const fileNames = items.map(item => item.name)
-      batchImportPlaceholders.value = fileNames.map((name, i) => ({
-        id: `placeholder-${Date.now()}-${i}`,
-        _placeholder: true,
-        _originalFileName: name,
-        _displayName: name.replace(/\.[^.]+$/, '') || name,
-        candidate_name: name.replace(/\.[^.]+$/, '') || '待解析',
-        file_type: (name.split('.').pop() || '').toLowerCase(),
-        status: 'pending_upload',
-        review_status: null,
-        updated_at: new Date().toISOString().slice(0, 19).replace('T', ' ')
-      }))
-      batchImportCreatedAt.value = Date.now()
-      currentPage.value = 1
-      resumeStore.invalidateCache()
-      ElMessage.success(`已上传 ${result.imported} 份简历`)
-      // 不调用 fetchResumes()，避免 listLoading 遮罩挡住占位行
-      // 后端已创建 Resume 记录，轮询会在 10s 内自动匹配并替换占位行为真实记录
-      checkAndStartPolling(true)
-    } else {
-      ElMessage.error('批量上传失败，请重试')
+  for (const file of files) {
+    const result = validatePdfFile(file)
+    if (!result.valid) {
+      ElMessage.error(result.reason)
+      continue
     }
-  } catch (error) {
-    const msg = error?.detail || error?.message || error?.error || '未知错误'
-    ElMessage.error('批量上传失败: ' + (typeof msg === 'string' ? msg : JSON.stringify(msg)))
-  } finally {
-    // 无论成功或失败都清除缓存，避免遗留文件导致下次超出数量限制
-    await fileCacheDB.clearAll()
-    batchFiles.value = []
-    cachedCount.value = 0
-    batchDialogVisible.value = false
-    cacheUploading.value = false
+    if (uploadQueue.value.some(item => item.file.name === file.name)) {
+      continue
+    }
+    uploadQueue.value.push({
+      file,
+      sha256: null,
+      status: 'pending',
+      resumeId: null
+    })
   }
+
+  if (uploadQueue.value.length === 0) {
+    ElMessage.warning('没有符合要求的文件')
+  }
+}
+
+/** 检查上传是否全部完成，完成后弹通知 */
+const checkUploadComplete = () => {
+  const total = uploadQueue.value.length
+  if (total === 0) return
+
+  const done = uploadQueue.value.filter(f => f.status === 'done').length
+  const failed = uploadQueue.value.filter(f => f.status === 'error').length
+  const skipped = uploadQueue.value.filter(f => f.status === 'skipped').length
+
+  if (batchImportPlaceholders.value.length === 0 && total > 0 && done + failed + skipped === total) {
+    if (failed === 0 && skipped === 0) {
+      ElNotification({ title: '简历解析完成', message: `已导入的 ${total} 份简历全部解析完成`, type: 'success' })
+    } else if (failed === 0 && skipped === total) {
+      ElNotification({ title: '简历已存在', message: '所选简历均已导入过', type: 'info' })
+    } else if (failed === 0) {
+      ElNotification({ title: '简历解析完成', message: `${done} 份解析完成`, type: 'success' })
+    } else {
+      ElNotification({ title: '简历解析完成', message: `${done} 份解析完成，${failed} 份解析失败`, type: 'warning' })
+    }
+  }
+}
+
+/** 批量上传：SHA-256 → checkExist → 一个请求打包上传 → Worker 并行解析 */
+const startUpload = async () => {
+  if (uploading.value || uploadQueue.value.length === 0) return
+
+  uploading.value = true
+  uploadProgress.value = 0
+
+  // 记录导入前的简历 ID，用于后续检测重名
+  preImportIds.value = new Set(resumeStore.resumes.map(r => r.id))
+
+  // 1. 并行计算 SHA-256
+  await Promise.all(uploadQueue.value.map(async (item) => {
+    item.status = 'preparing'
+    try {
+      item.sha256 = await calculateSHA256(item.file)
+    } catch {
+      item.sha256 = null
+    }
+  }))
+
+  // 2. 批量查重
+  const hashesToCheck = uploadQueue.value
+    .filter(item => item.sha256)
+    .map(item => ({ filename: item.file.name, sha256: item.sha256 }))
+
+  if (hashesToCheck.length > 0) {
+    try {
+      const result = await resumeApi.checkExist(hashesToCheck)
+      const existSet = new Set((result.exist || []).map(e => e.sha256))
+      for (const item of uploadQueue.value) {
+        if (item.sha256 && existSet.has(item.sha256)) {
+          item.status = 'skipped'
+        }
+      }
+    } catch {
+      // 查重失败不阻塞上传
+    }
+  }
+
+  // 3. 收集所有待上传文件 + hash 信息，打包一个请求发送
+  const filesToUpload = uploadQueue.value.filter(item => item.status !== 'skipped')
+
+  if (filesToUpload.length > 0) {
+    for (const item of filesToUpload) {
+      item.status = 'uploading'
+    }
+
+    const fileObjects = filesToUpload.map(item => item.file)
+    const hashesPayload = filesToUpload.map(item => ({
+      filename: item.file.name,
+      sha256: item.sha256
+    }))
+
+    let lastRetry = 0
+    const maxRetries = 3
+
+    while (lastRetry <= maxRetries) {
+      try {
+        const result = await resumeApi.batchImportLocal(fileObjects, hashesPayload, (progressEvent) => {
+          if (progressEvent.total) {
+            uploadProgress.value = Math.round((progressEvent.loaded / progressEvent.total) * 100)
+          }
+        })
+
+        if (result && result.imported > 0) {
+          // 标记已导入的文件为 done
+          const importedSet = new Set(result.resume_ids || [])
+          let ri = 0
+          for (const item of filesToUpload) {
+            if (importedSet.size > 0 && ri < (result.resume_ids || []).length) {
+              item.status = 'done'
+              item.resumeId = result.resume_ids[ri]
+
+              // 创建占位行
+              const name = item.file.name
+              batchImportPlaceholders.value.push({
+                id: `placeholder-${Date.now()}-${Math.random()}`,
+                _placeholder: true,
+                _originalFileName: name,
+                _displayName: name.replace(/\.[^.]+$/, '') || name,
+                candidate_name: name.replace(/\.[^.]+$/, '') || '待解析',
+                file_type: (name.split('.').pop() || '').toLowerCase(),
+                status: 'pending_upload',
+                review_status: null,
+                updated_at: new Date().toISOString().slice(0, 19).replace('T', ' ')
+              })
+
+              const newResume = {
+                id: result.resume_ids[ri],
+                user_id: currentUser.value.id,
+                candidate_name: '待解析',
+                file_path: '',
+                file_type: (name.split('.').pop() || '').toLowerCase(),
+                status: 'uploaded',
+                original_file_name: name,
+                created_at: new Date().toISOString().slice(0, 19).replace('T', ' '),
+                updated_at: new Date().toISOString().slice(0, 19).replace('T', ' ')
+              }
+              resumeStore.resumes.unshift(newResume)
+              ri++
+            } else {
+              item.status = 'error'
+              item.error = '未在响应中找到'
+            }
+          }
+          ElMessage.success(`已导入 ${result.imported} 份简历${result.skipped ? `，${result.skipped} 份已存在` : ''}`)
+          if (result.skipped_balance > 0) {
+            ElNotification({
+              title: '余额不足',
+              message: `余额不足，已跳过 ${result.skipped_balance} 份简历（共选择 ${uploadQueue.value.length} 份，仅导入 ${result.imported} 份）`,
+              type: 'warning',
+              duration: 6000,
+            })
+          }
+        } else {
+          for (const item of filesToUpload) {
+            item.status = 'error'
+            item.error = result?.message || '导入失败'
+          }
+        }
+        break
+      } catch (error) {
+        if (error?.response?.status === 402) {
+          const detail = error?.response?.data || {}
+          ElNotification({
+            title: '余额不足',
+            message: detail.message || '余额不足，无法导入简历',
+            type: 'error',
+            duration: 6000,
+          })
+          for (const item of filesToUpload) {
+            item.status = 'error'
+            item.error = detail.message || '余额不足'
+          }
+          break
+        }
+        if (lastRetry >= maxRetries) {
+          for (const item of filesToUpload) {
+            item.status = 'error'
+            item.error = error?.detail || error?.message || '上传失败'
+          }
+        }
+        lastRetry++
+      }
+    }
+  }
+
+  batchImportCreatedAt.value = Date.now()
+  currentPage.value = 1
+  resumeStore.invalidateCache()
+
+  // 启动轮询
+  if (batchImportPlaceholders.value.length > 0) {
+    checkAndStartPolling(true)
+  }
+
+  uploading.value = false
+  checkUploadComplete()
 }
 
 // Custom Drawer logic
@@ -1042,9 +983,6 @@ const handleFetchSpecialInDrawer = async (type, titleName) => {
   if (!currentDetail.value?.id) return
   specialDataLoading.value = true
   activeSpecialType.value = type
-  specialEduList.value = []
-  specialWorkList.value = []
-  specialSkillList.value = []
   specialDataStr.value = '正在提取并由智能分析模型组装中...'
 
   try {
@@ -1053,7 +991,6 @@ const handleFetchSpecialInDrawer = async (type, titleName) => {
       data = await resumeStore.getCachedSection(currentDetail.value.id, 'educations',
         () => resumeApi.getResumeEducations(currentDetail.value.id))
       const list = Array.isArray(data) ? data : []
-      // 过滤掉无核心内容的记录
       specialEduList.value = list
         .filter(e => e.school_name || e.major)
         .sort((a, b) => new Date(b.end_date) - new Date(a.end_date))
@@ -1062,7 +999,6 @@ const handleFetchSpecialInDrawer = async (type, titleName) => {
       data = await resumeStore.getCachedSection(currentDetail.value.id, 'work-experiences',
         () => resumeApi.getResumeWorkExperiences(currentDetail.value.id))
       const list = Array.isArray(data) ? data : []
-      // 过滤掉无核心内容的记录
       specialWorkList.value = list
         .filter(w => w.company_name || w.position)
         .sort((a, b) => new Date(b.end_date) - new Date(a.end_date))
@@ -1076,7 +1012,6 @@ const handleFetchSpecialInDrawer = async (type, titleName) => {
       data = await resumeStore.getCachedSection(currentDetail.value.id, 'projects',
         () => resumeApi.getResumeProjects(currentDetail.value.id))
       const list = Array.isArray(data) ? data : []
-      // 过滤掉无核心内容的记录（项目名、描述、角色均为空）
       specialProjectList.value = list
         .filter(p => p.project_name || p.description || p.role)
         .sort((a, b) => new Date(b.end_date) - new Date(a.end_date))
@@ -1096,6 +1031,11 @@ const handleFetchSpecialInDrawer = async (type, titleName) => {
 const handleRowReparse = async (resume) => {
   try {
     await resumeApi.reparseResume(resume.id)
+    // 立即更新本地状态为"解析中"
+    const idx = resumeStore.resumes.findIndex(r => r.id === resume.id)
+    if (idx !== -1) {
+      resumeStore.resumes[idx] = { ...resumeStore.resumes[idx], status: 'uploaded', candidate_name: '待解析' }
+    }
     resumeStore.invalidateCache(resume.id)
     ElMessage.success('重新解析已启动，请稍后查看结果')
     checkAndStartPolling(true)
@@ -1110,6 +1050,14 @@ const handleDrawerReparse = async () => {
 
   try {
     await resumeApi.reparseResume(id)
+    // 立即更新本地状态为"解析中"
+    const idx = resumeStore.resumes.findIndex(r => r.id === id)
+    if (idx !== -1) {
+      resumeStore.resumes[idx] = { ...resumeStore.resumes[idx], status: 'uploaded', candidate_name: '待解析' }
+    }
+    if (currentDetail.value) {
+      currentDetail.value = { ...currentDetail.value, status: 'uploaded', candidate_name: '待解析' }
+    }
     resumeStore.invalidateCache(id)
     ElMessage.success('重新解析已启动，请稍后查看结果')
     closeDrawer()
@@ -1985,6 +1933,23 @@ const onPreviewClose = () => {
 }
 .empty-placeholder .empty-text {
   font-size: 14px;
+}
+
+/* 上传队列 */
+.upload-queue-area {
+  margin-bottom: 12px;
+  background: #fff;
+  border: 1px solid #DEE0E3;
+  border-radius: 8px;
+  padding: 16px;
+}
+.upload-queue-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+  font-weight: 500;
+  color: #1F2329;
 }
 
 </style>

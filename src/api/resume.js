@@ -1,16 +1,26 @@
 import request from '../utils/request'
 
 export const resumeApi = {
-  // 导入简历
-  uploadResume: (userId, file) => {
+  // Hash 去重：上传前批量检查文件是否已存在
+  checkExist: (hashes) => {
+    return request.post('/resumes/upload/check-exist', { hashes })
+  },
+
+  // 导入简历（单个和批量共用）
+  // processingMode: 'bg_task' = 进程内解析（单个导入）/ 'task_queue' = Worker 解析（批量导入）
+  uploadResume: (userId, file, { fileHash, processingMode = 'bg_task', onProgress } = {}) => {
     const formData = new FormData()
     formData.append('file', file)
+    if (fileHash) {
+      formData.append('file_hash', fileHash)
+    }
 
-    return request.post(`/resumes/import?user_id=${userId}`, formData, {
+    return request.post(`/resumes/import?user_id=${userId}&processing_mode=${processingMode}`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
       },
-      timeout: 120000
+      timeout: 180000,
+      onUploadProgress: onProgress
     })
   },
 
@@ -74,15 +84,19 @@ export const resumeApi = {
     return request.put(`/resumes/${resumeId}/position`, { position_id: positionId })
   },
 
-  // 批量导入简历
-  batchImportLocal: (files) => {
+  // 批量导入简历（多文件打包一个请求 → Worker 并行解析）
+  batchImportLocal: (files, hashes, onProgress) => {
     const formData = new FormData()
     for (const file of files) {
       formData.append('files', file)
     }
+    if (hashes && hashes.length > 0) {
+      formData.append('hashes', JSON.stringify(hashes))
+    }
     return request.post('/resumes/batch/import-local', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
-      timeout: 180000
+      timeout: 300000,
+      onUploadProgress: onProgress
     })
   },
 

@@ -160,7 +160,7 @@
               <el-button type="primary" link size="small" v-if="getFirstStartableRound(item.id)" @click.stop="handleStartInterview(item)">开始面试</el-button>
               <el-button type="success" link size="small" v-if="item.session_id && item.status !== 'completed' && item.status !== 'cancelled'" @click.stop="handleStartASR(item)">启动 ASR</el-button>
               <el-button type="primary" link size="small" v-if="item.status === 'completed'" @click.stop="handleViewReport(item)">查看面试报告</el-button>
-              <el-button type="primary" link size="small" v-if="item.status !== 'completed'" @click.stop="interviewStore.editInterview(item)">编辑</el-button>
+              <el-button type="primary" link size="small" v-if="item.status === 'scheduled' || item.status === 'cancelled'" @click.stop="interviewStore.editInterview(item)">编辑</el-button>
               <el-button type="danger" link size="small" @click.stop="handleDelete(item.id)">删除</el-button>
             </div>
           </div>
@@ -895,6 +895,7 @@ const handleOpenModal = (type) => {
 }
 
 onMounted(async () => {
+  ensureAuxiliaryData()
   const hasHighlight = !!route.query.highlight
 
   if (hasHighlight) {
@@ -939,6 +940,10 @@ onMounted(async () => {
 
 const handleSave = async () => {
   const form = interviewStore.interviewForm
+  if (interviewStore.isEditMode && form.status && form.status !== 'scheduled' && form.status !== 'cancelled') {
+    ElMessage.warning('已开始的面试仅可修改备注，请通过详情弹窗编辑')
+    return
+  }
   if (!form.candidate_name) {
     ElMessage.warning('请填写候选人姓名')
     return

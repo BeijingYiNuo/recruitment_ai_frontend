@@ -65,7 +65,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
 import InterviewHeader from '../components/interview/InterviewHeader.vue'
 import TranscriptPanel from '../components/interview/TranscriptPanel.vue'
 import ResumePreviewPanel from '../components/interview/ResumePreviewPanel.vue'
@@ -256,6 +256,11 @@ const startAudioCapture = async () => {
       const slice = audioDataQueue.splice(0, 480)
 
       if (isPaused.value) {
+        // 暂停时发送静默 PCM 数据（全 0），保持 ASR 管线活跃不休眠
+        const silentPcm = new Int16Array(480).buffer
+        if (socket && socket.readyState === WebSocket.OPEN) {
+          socket.send(silentPcm)
+        }
         continue
       }
 
@@ -370,24 +375,28 @@ const requestMicPermission = async (): Promise<boolean> => {
 }
 
 // ========== 系统音频采集（getDisplayMedia 采集腾讯会议等桌面应用的声音）==========
-const requestSystemAudio = async (): Promise<boolean> => {
+const requestSystemAudio = async (silent = false): Promise<boolean> => {
   if (!navigator.mediaDevices.getDisplayMedia) {
-    ElMessage.info('当前浏览器不支持系统音频采集，候选人声音将仅从麦克风拾取。推荐使用 Chrome/Edge')
+    if (!silent) {
+      ElMessage.info('当前浏览器不支持系统音频采集，候选人声音将仅从麦克风拾取。推荐使用 Chrome/Edge')
+    }
     return false
   }
 
   try {
-    // 弹出使用说明，引导用户选择窗口而非"整个屏幕"
-    await ElMessageBox.alert(
-      '请在弹出对话框中选择共享窗口或共享屏幕。\n\n' +
-      '这样只会采集候选人的声音，避免背景音乐等杂音干扰识别。',
-      '系统音频采集说明',
-      {
-        confirmButtonText: '知道了',
-        type: 'info',
-        dangerouslyUseHTMLString: false,
-      }
-    )
+    // 弹出使用说明，引导用户选择窗口而非"整个屏幕"（自动模式跳过此弹窗）
+    if (!silent) {
+      await ElMessageBox.alert(
+        '请在弹出对话框中选择共享窗口或共享屏幕。\n\n' +
+        '这样只会采集候选人的声音，避免背景音乐等杂音干扰识别。',
+        '系统音频采集说明',
+        {
+          confirmButtonText: '知道了',
+          type: 'info',
+          dangerouslyUseHTMLString: false,
+        }
+      )
+    }
 
     // getDisplayMedia 只采音频，不录屏
     // 某些浏览器不支持 video:false，先尝试纯音频，失败后回退到最小 video 约束
@@ -425,18 +434,25 @@ const requestSystemAudio = async (): Promise<boolean> => {
       }
     }
 
-    ElMessage.success('系统音频采集已开启（仅采集所选窗口的声音）')
+    if (!silent) {
+      ElMessage.success('系统音频采集已开启（仅采集所选窗口的声音）')
+    }
     return true
   } catch (err: any) {
     if (err.name === 'NotAllowedError' || err.name === 'AbortError') {
-      // 用户点了"取消"或关闭对话框
-      ElMessage.info('已跳过系统音频采集，仅使用麦克风')
+      // 用户点了"取消"或关闭对话框，静默模式不提示
+      if (!silent) {
+        ElMessage.info('已跳过系统音频采集，仅使用麦克风')
+      }
     } else if (err.name === 'NotSupportedError' || err.name === 'NotFoundError') {
-      // 浏览器本身不支持（Safari / Firefox）或设备不可用
-      ElMessage.warning('当前浏览器不支持系统音频采集，候选人声音将仅通过麦克风拾取。推荐使用 Chrome')
+      if (!silent) {
+        ElMessage.warning('当前浏览器不支持系统音频采集，候选人声音将仅通过麦克风拾取。推荐使用 Chrome')
+      }
     } else {
       console.error('System audio capture error:', err)
-      ElMessage.warning(`系统音频采集失败，将仅使用麦克风`)
+      if (!silent) {
+        ElMessage.warning(`系统音频采集失败，将仅使用麦克风`)
+      }
     }
     return false
   }
@@ -692,11 +708,31 @@ const onStartAsr = async () => {
 
     socket.onopen = () => {
       console.log('ASR WebSocket connected')
-      interviewInfo.value.status = '持续听写中...'
+      interviewInfo.value.status = '持续录音中'
       interviewInfo.value.statusColor = '#67c23a'
       // 连接成功后启动音频采集并发送
       startAudioCapture()
       startTimer()
+
+      // 自动尝试共享系统音频（静默模式，跳过说明弹窗）
+      requestSystemAudio(true).then((ok) => {
+        if (ok) {
+          isSysAudioActive.value = true
+          // 动态接入混音（startAudioCapture 已创建 mixerDest）
+          if (mixerDest && audioContext && sysStream) {
+            sysAudioSourceNode = audioContext.createMediaStreamSource(sysStream)
+            sysAudioSourceNode.connect(mixerDest)
+            console.log('[Audio] 系统音频已自动接入混音')
+          }
+          ElNotification({
+            title: '系统音频已共享',
+            message: '已共享本屏幕的系统音频，若要切换音频可点击"系统音频"按钮',
+            type: 'info',
+            duration: 5000,
+          })
+        }
+      })
+
       ElMessage.success('ASR 识别通道已打通')
     }
 
@@ -773,10 +809,10 @@ const onStopAsr = async () => {
 
 const onPauseInterview = () => {
   isPaused.value = true
-  interviewInfo.value.status = '面试已暂停'
+  interviewInfo.value.status = '录音已暂停'
   interviewInfo.value.statusColor = '#e6a23c'
   stopTimer()
-  ElMessage.warning('面试已暂停')
+  ElMessage.warning('录音已暂停')
 }
 
 const resumeAsrConnection = async () => {
@@ -820,7 +856,7 @@ const resumeAsrConnection = async () => {
       isAsrActive.value = true
       startAudioCapture()
       startTimer(true)
-      interviewInfo.value.status = '持续听写中...'
+      interviewInfo.value.status = '持续录音中'
       interviewInfo.value.statusColor = '#67c23a'
       ElMessage.success('ASR 连接已恢复')
     }
@@ -849,11 +885,11 @@ const resumeAsrConnection = async () => {
   }
 }
 
-const onResumeInterview = async () => {
+const onResumeInterview = () => {
   isPaused.value = false
-  interviewInfo.value.status = '正在重连...'
-  interviewInfo.value.statusColor = '#409eff'
-  await resumeAsrConnection()
+  startTimer(true)
+  interviewInfo.value.status = '持续录音中'
+  interviewInfo.value.statusColor = '#67c23a'
 }
 
 async function onManualFollowUp() {

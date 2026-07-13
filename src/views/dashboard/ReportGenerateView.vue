@@ -93,7 +93,7 @@
           <el-empty description="该候选人暂无面试记录" />
         </div>
 
-        <el-table v-else :data="candidateSessions" stripe style="width: 100%">
+        <el-table v-else :data="flatRounds" stripe style="width: 100%">
           <el-table-column label="面试日期" width="140">
             <template #default="{ row }">
               {{ row.interview_date || '未知' }}
@@ -101,52 +101,32 @@
           </el-table-column>
           <el-table-column label="面试轮次" min-width="160">
             <template #default="{ row }">
-              <div v-if="row.rounds && row.rounds.length">
-                <el-tag
-                  v-for="r in row.rounds"
-                  :key="r.round_id"
-                  size="small"
-                  style="margin-right: 4px;"
-                >
-                  {{ r.round_name }}
-                </el-tag>
-              </div>
-              <span v-else class="text-muted">无轮次</span>
+              {{ row.round_name }}
             </template>
           </el-table-column>
-          <el-table-column label="报告状态" width="140">
+          <el-table-column label="报告状态" width="120">
             <template #default="{ row }">
-              <template v-for="rp in row.reports" :key="rp.report_id">
-                <el-tag v-if="rp.status === 'final'" type="success" size="small" style="margin-right: 4px;">
-                  已完成
-                </el-tag>
-                <el-tag v-else-if="rp.status === 'generating'" type="warning" size="small" style="margin-right: 4px;">
-                  生成中
-                </el-tag>
-                <el-tag v-else-if="rp.status === 'failed'" type="danger" size="small" style="margin-right: 4px;">
-                  失败
-                </el-tag>
-              </template>
-              <span v-if="!row.reports || !row.reports.length" class="text-muted">未生成</span>
+              <el-tag v-if="row.report?.status === 'final'" type="success" size="small">已完成</el-tag>
+              <el-tag v-else-if="row.report?.status === 'generating'" type="warning" size="small">生成中</el-tag>
+              <el-tag v-else-if="row.report?.status === 'failed'" type="danger" size="small">失败</el-tag>
+              <span v-else class="text-muted">未生成</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="180" fixed="right">
+          <el-table-column label="操作" width="160" fixed="right">
             <template #default="{ row }">
               <el-button
-                v-for="rp in row.reports"
-                :key="rp.report_id"
-                :type="rp.status === 'failed' ? 'warning' : 'primary'"
+                v-if="row.report"
+                :type="row.report.status === 'failed' ? 'warning' : 'primary'"
                 size="small"
-                style="margin-right: 4px;"
-                @click="enterDetail(row.session_id, rp.round_id)"
+                @click="enterDetail(row.session_id, row.report.round_id)"
               >
-                {{ rp.status === 'failed' ? '重新生成' : '查看' }}
+                {{ row.report.status === 'failed' ? '重新生成' : '查看' }}
               </el-button>
               <el-button
-                v-if="!row.reports || !row.reports.length"
+                v-else
                 type="primary"
                 size="small"
-                @click="triggerGenerate(row.session_id, row.rounds?.[0]?.round_id, true)"
+                @click="triggerGenerate(row.session_id, row.round_id, true)"
               >
                 生成报告
               </el-button>
@@ -168,9 +148,19 @@
       <!-- Generating overlay -->
       <div v-else-if="reportStatus === 'generating'" class="card-container">
         <div class="generating-container">
-          <el-progress type="circle" :percentage="50" :indeterminate="true" :width="120" :stroke-width="8" />
-          <h2 class="generating-title">AI 正在生成面试报告...</h2>
-          <p class="generating-sub">正在分析面试对话，请稍候</p>
+          <div class="generating-progress-wrapper">
+            <el-progress
+              :percentage="fakeProgress"
+              :stroke-width="8"
+              :show-text="true"
+              striped
+              striped-flow
+              :duration="5"
+              color="#1d4ed8"
+            />
+            <h2 class="generating-title">AI 正在生成面试报告...</h2>
+            <p class="generating-sub">{{ generatingPhase }}</p>
+          </div>
         </div>
       </div>
 
@@ -583,6 +573,24 @@ const loadingCandidate = ref(false)
 const currentCandidate = ref('')
 const candidateSessions = ref([])
 
+// 将 session 列表展平为轮次级列表，每轮一行
+const flatRounds = computed(() => {
+  const result = []
+  for (const session of candidateSessions.value) {
+    for (const round of (session.rounds || [])) {
+      const report = (session.reports || []).find(r => r.round_id === round.round_id)
+      result.push({
+        session_id: session.session_id,
+        interview_date: session.interview_date,
+        round_id: round.round_id,
+        round_name: round.round_name,
+        report: report || null,
+      })
+    }
+  }
+  return result
+})
+
 // Detail view state
 const loading = ref(false)
 const error = ref('')
@@ -594,6 +602,69 @@ const finalDecision = ref('neutral')
 const sessionId = ref(null)
 const roundId = ref(null)
 const reportId = ref(null)
+
+// Fake progress for generating state
+const fakeProgress = ref(0)
+const generatingPhase = ref('')
+let progressTimer = null
+
+const phaseStages = [
+  { max: 25, text: '正在加载面试数据...' },
+  { max: 55, text: '正在分析面试对话...' },
+  { max: 82, text: '正在生成评估结果...' },
+  { max: 93, text: '正在整理报告格式...' },
+  { max: 100, text: '即将完成...' },
+]
+
+function startFakeProgress() {
+  stopFakeProgress()
+  fakeProgress.value = 0
+  generatingPhase.value = phaseStages[0].text
+
+  progressTimer = setInterval(() => {
+    let increment = 0
+    const p = fakeProgress.value
+
+    if (p < 25) {
+      increment = 1.2
+    } else if (p < 55) {
+      increment = 0.8
+    } else if (p < 82) {
+      increment = 0.4
+    } else if (p < 93) {
+      increment = 0.15
+    } else {
+      increment = 0.05
+    }
+
+    fakeProgress.value = Math.min(p + increment, 99)
+
+    for (const stage of phaseStages) {
+      if (fakeProgress.value <= stage.max) {
+        generatingPhase.value = stage.text
+        break
+      }
+    }
+  }, 150)
+}
+
+function stopFakeProgress() {
+  if (progressTimer) {
+    clearInterval(progressTimer)
+    progressTimer = null
+  }
+}
+
+watch(() => reportStatus.value, (newVal) => {
+  if (newVal === 'generating') {
+    startFakeProgress()
+  } else {
+    if (newVal === 'final') {
+      fakeProgress.value = 100
+    }
+    stopFakeProgress()
+  }
+})
 
 // Edit mode
 const editMode = ref(false)
@@ -629,6 +700,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', handleResize)
   radarChart?.dispose()
   stageChart?.dispose()
+  stopFakeProgress()
 })
 
 // ========== Root View ==========
@@ -670,6 +742,7 @@ async function fetchCandidateSessions() {
 function goToRoot() {
   viewMode.value = 'root'
   router.replace('/dashboard/report-generate')
+  fetchCandidateGroups()
 }
 
 function goToCandidate() {
@@ -679,6 +752,15 @@ function goToCandidate() {
   editData.value = null
   originalData.value = null
   reportData.value = null
+
+  // 防卫：如果 currentCandidate 未初始化，退回到 root 视图
+  if (!currentCandidate.value) {
+    viewMode.value = 'root'
+    router.replace('/dashboard/report-generate')
+    fetchCandidateGroups()
+    return
+  }
+
   viewMode.value = 'candidate'
   router.replace(`/dashboard/report-generate?candidate=${encodeURIComponent(currentCandidate.value)}`)
   fetchCandidateSessions()
@@ -1193,6 +1275,14 @@ watch(editData, () => {
   min-height: 50vh;
   gap: 16px;
 }
+.generating-progress-wrapper {
+  width: 420px;
+  max-width: 90vw;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
 .generating-title {
   font-size: 20px;
   font-weight: 600;
@@ -1203,6 +1293,7 @@ watch(editData, () => {
   font-size: 14px;
   color: #8F959E;
   margin: 0;
+  transition: color 0.3s;
 }
 
 /* ===== Folder Grid (Root View) ===== */

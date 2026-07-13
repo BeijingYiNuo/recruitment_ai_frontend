@@ -71,14 +71,14 @@
         size="medium"
         type="warning"
         @click="$emit('pauseInterview')"
-      >暂停面试</el-button>
+      >暂停录音</el-button>
 
       <el-button
         v-if="isAsrActive && isPaused"
         size="medium"
         type="success"
         @click="$emit('resumeInterview')"
-      >恢复面试</el-button>
+      >恢复录音</el-button>
 
       <el-button size="medium" type="danger" @click="$emit('endInterview')" :disabled="!isAsrActive">结束面试</el-button>
 

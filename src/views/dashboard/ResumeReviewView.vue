@@ -1,16 +1,11 @@
 <template>
   <div class="feishu-page">
     <div class="card-container">
-      <!-- Header -->
+      <!-- Header: 标题 + Tabs + 右侧工具 同一行 -->
       <div class="header-area">
-        <div class="header-top">
-          <div class="title-area">
-            <h1>简历审核</h1>
-          </div>
-        </div>
-
-        <!-- 4-Group Filter Bar -->
         <div class="filter-bar">
+          <h1 class="page-title">简历审核</h1>
+
           <!-- Group 1: Status Tabs -->
           <div class="filter-group filter-group-tabs">
             <div class="filter-tabs">
@@ -26,15 +21,15 @@
             </div>
           </div>
 
-          <div class="filter-group-sep"></div>
+          <div class="filter-group-spacer"></div>
 
-          <!-- Group 2: Search + Date -->
-          <div class="filter-group filter-group-search">
+          <!-- Group 2: Search + Date + Batch + View -->
+          <div class="filter-group filter-group-right">
             <el-input
               v-model="searchKeyword"
               placeholder="搜索候选人姓名"
               clearable
-              style="width: 180px;"
+              style="width: 160px;"
               @keyup.enter="handleSearch"
               @clear="handleSearch"
             >
@@ -49,24 +44,12 @@
               start-placeholder="上传起始"
               end-placeholder="上传截止"
               format="YYYY-MM-DD HH:mm"
-              style="width: 280px;"
+              style="width: 240px;"
               @change="handleSearch"
             />
-          </div>
-
-          <div class="filter-group-sep"></div>
-
-          <!-- Group 3: Batch Actions -->
-          <div class="filter-group filter-group-actions">
             <el-button size="small" type="primary" plain @click="openBatchAiReview" :loading="batchAiReviewRunning">
               <el-icon><MagicStick /></el-icon> 批量 AI 审核
             </el-button>
-          </div>
-
-          <div class="filter-group-spacer"></div>
-
-          <!-- Group 4: View Toggle -->
-          <div class="filter-group filter-group-view">
             <el-radio-group v-model="viewMode" size="small" class="mode-toggle">
               <el-radio-button value="list">
                 <el-icon><List /></el-icon>
@@ -585,6 +568,7 @@
 <script setup>
 import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { useResumeStore } from '../../stores/resumeStore'
 import { resumeApi } from '../../api/resume'
 import { positionApi } from '../../api/position'
 import { ElMessage } from 'element-plus'
@@ -598,6 +582,7 @@ import {
 const router = useRouter()
 const route = useRoute()
 const loading = ref(false)
+const resumeStore = useResumeStore()
 const resumes = ref([])
 const currentIndex = ref(0)
 const fileUrl = ref('')
@@ -1004,6 +989,10 @@ async function handlePositionChange(positionId) {
   try {
     await resumeApi.setResumePosition(resume.id, positionId || null)
     resume.position_id = positionId || null
+    const sIdx = resumeStore.resumes.findIndex(r => r.id === resume.id)
+    if (sIdx !== -1) {
+      resumeStore.resumes[sIdx] = { ...resumeStore.resumes[sIdx], position_id: positionId || null }
+    }
     ElMessage.success(positionId ? '岗位设置成功' : '已清除岗位选择')
   } catch (e) {
     ElMessage.error('岗位设置失败')
@@ -1209,6 +1198,12 @@ async function batchApplyReview(item, decision) {
     if (idx !== -1) {
       resumes.value[idx].review_status = decision
     }
+    // 同步到共享 store，避免面试创建弹窗读到旧状态
+    const sIdx = resumeStore.resumes.findIndex(r => r.id === item.resume_id)
+    if (sIdx !== -1) {
+      resumeStore.resumes[sIdx] = { ...resumeStore.resumes[sIdx], review_status: decision }
+    }
+    fetchTabCounts()
     ElMessage.success({ PASS: '已通过', PENDING: '已标记为待定', FAIL: '已淘汰' }[decision])
   } catch (e) {
     ElMessage.error('审核操作失败，请重试')
@@ -1275,6 +1270,11 @@ async function detailQuickReview(decision) {
     if (idx !== -1) {
       resumes.value[idx].review_status = decision
     }
+    // 同步到共享 store，避免面试创建弹窗读到旧状态
+    const sIdx = resumeStore.resumes.findIndex(r => r.id === resume.id)
+    if (sIdx !== -1) {
+      resumeStore.resumes[sIdx] = { ...resumeStore.resumes[sIdx], review_status: decision }
+    }
     if (activeFilter.value !== 'all') {
       const filterParam = getFilterParam()
       const matches = filterParam === 'null'
@@ -1299,6 +1299,11 @@ async function quickReview(resume, decision) {
     await resumeApi.reviewResume(resume.id, { decision, comment: '' })
     ElMessage.success({ PASS: '已通过', PENDING: '已标记为待定', FAIL: '已淘汰' }[decision])
     resume.review_status = decision
+    // 同步到共享 store
+    const sIdx = resumeStore.resumes.findIndex(r => r.id === resume.id)
+    if (sIdx !== -1) {
+      resumeStore.resumes[sIdx] = { ...resumeStore.resumes[sIdx], review_status: decision }
+    }
     if (activeFilter.value !== 'all') {
       const filterParam = getFilterParam()
       const matches = filterParam === 'null'
@@ -1327,6 +1332,11 @@ async function resetToUnreviewed() {
     const idx = resumes.value.findIndex(r => r.id === resume.id)
     if (idx !== -1) {
       resumes.value[idx].review_status = null
+    }
+    // 同步到共享 store
+    const sIdx = resumeStore.resumes.findIndex(r => r.id === resume.id)
+    if (sIdx !== -1) {
+      resumeStore.resumes[sIdx] = { ...resumeStore.resumes[sIdx], review_status: null }
     }
     if (activeFilter.value !== 'all' && activeFilter.value !== 'null') {
       saveCurrentRemark()
@@ -1403,23 +1413,21 @@ onUnmounted(() => revokeFileUrl())
 }
 
 /* ===== Header ===== */
-.header-top {
-  margin-bottom: 0;
-  h1 {
-    font-size: 20px;
-    font-weight: 600;
-    color: #1F2329;
-    margin: 0;
-  }
+.page-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #1F2329;
+  margin: 0 16px 0 0;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
-/* ===== 4-Group Filter Bar ===== */
+/* ===== Filter Bar ===== */
 .filter-bar {
   display: flex;
   align-items: center;
-  margin-top: 16px;
-  gap: 0;
-  flex-wrap: nowrap;
+  gap: 8px 8px;
+  flex-wrap: wrap;
 }
 .filter-group {
   display: flex;
@@ -1428,18 +1436,13 @@ onUnmounted(() => revokeFileUrl())
   flex-shrink: 0;
 }
 .filter-group-tabs { flex-shrink: 0; }
-.filter-group-search { flex-shrink: 0; }
-.filter-group-actions { flex-shrink: 0; }
-.filter-group-spacer { flex: 1; min-width: 12px; }
-.filter-group-view { flex-shrink: 0; }
-
-.filter-group-sep {
-  width: 1px;
-  height: 24px;
-  background: #dee0e3;
-  margin: 0 16px;
+.filter-group-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   flex-shrink: 0;
 }
+.filter-group-spacer { flex: 1; min-width: 12px; }
 
 /* Tabs */
 .filter-tabs {
@@ -1580,8 +1583,9 @@ onUnmounted(() => revokeFileUrl())
 /* ===== Detail Mode - Split Panel ===== */
 .split-panel {
   display: flex;
-  height: calc(100vh - 220px);
+  flex: 1;
   min-height: 500px;
+  max-height: 100%;
   gap: 0;
   position: relative;
   user-select: none;

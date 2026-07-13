@@ -156,34 +156,55 @@
             </svg>
           </span>
           <div v-show="showConsume" style="margin-top: 12px;">
-            <div v-if="recentConsumes.length === 0" class="empty-hint">暂无消费记录</div>
-            <table v-else class="lark-table">
-              <thead>
-                <tr>
-                  <th>面试详情</th>
-                  <th>服务</th>
-                  <th>金额</th>
-                  <th>时间</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="tx in recentConsumes" :key="tx.order_no">
-                  <td>
-                    <div class="session-info">
-                      <span class="session-candidate">{{ tx.session_info?.candidate_name || '--' }}</span>
-                      <span class="session-round">{{ tx.session_info ? `第${tx.session_info.round_number}轮 · ${tx.session_info.round_name}` : '--' }}</span>
-                    </div>
-                  </td>
-                  <td>
-                    <el-tag size="small" :type="tx.service_type === 'interview_reserve' ? 'primary' : 'warning'" effect="plain">
-                      {{ serviceTypeLabel(tx.service_type) }}
-                    </el-tag>
-                  </td>
-                  <td class="amount-cell consume">-¥{{ Math.abs(tx.amount).toFixed(2) }}</td>
-                  <td class="text-tertiary">{{ formatTime(tx.created_at) }}</td>
-                </tr>
-              </tbody>
-            </table>
+            <div v-if="consumeList.length === 0" class="empty-hint">暂无消费记录</div>
+            <template v-else>
+              <table class="lark-table">
+                <thead>
+                  <tr>
+                    <th>面试详情</th>
+                    <th>服务</th>
+                    <th>金额</th>
+                    <th>状态</th>
+                    <th>时间</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="tx in consumeList" :key="tx.order_no">
+                    <td>
+                      <div class="session-info">
+                        <span class="session-candidate">{{ tx.session_info?.candidate_name || '--' }}</span>
+                        <span class="session-round">
+                          {{ tx.session_info?.round_name
+                              ? `第${tx.session_info.round_number}轮 · ${tx.session_info.round_name}`
+                              : tx.session_info?.service_detail || '--' }}
+                        </span>
+                      </div>
+                    </td>
+                    <td>
+                      <el-tag size="small" :type="tx.service_type === 'interview_reserve' ? 'primary' : 'warning'" effect="plain">
+                        {{ serviceTypeLabel(tx.service_type) }}
+                      </el-tag>
+                    </td>
+                    <td class="amount-cell consume">-¥{{ Math.abs(tx.amount).toFixed(2) }}</td>
+                    <td>
+                      <el-tag size="small" :type="consumeStatusTagType(tx.status)">
+                        {{ consumeStatusLabel(tx.status) }}
+                      </el-tag>
+                    </td>
+                    <td class="text-tertiary">{{ formatTime(tx.created_at) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+              <div class="pagination-bar" v-if="consumeTotal > consumePageSize">
+                <el-pagination
+                  v-model:current-page="consumePage"
+                  :page-size="consumePageSize"
+                  :total="consumeTotal"
+                  layout="prev, pager, next"
+                  @current-change="fetchConsumes"
+                />
+              </div>
+            </template>
           </div>
         </div>
       </div>
@@ -224,13 +245,14 @@ const accountInfo = ref({
 
 const allTransactions = ref([])
 
-const recentRecharges = computed(() =>
-  allTransactions.value.filter(tx => tx.type === 'RECHARGE' && tx.status === 'PAID').slice(0, 5)
-)
+// 消费记录独立分页（仅显示已支付）
+const consumeList = ref([])
+const consumeTotal = ref(0)
+const consumePage = ref(1)
+const consumePageSize = ref(10)
 
-const recentConsumes = computed(() =>
-  allTransactions.value.filter(tx => tx.type === 'CONSUME').slice(0, 10)
-)
+const recentRecharges = computed(() => allTransactions.value)
+
 
 const formatTime = (timeStr) => {
   if (!timeStr || timeStr === '--') return '--'
@@ -243,8 +265,38 @@ const paymentMethodLabel = (method) => {
 }
 
 const serviceTypeLabel = (type) => {
-  const map = { interview_reserve: '面试', report_generate: '报告' }
+  const map = {
+    interview_reserve: '面试', report_generate: '报告',
+    resume_parse: '简历解析', resume_review: '简历审核'
+  }
   return map[type] || type || '--'
+}
+
+const consumeStatusLabel = (s) => ({
+  PAID: '已完成', PENDING: '待支付', FAILED: '失败', REFUNDED: '已退款'
+}[s] || s || '--')
+
+const consumeStatusTagType = (s) => {
+  if (s === 'PAID') return 'success'
+  if (s === 'PENDING') return 'warning'
+  if (s === 'FAILED') return 'danger'
+  if (s === 'REFUNDED') return 'info'
+  return ''
+}
+
+const fetchConsumes = async () => {
+  try {
+    const res = await accountApi.getTransactions({
+      type: 'CONSUME',
+      status: 'PAID',
+      page: consumePage.value,
+      page_size: consumePageSize.value,
+    })
+    consumeList.value = res.items || []
+    consumeTotal.value = res.total || 0
+  } catch {
+    // 静默处理
+  }
 }
 
 const goRecharge = () => {
@@ -293,10 +345,13 @@ const fetchAccount = async () => {
       total_consumed: balanceRes.total_consumed ?? 0,
     }
 
-    const txRes = await accountApi.getTransactions({ page: 1, page_size: 20 })
-    allTransactions.value = txRes.items || []
+    // 分别拉取充值记录和消费记录
+    const [rechargeRes] = await Promise.all([
+      accountApi.getTransactions({ type: 'RECHARGE', status: 'PAID', page: 1, page_size: 5 }),
+      fetchConsumes(),
+    ])
+    allTransactions.value = rechargeRes.items || []
   } catch (error) {
-    // 账户/支付模块尚未启用时静默处理
     if (error?.code !== 'INSUFFICIENT_BALANCE') {
       console.warn('获取账户信息失败（可忽略）:', error?.detail || error?.message || error)
     }
@@ -653,6 +708,12 @@ $border-color: #dee0e3;
   text-align: center;
   color: #8f959e;
   font-size: 14px;
+}
+
+.pagination-bar {
+  display: flex;
+  justify-content: center;
+  padding: 16px 0 4px;
 }
 
 .lark-toggle {

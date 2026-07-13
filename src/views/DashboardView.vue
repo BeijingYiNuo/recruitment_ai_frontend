@@ -2,7 +2,10 @@
   <el-container class="dashboard-container">
     <!-- 左侧侧边栏 -->
     <el-aside width="220px" class="sidebar">
-      <div class="logo">招聘系统</div>
+      <div class="logo">
+        <img src="../assets/logo-icon.png" class="logo-icon" alt="logo" />
+        <span>一诺晓聘</span>
+      </div>
       <el-menu
         :default-active="activeMenu"
         class="el-menu-vertical"
@@ -39,7 +42,7 @@
         </el-menu-item> -->
         <el-menu-item index="/dashboard/file-manager">
           <el-icon><Folder /></el-icon>
-          <span>文件管理</span>
+          <span>面试记录</span>
         </el-menu-item>
         <el-menu-item index="/dashboard/report-generate">
           <el-icon><Notebook /></el-icon>
@@ -57,6 +60,10 @@
       <div class="sidebar-footer">
         <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">
           京ICP备2026039578号
+        </a>
+        <a href="https://beian.mps.gov.cn/" target="_blank" rel="noopener noreferrer" class="beian-link">
+          <img src="../assets/beian-icon.jpg" class="beian-icon" alt="公安备案" />
+          <span>京公网安备11010802049201号</span>
         </a>
       </div>
     </el-aside>
@@ -161,7 +168,7 @@ const pageTitleMap = {
   '/dashboard/cv': '简历管理',
   '/dashboard/interview-manage': '面试管理',
 '/dashboard/knowledge-base': '知识库管理',
-  '/dashboard/file-manager': '文件管理',
+  '/dashboard/file-manager': '面试记录',
   '/dashboard/report-generate': '面试报告管理',
   '/dashboard/positions': '岗位设置',
   '/dashboard/resume-review': '简历审核'
@@ -206,15 +213,26 @@ const handleMenuSelect = (index) => {
 
   .logo {
     height: 60px;
-    line-height: 60px;
-    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
     color: #1f2329;
-    font-size: 18px;
+    font-size: 15px;
     font-weight: 600;
     letter-spacing: 1px;
     background-color: #ffffff;
     flex-shrink: 0;
     border-bottom: 1px solid #dee0e3;
+    padding: 0 12px;
+    overflow: hidden;
+
+    .logo-icon {
+      height: 28px;
+      width: auto;
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
   }
 
   .el-menu-vertical {
@@ -252,15 +270,35 @@ const handleMenuSelect = (index) => {
     flex-shrink: 0;
     padding: 12px 16px;
     border-top: 1px solid #f0f0f0;
-    text-align: left;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
 
     a {
       font-size: 11px;
       color: #bbb;
       text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      padding-left: 17px;
       &:hover {
         color: #3370ff;
       }
+    }
+
+    .beian-link {
+      position: relative;
+      padding-left: 17px;
+    }
+
+    .beian-icon {
+      position: absolute;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 14px;
+      height: 14px;
     }
   }
 }
