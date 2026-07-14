@@ -2,9 +2,15 @@ import { authApi } from '../api/auth'
 
 // 认证服务业务层
 const authService = {
-  // 注册
+  // 注册（注册即登录）
   register: async (userData) => {
-    return await authApi.register(userData)
+    const response = await authApi.register(userData)
+    if (response.access_token) {
+      localStorage.setItem('token', response.access_token)
+      const user = { id: response.user_id, username: response.username, nickname: response.nickname || response.username }
+      localStorage.setItem('user', JSON.stringify(user))
+    }
+    return response
   },
 
   // 登录

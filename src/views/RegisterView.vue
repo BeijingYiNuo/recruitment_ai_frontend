@@ -176,8 +176,8 @@ async function handleRegister () {
       role: form.role
     }
     await authService.register(payload)
-    success.value = '注册成功，正在跳转...'
-    setTimeout(() => router.push('/login'), 1400)
+    success.value = '注册成功，正在进入控制台...'
+    setTimeout(() => router.push('/dashboard'), 1400)
   } catch (err) {
     if (Array.isArray(err?.detail)) {
       error.value = err.detail.map(e => e.msg).join('; ')

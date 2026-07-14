@@ -465,6 +465,18 @@ const submitEvaluation = async () => {
           await interviewApi.updateReserveSession(currentSessionForRound.value.id, { status: 'failed' })
         }
       }
+
+      // 从淘汰切换到其他状态时，恢复后续被自动跳过的轮次
+      if (currentRound.value.status === 'fail' && evaluationForm.status !== 'fail' && idx < rounds.length - 1) {
+        for (let i = idx + 1; i < rounds.length; i++) {
+          if (rounds[i].status === 'skip') {
+            const reset = await interviewApi.updateSessionRound(
+              currentSessionForRound.value.id, rounds[i].id, { status: 'pending' }
+            )
+            rounds[i] = reset
+          }
+        }
+      }
     }
     ElMessage.success('评估提交成功！')
     evaluationDialogVisible.value = false
@@ -576,12 +588,14 @@ const roundDisplayStatus = (session, round) => {
 }
 
 // 检查轮次是否被锁定（后续轮次已开始则不可更改当前轮次）
+// pending = 未开始, skip = 上一轮淘汰导致自动跳过，均不锁定
 const isRoundLocked = (round, allRounds) => {
   if (!allRounds || allRounds.length <= 1) return false
   const currentIdx = allRounds.findIndex(r => r.id === round.id)
   if (currentIdx === -1) return false
   for (let i = currentIdx + 1; i < allRounds.length; i++) {
-    if (allRounds[i].status !== 'pending') return true
+    const s = allRounds[i].status
+    if (s !== 'pending' && s !== 'skip') return true
   }
   return false
 }
@@ -607,6 +621,16 @@ const handleRoundStatusChange = async (item, round, newStatus) => {
           if (rounds[i].status === 'pending') {
             const skipped = await interviewApi.updateSessionRound(item.id, rounds[i].id, { status: 'skip' })
             rounds[i] = skipped
+          }
+        }
+      }
+
+      // 从淘汰切换到其他状态时，恢复之前被自动跳过的后续轮次为待面试
+      if (round.status === 'fail' && newStatus !== 'fail' && idx < rounds.length - 1) {
+        for (let i = idx + 1; i < rounds.length; i++) {
+          if (rounds[i].status === 'skip') {
+            const reset = await interviewApi.updateSessionRound(item.id, rounds[i].id, { status: 'pending' })
+            rounds[i] = reset
           }
         }
       }
