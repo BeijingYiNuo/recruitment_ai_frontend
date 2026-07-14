@@ -265,11 +265,12 @@ const paymentMethodLabel = (method) => {
 }
 
 const serviceTypeLabel = (type) => {
+  const cleaned = typeof type === 'string' ? type.replace(/\.$/, '') : type
   const map = {
     interview_reserve: '面试', report_generate: '报告',
     resume_parse: '简历解析', resume_review: '简历审核'
   }
-  return map[type] || type || '--'
+  return map[cleaned] || cleaned || '--'
 }
 
 const consumeStatusLabel = (s) => ({

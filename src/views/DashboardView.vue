@@ -48,6 +48,10 @@
           <el-icon><Notebook /></el-icon>
           <span>面试报告管理</span>
         </el-menu-item>
+        <el-menu-item index="/profile">
+          <el-icon><User /></el-icon>
+          <span>个人中心</span>
+        </el-menu-item>
         <!-- <el-menu-item index="" disabled>
           <el-icon><DataLine /></el-icon>
           <span>数据统计</span>
@@ -119,7 +123,7 @@ import { getCurrentUser } from '../services/authService'
 import authService from '../services/authService'
 import { authApi } from '../api/auth'
 import {
-  House, Document, ChatLineRound, ArrowDown, DocumentCopy, Folder, Notebook, Select, Setting
+  House, Document, ChatLineRound, ArrowDown, DocumentCopy, Folder, Notebook, Select, Setting, User
 } from '@element-plus/icons-vue'
 
 const router = useRouter()

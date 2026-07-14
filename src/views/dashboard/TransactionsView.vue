@@ -136,10 +136,13 @@ const onFilterChange = (filters) => {
 
 const formatTime = (t) => t ? t.replace('T', ' ').substring(0, 19) : '--'
 const methodLabel = (m) => ({ wxpay: '微信', alipay: '支付宝', balance: '余额' }[m] || m || '--')
-const serviceLabel = (s) => ({
-  interview_reserve: '面试', report_generate: '报告',
-  resume_parse: '简历解析', resume_review: '简历审核'
-}[s] || s || '--')
+const serviceLabel = (s) => {
+  const cleaned = typeof s === 'string' ? s.replace(/[.。]$/, '').trim() : s
+  return {
+    interview_reserve: '面试', report_generate: '报告',
+    resume_parse: '简历解析', resume_review: '简历审核'
+  }[cleaned] || cleaned || '--'
+}
 const serviceTagType = (s) => {
   if (s === 'interview_reserve') return 'primary'
   if (s === 'report_generate') return 'warning'
