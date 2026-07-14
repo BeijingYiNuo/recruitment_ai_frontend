@@ -47,13 +47,7 @@
         <div class="upload-queue-header">
           <span>已选文件（{{ uploadQueue.length }} 个）</span>
           <el-button
-            v-if="!uploading"
-            type="primary" size="small" @click="startUpload"
-          >
-            开始上传
-          </el-button>
-          <el-button
-            v-else
+            v-if="uploading"
             type="primary" size="small" loading disabled
           >
             上传中...
@@ -96,7 +90,7 @@
 
         <div class="list-body">
           <!-- 无数据空状态 -->
-          <div v-if="(!resumeStore.resumes || resumeStore.resumes.length === 0) && batchImportPlaceholders.length === 0 && !listLoading" class="empty-placeholder">
+          <div v-if="!resumeStore.resumes || (resumeStore.resumes.length === 0 && !listLoading)" class="empty-placeholder">
             <div class="empty-icon">
               <svg width="48" height="48" viewBox="0 0 48 48" fill="none"><rect width="48" height="48" rx="8" fill="#F5F6F7"/><path d="M16 18h16M16 24h16M16 30h10" stroke="#D0D3D8" stroke-width="2" stroke-linecap="round"/><path d="M32 14h-4a2 2 0 00-2 2v2a2 2 0 002 2h4a2 2 0 002-2v-2a2 2 0 00-2-2z" fill="#E8E9ED"/></svg>
             </div>
@@ -104,33 +98,6 @@
           </div>
 
           <div v-else>
-            <!-- 批量导入占位行（显示在最上面） -->
-            <div
-              v-for="ph in batchImportPlaceholders"
-              :key="ph.id"
-              class="list-row list-row-placeholder"
-            >
-              <div class="col-check"></div>
-              <div class="col-name">
-                <el-avatar :size="32" class="lark-avatar" style="background:#8F959E;">?</el-avatar>
-                <span class="name-text" style="color:#8F959E;font-weight:400;">{{ ph._displayName }}</span>
-              </div>
-              <div class="col-type">
-                <span class="lark-tag tag-gray">{{ ph.file_type?.toUpperCase() }}</span>
-              </div>
-              <div class="col-status">
-                <div class="status-indicator">
-                  <span class="dot dot-loading"></span>
-                  <span style="color:#8F959E;">待解析</span>
-                </div>
-              </div>
-              <div class="col-review">
-                <span class="lark-tag tag-gray">待审核</span>
-              </div>
-              <div class="col-time" style="color:#8F959E;">刚刚</div>
-              <div class="col-action"></div>
-            </div>
-
             <!-- 真实简历行 -->
             <div
               class="list-row"
@@ -172,7 +139,10 @@
               <div class="col-action">
                 <el-button type="primary" link @click.stop="handleDownload(resume)">下载</el-button>
                 <el-button type="primary" link @click.stop="handleRowReparse(resume)">重新解析</el-button>
-                <el-button type="danger" link @click.stop="handleDelete(resume.id)">删除</el-button>
+                <el-tooltip v-if="isAnalyzing(resume.status)" content="解析中，无法删除" placement="top">
+                  <el-button type="danger" link disabled>删除</el-button>
+                </el-tooltip>
+                <el-button v-else type="danger" link @click.stop="handleDelete(resume.id)">删除</el-button>
               </div>
             </div>
           </div>
@@ -436,7 +406,8 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
-import { ElMessage, ElLoading, ElMessageBox, ElNotification } from 'element-plus'
+import { ElLoading } from 'element-plus'
+import { useNotify } from '../../composables/useNotify'
 import { Close, Search, Loading } from '@element-plus/icons-vue'
 import { getCurrentUser } from '../../services/authService'
 import { useResumeStore } from '../../stores/resumeStore'
@@ -444,6 +415,7 @@ import { resumeApi } from '../../api/resume'
 import FilePreviewDialog from '../../components/FilePreviewDialog.vue'
 import { calculateSHA256, validatePdfFile } from '../../utils/fileUploadHelper'
 
+const { msgSuccess, msgError, msgWarning, msgInfo, notify, notifySuccess, notifyError, confirm } = useNotify()
 const resumeStore = useResumeStore()
 const currentUser = ref(getCurrentUser() || { id: 1, username: '管理员' })
 const listLoading = ref(false)
@@ -457,7 +429,8 @@ let statusPolling = null
 let pollingActive = true  // 组件卸载后置 false，防止回调更新已销毁的状态
 const showProcessingBanner = ref(false)
 const pollingPending = ref(false)
-const PLACEHOLDER_MIN_AGE = 5 * 60 * 1000  // 占位行最小存活时间 5 分钟，等待 worker 处理
+// 跟踪批量导入的简历 ID，用于轮询检测解析完成
+const parsingIds = ref(new Set())
 
 const stopPolling = () => {
   if (statusPolling) {
@@ -467,7 +440,7 @@ const stopPolling = () => {
 }
 
 const checkAndStartPolling = (force = false) => {
-  const needsPolling = resumeStore.resumes.some(r => isAnalyzing(r.status)) || force || batchImportPlaceholders.value.length > 0
+  const needsPolling = resumeStore.resumes.some(r => isAnalyzing(r.status)) || force || parsingIds.value.size > 0
 
   if (needsPolling) {
     showProcessingBanner.value = true
@@ -480,11 +453,8 @@ const checkAndStartPolling = (force = false) => {
         // API 调用期间组件可能已卸载
         if (!pollingActive) return
         let list = Array.isArray(data) ? data : (data.items || data.data || [])
-        const total = data.total || list.length
-        // 同步 totalCount，确保分页信息正确（轮询查全量，total 比 fetchResumes 的 page 1 更准确）
-        if (total > 0) {
-          totalCount.value = total
-        }
+        // 注意：轮询时不更新 totalCount，避免分页总条数与 store 实际数据条数不一致导致分页异常
+        // totalCount 只在 fetchResumes（分页查询）时更新
         const hadAnalyzing = list.some(r => isAnalyzing(r.status))
 
         // 只更新已有记录的状态，不替换分页列表（避免轮询冲掉分页）
@@ -500,56 +470,36 @@ const checkAndStartPolling = (force = false) => {
           })
         )
 
-        // ---- 匹配占位行与真实记录 ----
-        if (batchImportPlaceholders.value.length > 0) {
-          const stillPending = []
-          for (const ph of batchImportPlaceholders.value) {
-            const match = list.find(r => r.original_file_name === ph._originalFileName)
-            if (match) {
-              // 检测是否为重名（已存在的简历被更新）
-              if (preImportIds.value.has(match.id)) {
-                const name = match.candidate_name && match.candidate_name !== '待解析' ? match.candidate_name : ph._displayName
-                ElMessage.info(`简历「${name}」已更新`)
-                // 重名记录移到列表最上面
-                const existIdx = resumeStore.resumes.findIndex(r => r.id === match.id)
-                if (existIdx !== -1) {
-                  const [existing] = resumeStore.resumes.splice(existIdx, 1)
-                  resumeStore.resumes.unshift({ ...existing, ...match })
-                }
-              } else {
-                // 新记录插入列表最上面
-                const inStore = resumeStore.resumes.some(r => r.id === match.id)
-                if (!inStore) {
-                  resumeStore.resumes.unshift(match)
-                }
+        // ---- 检测批量导入的简历是否解析完成 ----
+        if (parsingIds.value.size > 0) {
+          const stillParsing = new Set()
+          for (const id of parsingIds.value) {
+            const item = fullMap[id] || resumeStore.resumes.find(r => r.id === id)
+            if (!item) continue
+            if (!isAnalyzing(item.status)) {
+              if (isSuccessStatus(item.status)) {
+                const displayName = item.candidate_name || '未知'
+                notify({
+                  title: '简历解析完成',
+                  message: `「${displayName}」已解析完成`,
+                  type: 'success',
+                  duration: 4000,
+                })
               }
             } else {
-              stillPending.push(ph)
+              stillParsing.add(id)
             }
           }
-          batchImportPlaceholders.value = stillPending
+          parsingIds.value = stillParsing
         }
 
-        if (!list.some(r => isAnalyzing(r.status))) {
-          // 所有记录解析完毕，清理过期的遗留占位行（无效文件不会生成记录）
-          if (batchImportPlaceholders.value.length > 0) {
-            const elapsed = Date.now() - batchImportCreatedAt.value
-            if (elapsed >= PLACEHOLDER_MIN_AGE) {
-              // 占位行已存在超过 5 分钟仍未匹配到真实记录，视为无效文件
-              const failedCount = batchImportPlaceholders.value.length
-              batchImportPlaceholders.value = []
-              // 更新 uploadQueue 中对应文件的错误状态
-              for (const item of uploadQueue.value) {
-                if (item.status === 'done' || item.status === 'skipped') continue
-                item.status = 'error'
-                item.error = '无效文件'
-              }
-              checkUploadComplete()
-            } else {
-              // 未到最小存活时间：保留占位行，继续轮询等待 worker 处理
-              return
-            }
-          }
+        // 当 store 中新增了记录时，同步更新 totalCount 避免分页显示异常
+        const storeLen = resumeStore.resumes.length
+        if (storeLen > totalCount.value) {
+          totalCount.value = storeLen
+        }
+
+        if (!list.some(r => isAnalyzing(r.status)) && parsingIds.value.size === 0) {
           stopPolling()
           showProcessingBanner.value = false
           checkUploadComplete()
@@ -585,7 +535,7 @@ const fetchResumes = async () => {
     }
     checkAndStartPolling()
   } catch (error) {
-    ElMessage.error('获取简历列表失败: ' + (error?.detail || error?.message || '未知错误'))
+    msgError('获取简历列表失败: ' + (error?.detail || error?.message || '未知错误'))
     // 兜底：API 失败时用 store 已有数据来维持分页
     if (totalCount.value === 0 && resumeStore.resumes.length > 0) {
       totalCount.value = resumeStore.resumes.length
@@ -612,6 +562,12 @@ const isAnalyzing = (status) => {
   if (!status) return false
   const s = status.toLowerCase()
   return s === 'uploaded' || s === 'processed' || s === 'analyzing' || s === 'parsing' || s === 'pending_upload'
+}
+
+const isSuccessStatus = (status) => {
+  if (!status) return false
+  const s = status.toLowerCase()
+  return s === 'analyzed' || s === 'success' || s === 'completed'
 }
 
 const getStatusLabel = (status) => {
@@ -669,17 +625,10 @@ const fileInputRef = ref(null)
 const uploadQueue = ref([])
 const uploadProgress = ref(0)
 const uploading = ref(false)
-const batchImportPlaceholders = ref([])
-const preImportIds = ref(new Set())
-const batchImportCreatedAt = ref(0)
-const MAX_BATCH_FILES = 10
+const MAX_BATCH_FILES = 5
 
-// 分页切片
-const pagedResumes = computed(() => {
-  const list = resumeStore.resumes || []
-  const start = (currentPage.value - 1) * pageSize.value
-  return list.slice(start, start + pageSize.value)
-})
+// 服务端已分页，直接返回
+const pagedResumes = computed(() => resumeStore.resumes || [])
 
 const formatFileSize = (bytes) => {
   const mb = bytes / 1024 / 1024
@@ -701,14 +650,14 @@ const handleFileSelect = (event) => {
   if (files.length === 0) return
 
   if (files.length > MAX_BATCH_FILES) {
-    ElMessage.warning(`一次最多选择 ${MAX_BATCH_FILES} 个文件`)
+    msgWarning(`一次最多选择 ${MAX_BATCH_FILES} 个文件`)
     return
   }
 
   for (const file of files) {
     const result = validatePdfFile(file)
     if (!result.valid) {
-      ElMessage.error(result.reason)
+      msgError(result.reason)
       continue
     }
     if (uploadQueue.value.some(item => item.file.name === file.name)) {
@@ -723,8 +672,12 @@ const handleFileSelect = (event) => {
   }
 
   if (uploadQueue.value.length === 0) {
-    ElMessage.warning('没有符合要求的文件')
+    msgWarning('没有符合要求的文件')
+    return
   }
+
+  // 选择文件后自动开始上传
+  startUpload()
 }
 
 /** 检查上传是否全部完成，完成后弹通知 */
@@ -736,15 +689,15 @@ const checkUploadComplete = () => {
   const failed = uploadQueue.value.filter(f => f.status === 'error').length
   const skipped = uploadQueue.value.filter(f => f.status === 'skipped').length
 
-  if (batchImportPlaceholders.value.length === 0 && total > 0 && done + failed + skipped === total) {
+  if (total > 0 && done + failed + skipped === total) {
     if (failed === 0 && skipped === 0) {
-      ElNotification({ title: '简历解析完成', message: `已导入的 ${total} 份简历全部解析完成`, type: 'success' })
+      notify({ title: '简历解析完成', message: `已导入的 ${total} 份简历全部解析完成`, type: 'success' })
     } else if (failed === 0 && skipped === total) {
-      ElNotification({ title: '简历已存在', message: '所选简历均已导入过', type: 'info' })
+      notify({ title: '简历已存在', message: '所选简历均已导入过', type: 'info' })
     } else if (failed === 0) {
-      ElNotification({ title: '简历解析完成', message: `${done} 份解析完成`, type: 'success' })
+      notify({ title: '简历解析完成', message: `${done} 份解析完成`, type: 'success' })
     } else {
-      ElNotification({ title: '简历解析完成', message: `${done} 份解析完成，${failed} 份解析失败`, type: 'warning' })
+      notify({ title: '简历解析完成', message: `${done} 份解析完成，${failed} 份解析失败`, type: 'warning' })
     }
   }
 }
@@ -756,8 +709,6 @@ const startUpload = async () => {
   uploading.value = true
   uploadProgress.value = 0
 
-  // 记录导入前的简历 ID，用于后续检测重名
-  preImportIds.value = new Set(resumeStore.resumes.map(r => r.id))
 
   // 1. 并行计算 SHA-256
   await Promise.all(uploadQueue.value.map(async (item) => {
@@ -824,17 +775,6 @@ const startUpload = async () => {
 
               // 创建占位行
               const name = item.file.name
-              batchImportPlaceholders.value.push({
-                id: `placeholder-${Date.now()}-${Math.random()}`,
-                _placeholder: true,
-                _originalFileName: name,
-                _displayName: name.replace(/\.[^.]+$/, '') || name,
-                candidate_name: name.replace(/\.[^.]+$/, '') || '待解析',
-                file_type: (name.split('.').pop() || '').toLowerCase(),
-                status: 'pending_upload',
-                review_status: null,
-                updated_at: new Date().toISOString().slice(0, 19).replace('T', ' ')
-              })
 
               const newResume = {
                 id: result.resume_ids[ri],
@@ -854,14 +794,58 @@ const startUpload = async () => {
               item.error = '未在响应中找到'
             }
           }
-          ElMessage.success(`已导入 ${result.imported} 份简历${result.skipped ? `，${result.skipped} 份已存在` : ''}`)
+          // 同步更新分页总数，避免导入期间分页条不显示
+          totalCount.value += result.imported
+          // 跟踪这批导入的简历 ID，用于轮询检测解析完成
+          if (result.resume_ids) {
+            for (const id of result.resume_ids) {
+              parsingIds.value.add(id)
+            }
+          }
+          msgSuccess(`已导入 ${result.imported} 份简历${result.skipped ? `，${result.skipped} 份已存在` : ''}`)
           if (result.skipped_balance > 0) {
-            ElNotification({
+            notify({
               title: '余额不足',
               message: `余额不足，已跳过 ${result.skipped_balance} 份简历（共选择 ${uploadQueue.value.length} 份，仅导入 ${result.imported} 份）`,
               type: 'warning',
               duration: 6000,
             })
+          }
+          if (result.skipped_size > 0 && result.skipped_size_files?.length > 0) {
+            const names = result.skipped_size_files.join('、')
+            notify({
+              title: '简历总大小超出限额',
+              message: `简历文件总大小超出限额，以下简历被退回：${names}`,
+              type: 'warning',
+              duration: 8000,
+            })
+            // 标记被退回的文件为 error
+            const skippedNames = new Set(result.skipped_size_files)
+            for (const item of filesToUpload) {
+              if (skippedNames.has(item.file.name)) {
+                item.status = 'error'
+                item.error = '简历总大小超出限额，被退回'
+              }
+            }
+          }
+        } else if (result && result.skipped_size > 0 && result.skipped_size_files?.length > 0) {
+          // 所有文件均因总大小超限被退回
+          const names = result.skipped_size_files.join('、')
+          notify({
+            title: '简历总大小超出限额',
+            message: `简历文件总大小超出限额，以下简历被退回：${names}`,
+            type: 'warning',
+            duration: 8000,
+          })
+          const skippedNames = new Set(result.skipped_size_files)
+          for (const item of filesToUpload) {
+            if (skippedNames.has(item.file.name)) {
+              item.status = 'error'
+              item.error = '简历总大小超出限额，被退回'
+            } else {
+              item.status = 'error'
+              item.error = result?.message || '导入失败'
+            }
           }
         } else {
           for (const item of filesToUpload) {
@@ -873,7 +857,7 @@ const startUpload = async () => {
       } catch (error) {
         if (error?.response?.status === 402) {
           const detail = error?.response?.data || {}
-          ElNotification({
+          notify({
             title: '余额不足',
             message: detail.message || '余额不足，无法导入简历',
             type: 'error',
@@ -884,6 +868,28 @@ const startUpload = async () => {
             item.error = detail.message || '余额不足'
           }
           break
+        }
+        if (error?.response?.status === 400) {
+          const detail = error?.response?.data
+          if (detail?.code === 'TOTAL_SIZE_EXCEEDED') {
+            notify({
+              title: '简历总大小超出限额',
+              message: detail.message || '简历文件总大小超出限额',
+              type: 'warning',
+              duration: 8000,
+            })
+            const rejectedNames = new Set(detail.skipped_files || [])
+            for (const item of filesToUpload) {
+              if (rejectedNames.has(item.file.name)) {
+                item.status = 'error'
+                item.error = '简历总大小超出限额，被退回'
+              } else {
+                item.status = 'error'
+                item.error = detail.message || '导入失败'
+              }
+            }
+            break
+          }
         }
         if (lastRetry >= maxRetries) {
           for (const item of filesToUpload) {
@@ -896,17 +902,30 @@ const startUpload = async () => {
     }
   }
 
-  batchImportCreatedAt.value = Date.now()
+  // 逐份提示导入失败的简历及原因
+  for (const item of uploadQueue.value) {
+    if (item.status === 'error' && item.error) {
+      notify({
+        title: '导入失败',
+        message: `「${item.file.name}」导入失败`,
+        type: 'error',
+        duration: 5000,
+      })
+    }
+  }
+
   currentPage.value = 1
   resumeStore.invalidateCache()
 
-  // 启动轮询
-  if (batchImportPlaceholders.value.length > 0) {
-    checkAndStartPolling(true)
-  }
-
+  // 启动轮询检测解析完成
   uploading.value = false
-  checkUploadComplete()
+
+  if (parsingIds.value.size > 0) {
+    checkAndStartPolling(true)
+  } else {
+    // 无需解析（全部跳过/失败），立即通知
+    checkUploadComplete()
+  }
 }
 
 // Custom Drawer logic
@@ -950,7 +969,7 @@ const openDrawer = async (id) => {
       return detail || resumeStore.resumes.find(r => r.id === id)
     })
   } catch (error) {
-    ElMessage.error('无法获取简历详细内容')
+    msgError('无法获取简历详细内容')
     currentDetail.value = resumeStore.resumes.find(r => r.id === id)
   } finally {
     drawerLoading.value = false
@@ -1019,7 +1038,7 @@ const handleFetchSpecialInDrawer = async (type, titleName) => {
 
     specialDataStr.value = JSON.stringify(data, null, 2)
   } catch (error) {
-    ElMessage.error(`提取 ${titleName} 失败`)
+    msgError(`提取 ${titleName} 失败`)
     specialDataStr.value = '提取失败或返回格式解析出错'
   } finally {
     specialDataLoading.value = false
@@ -1037,10 +1056,10 @@ const handleRowReparse = async (resume) => {
       resumeStore.resumes[idx] = { ...resumeStore.resumes[idx], status: 'uploaded', candidate_name: '待解析' }
     }
     resumeStore.invalidateCache(resume.id)
-    ElMessage.success('重新解析已启动，请稍后查看结果')
+    msgSuccess('重新解析已启动，请稍后查看结果')
     checkAndStartPolling(true)
   } catch (error) {
-    ElMessage.error('重新解析失败: ' + (error?.detail || error?.message || '未知错误'))
+    msgError('重新解析失败: ' + (error?.detail || error?.message || '未知错误'))
   }
 }
 
@@ -1059,11 +1078,11 @@ const handleDrawerReparse = async () => {
       currentDetail.value = { ...currentDetail.value, status: 'uploaded', candidate_name: '待解析' }
     }
     resumeStore.invalidateCache(id)
-    ElMessage.success('重新解析已启动，请稍后查看结果')
+    msgSuccess('重新解析已启动，请稍后查看结果')
     closeDrawer()
     checkAndStartPolling(true)
   } catch (error) {
-    ElMessage.error('重新解析失败: ' + (error?.detail || error?.message || '未知错误'))
+    msgError('重新解析失败: ' + (error?.detail || error?.message || '未知错误'))
   }
 }
 
@@ -1151,7 +1170,7 @@ const saveEdit = async () => {
       })),
     }
     await resumeApi.updateResumeDetails(currentDetail.value.id, payload)
-    ElMessage.success('简历详情更新成功')
+    msgSuccess('简历详情更新成功')
 
     // 同步更新本地数据
     currentDetail.value.candidate_name = editCandidateName.value
@@ -1168,7 +1187,7 @@ const saveEdit = async () => {
     editMode.value = false
     resumeStore.invalidateCache(currentDetail.value?.id)
   } catch (error) {
-    ElMessage.error('保存失败: ' + (error?.detail || error?.message || '未知错误'))
+    msgError('保存失败: ' + (error?.detail || error?.message || '未知错误'))
   } finally {
     editSaving.value = false
   }
@@ -1218,16 +1237,16 @@ const handleDownload = async (row) => {
     link.click()
     document.body.removeChild(link)
     window.URL.revokeObjectURL(url)
-    ElMessage.success('简历下载完成')
+    msgSuccess('简历下载完成')
   } catch (error) {
-    ElMessage.error('下载失败: ' + (error?.detail || error?.message || '网络异常'))
+    msgError('下载失败: ' + (error?.detail || error?.message || '网络异常'))
   } finally {
     loading.close()
   }
 }
 
 const handleDelete = (id) => {
-  ElMessageBox.confirm(
+  confirm(
     '此操作将永久删除该简历以及相关解析数据内容，确定要继续吗？',
     '高危操作警告',
     {
@@ -1241,14 +1260,19 @@ const handleDelete = (id) => {
       await resumeApi.deleteResume(id)
       resumeStore.deleteResume(id)
       resumeStore.invalidateCache(id)
-      ElMessage.success('物理删除简历成功！')
+      msgSuccess('物理删除简历成功！')
       // 如果当前页已无数据且不是第 1 页，回退到上一页
       if (resumeStore.resumes.length === 0 && currentPage.value > 1) {
         currentPage.value -= 1
       }
       fetchResumes()
     } catch (error) {
-      ElMessage.error('无法删除此简历: ' + (error?.detail || error?.message || '未知错误'))
+      const detail = error?.detail || error?.message || ''
+      if (detail.includes('正在解析')) {
+        msgWarning('该简历正在解析中，请等待解析完成后再删除')
+      } else {
+        msgError('无法删除此简历: ' + (detail || '未知错误'))
+      }
     } finally {
       loading.close()
     }
@@ -1286,7 +1310,7 @@ const toggleSelectOne = (id, checked) => {
 
 const handleBatchDelete = () => {
   if (selectedIds.value.length === 0) return
-  ElMessageBox.confirm(
+  confirm(
     `此操作将永久删除 ${selectedIds.value.length} 份简历以及相关解析数据，确定要继续吗？`,
     '高危操作警告',
     {
@@ -1299,11 +1323,21 @@ const handleBatchDelete = () => {
     try {
       const result = await resumeApi.batchDeleteResumes(selectedIds.value)
       if (result.deleted > 0) {
-        ElMessage.success(`已删除 ${result.deleted} 份简历`)
+        msgSuccess(`已删除 ${result.deleted} 份简历`)
       }
       if (result.errors?.length > 0) {
-        console.error('删除部分简历失败:', result.errors)
-        ElMessage.warning(`${result.errors.length} 份简历删除失败`)
+        const parsingErrors = result.errors.filter(e => e.error?.includes('正在解析'))
+        if (parsingErrors.length > 0) {
+          msgWarning(`${parsingErrors.length} 份简历正在解析中，无法删除`)
+        }
+        const otherErrors = result.errors.filter(e => !e.error?.includes('正在解析'))
+        if (otherErrors.length > 0) {
+          console.error('删除部分简历失败:', otherErrors)
+          msgError(`${otherErrors.length} 份简历删除失败`)
+        }
+      }
+      if (result.deleted === 0 && (!result.errors || result.errors.length === 0)) {
+        msgInfo('未删除任何简历')
       }
       selectedIds.value = []
       resumeStore.invalidateCache()
@@ -1313,7 +1347,12 @@ const handleBatchDelete = () => {
       }
       fetchResumes()
     } catch (error) {
-      ElMessage.error('批量删除失败: ' + (error?.detail || error?.message || '未知错误'))
+      const errMsg = error?.detail || error?.message || ''
+      if (errMsg.includes('ECONNREFUSED') || errMsg.includes('Network Error')) {
+        msgError('批量删除失败：无法连接到服务器，请检查后端是否已启动')
+      } else {
+        msgError('批量删除失败: ' + (errMsg || '未知错误'))
+      }
     } finally {
       loading.close()
     }
@@ -1363,6 +1402,8 @@ const onPreviewClose = () => {
 
 /* 页面铺满视口，无需页面滚动 */
 .feishu-page {
+  display: flex;
+  flex-direction: column;
   height: calc(100vh - 60px);
   padding: 8px 24px;
   overflow: hidden;
@@ -1405,6 +1446,7 @@ const onPreviewClose = () => {
   min-height: 0;
   background: #FFFFFF;
   border-radius: 6px;
+  margin-bottom: 12px;
 }
 
 /* 列表主体内部滚动 */
@@ -1863,15 +1905,6 @@ const onPreviewClose = () => {
 }
 .list-row:first-child {
   border-radius: 6px 6px 0 0;
-}
-
-/* 批量导入占位列样式 */
-.list-row-placeholder {
-  border-bottom: 1px dashed #DEE0E3 !important;
-  background-color: #FAFBFC;
-}
-.list-row-placeholder:hover {
-  background-color: #F0F2F5 !important;
 }
 
 /* ====== 分页栏样式 ====== */

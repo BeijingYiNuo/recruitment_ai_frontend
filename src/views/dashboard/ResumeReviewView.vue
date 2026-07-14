@@ -811,7 +811,8 @@ async function fetchResumes() {
   try {
     const skip = (currentPage.value - 1) * pageSize.value
     const { startTime, endTime } = formatTimeRange()
-    const res = await resumeApi.getResumes(skip, pageSize.value, getFilterParam(), searchKeyword.value, startTime, endTime)
+    // 排除解析中的简历（UPLOADED 状态），仅展示已解析完成的简历
+    const res = await resumeApi.getResumes(skip, pageSize.value, getFilterParam(), searchKeyword.value, startTime, endTime, 'UPLOADED')
     const list = Array.isArray(res) ? res : (res?.items || res?.data || [])
     totalCount.value = res.total || list.length
 
@@ -901,12 +902,13 @@ function clearParsed() {
 async function fetchTabCounts() {
   try {
     const { startTime, endTime } = formatTimeRange()
+    const exclude = 'UPLOADED'
     const [all, nul, pass, pending, fail] = await Promise.all([
-      resumeApi.getResumes(0, 1, null, '', startTime, endTime),
-      resumeApi.getResumes(0, 1, 'null', '', startTime, endTime),
-      resumeApi.getResumes(0, 1, 'PASS', '', startTime, endTime),
-      resumeApi.getResumes(0, 1, 'PENDING', '', startTime, endTime),
-      resumeApi.getResumes(0, 1, 'FAIL', '', startTime, endTime),
+      resumeApi.getResumes(0, 1, null, '', startTime, endTime, exclude),
+      resumeApi.getResumes(0, 1, 'null', '', startTime, endTime, exclude),
+      resumeApi.getResumes(0, 1, 'PASS', '', startTime, endTime, exclude),
+      resumeApi.getResumes(0, 1, 'PENDING', '', startTime, endTime, exclude),
+      resumeApi.getResumes(0, 1, 'FAIL', '', startTime, endTime, exclude),
     ])
     tabCounts.all = all.total || (Array.isArray(all) ? all.length : 0)
     tabCounts.null = nul.total || (Array.isArray(nul) ? nul.length : 0)

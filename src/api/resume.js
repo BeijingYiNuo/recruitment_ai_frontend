@@ -25,7 +25,7 @@ export const resumeApi = {
   },
 
   // 获取简历（支持按审核状态、搜索关键字、时间范围筛选和分页）
-  getResumes: (skip = 0, limit = 100, reviewStatus = null, keyword = '', startTime = '', endTime = '') => {
+  getResumes: (skip = 0, limit = 100, reviewStatus = null, keyword = '', startTime = '', endTime = '', excludeStatus = '') => {
     const params = { skip, limit }
     if (reviewStatus !== null) {
       params.review_status = reviewStatus
@@ -38,6 +38,9 @@ export const resumeApi = {
     }
     if (endTime) {
       params.end_time = endTime
+    }
+    if (excludeStatus) {
+      params.exclude_status = excludeStatus
     }
     return request.get('/resumes', { params, timeout: 30000, _skipGlobalError: true })
   },
