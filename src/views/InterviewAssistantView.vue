@@ -969,8 +969,13 @@ function onGenerateMoreSuggestions() {
 }
 
 async function goBack() {
+  // 如果 ASR 正在运行，等同于结束面试：停 ASR + 弹出评估框
   if (isAsrActive.value) {
     await onStopAsr()
+    interviewInfo.value.status = '通话已结束'
+    interviewInfo.value.statusColor = '#909399'
+    resultDialogVisible.value = true
+    return
   }
   router.back()
 }
