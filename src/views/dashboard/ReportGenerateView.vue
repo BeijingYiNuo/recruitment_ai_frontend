@@ -150,12 +150,11 @@
         <div class="generating-container">
           <div class="generating-progress-wrapper">
             <el-progress
+              type="circle"
               :percentage="fakeProgress"
-              :stroke-width="8"
-              :show-text="true"
-              striped
-              striped-flow
-              :duration="5"
+              :width="80"
+              :stroke-width="6"
+              :show-text="false"
               color="#1d4ed8"
             />
             <h2 class="generating-title">AI 正在生成面试报告...</h2>
@@ -539,6 +538,8 @@ import {
 import { ElMessage } from 'element-plus'
 import * as echarts from 'echarts'
 import { interviewApi } from '../../api/interview'
+import html2canvas from 'html2canvas'
+import { jsPDF } from 'jspdf'
 
 const route = useRoute()
 const router = useRouter()
@@ -694,10 +695,14 @@ onMounted(async () => {
 
 onMounted(() => {
   window.addEventListener('resize', handleResize)
+  window.addEventListener('beforeprint', handleBeforePrint)
+  window.addEventListener('afterprint', handleAfterPrint)
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', handleResize)
+  window.removeEventListener('beforeprint', handleBeforePrint)
+  window.removeEventListener('afterprint', handleAfterPrint)
   radarChart?.dispose()
   stageChart?.dispose()
   stopFakeProgress()
@@ -1216,8 +1221,131 @@ function handleResize() {
   stageChart?.resize()
 }
 
-function exportPDF() {
-  window.print()
+async function exportPDF() {
+  ElMessage.info('正在生成 PDF，请稍候...')
+
+  try {
+    // 1. 将 ECharts 图表内容直接绘制到 canvas 上（不修改 DOM 结构，不改变布局，不新增元素）
+    await injectChartToCanvas()
+
+    // 2. 隐藏操作按钮区域，插入打印标题
+    const headerArea = document.querySelector('.header-area')
+    if (headerArea) headerArea.style.display = 'none'
+
+    const container = document.querySelector('.card-container')
+    if (!container) {
+      ElMessage.error('未找到报告内容')
+      return
+    }
+
+    const titleEl = document.createElement('div')
+    titleEl.className = 'pdf-export-title'
+    titleEl.style.cssText = 'font-size:22px;font-weight:600;color:#1F2329;padding:12px 0 20px 0;border-bottom:2px solid #3370FF;margin-bottom:24px;'
+    titleEl.textContent = '面试报告 - 招聘系统'
+    container.insertBefore(titleEl, container.firstChild)
+
+    await nextTick()
+    await new Promise(resolve => setTimeout(resolve, 200))
+
+    // 3. html2canvas 截图（DOM 结构不变，Grid 布局保留，canvas 本身包含图表内容）
+    const canvas = await html2canvas(container, {
+      scale: 2,
+      backgroundColor: '#ffffff',
+      allowTaint: false,
+      useCORS: true,
+      logging: false,
+    })
+
+    // 4. 恢复 DOM
+    if (headerArea) headerArea.style.display = ''
+    titleEl.remove()
+    // 重新初始化 ECharts 图表（覆盖回 canvas 原始内容）
+    await nextTick()
+    initCharts()
+
+    // 5. 生成 PDF
+    const imgData = canvas.toDataURL('image/jpeg', 0.95)
+    const pdf = new jsPDF('p', 'mm', 'a4')
+    const pdfW = pdf.internal.pageSize.getWidth()
+    const pdfH = pdf.internal.pageSize.getHeight()
+    const imgH = (canvas.height * pdfW) / canvas.width
+
+    let remaining = imgH
+    let page = 0
+    while (remaining > 0) {
+      if (page > 0) pdf.addPage()
+      pdf.addImage(imgData, 'JPEG', 0, -page * pdfH, pdfW, imgH)
+      remaining -= pdfH
+      page++
+    }
+
+    pdf.save('面试报告.pdf')
+    ElMessage.success('PDF 导出成功')
+  } catch (e) {
+    console.error('[exportPDF]', e)
+    const ha = document.querySelector('.header-area')
+    if (ha) ha.style.display = ''
+    document.querySelector('.pdf-export-title')?.remove()
+    try { nextTick(() => initCharts()) } catch (_) {}
+    ElMessage.error('PDF 导出失败: ' + (e.message || '未知错误'))
+  }
+}
+
+/** 将 ECharts 图表导出为图片并绘制到同一个 canvas 上（不改变 DOM 结构） */
+async function injectChartToCanvas() {
+  const tasks = []
+
+  if (radarChart && radarChartRef.value) {
+    tasks.push(new Promise((resolve) => {
+      const url = radarChart.getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: '#fff' })
+      const img = new Image()
+      img.onload = () => {
+        try {
+          const ctx = radarChartRef.value.getContext('2d')
+          if (ctx) {
+            ctx.clearRect(0, 0, radarChartRef.value.width, radarChartRef.value.height)
+            ctx.drawImage(img, 0, 0, radarChartRef.value.width, radarChartRef.value.height)
+          }
+        } catch (e) {
+          console.warn('[injectChartToCanvas] 雷达图绘制失败:', e)
+        }
+        resolve()
+      }
+      img.onerror = resolve
+      img.src = url
+    }))
+  }
+
+  if (stageChart && stageChartRef.value) {
+    tasks.push(new Promise((resolve) => {
+      const url = stageChart.getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: '#fff' })
+      const img = new Image()
+      img.onload = () => {
+        try {
+          const ctx = stageChartRef.value.getContext('2d')
+          if (ctx) {
+            ctx.clearRect(0, 0, stageChartRef.value.width, stageChartRef.value.height)
+            ctx.drawImage(img, 0, 0, stageChartRef.value.width, stageChartRef.value.height)
+          }
+        } catch (e) {
+          console.warn('[injectChartToCanvas] 柱状图绘制失败:', e)
+        }
+        resolve()
+      }
+      img.onerror = resolve
+      img.src = url
+    }))
+  }
+
+  await Promise.all(tasks)
+}
+
+function handleAfterPrint() {
+  nextTick(() => initCharts())
+}
+
+function handleBeforePrint() {
+  // Ctrl+P 回退：不做特殊处理，使用 @media print CSS
 }
 
 // ========== Watch ==========
@@ -1276,8 +1404,6 @@ watch(editData, () => {
   gap: 16px;
 }
 .generating-progress-wrapper {
-  width: 420px;
-  max-width: 90vw;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1649,6 +1775,7 @@ watch(editData, () => {
   width: 100%;
   height: 100%;
 }
+
 .stage-insights {
   display: flex;
   flex-direction: column;
@@ -1817,49 +1944,62 @@ watch(editData, () => {
 </style>
 
 <style>
+/* Ctrl+P 回退打印样式（主导出路径为 html2canvas + jspdf 截图方式） */
 @media print {
   body, #app, .app-wrapper, .main-wrapper {
     background: white !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
     overflow: visible !important;
     margin: 0 !important;
     padding: 0 !important;
   }
+
+  /* 隐藏侧边栏、导航和操作按钮 */
   .sidebar, .el-aside, .navbar, .el-header, .el-menu,
   .header-actions, .header-area .header-actions {
     display: none !important;
+  }
+
+  .dashboard-container {
+    overflow: visible !important;
+    height: auto !important;
+  }
+  .el-main {
+    overflow: visible !important;
   }
   .main-wrapper {
     margin-left: 0 !important;
     width: 100% !important;
     overflow: visible !important;
   }
+
   .feishu-page {
     background: white !important;
     padding: 0 !important;
     min-height: auto !important;
   }
+
   .card-container {
     box-shadow: none !important;
     border: none !important;
     padding: 10px 20px !important;
+    min-height: auto !important;
+    background: white !important;
   }
-  .card-container::before {
-    content: '面试报告 - 招聘系统';
-    display: block;
-    font-size: 18px;
-    font-weight: 600;
-    color: #1F2329;
-    padding: 10px 0 20px 0;
-    border-bottom: 2px solid #3370FF;
-    margin-bottom: 20px;
-  }
+
   .header-area {
     display: none !important;
   }
+
   .section-card {
     break-inside: avoid;
+  }
+
+  .print-chart-radar,
+  .print-chart-stage {
+    display: block !important;
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: contain !important;
   }
 }
 </style>
