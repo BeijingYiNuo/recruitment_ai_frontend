@@ -126,6 +126,21 @@ const routes = [
     meta: {
       requiresAuth: true
     }
+  },
+  {
+    path: '/privacy-policy',
+    name: 'privacyPolicy',
+    component: () => import('../views/PrivacyPolicyView.vue')
+  },
+  {
+    path: '/terms-of-service',
+    name: 'termsOfService',
+    component: () => import('../views/TermsOfServiceView.vue')
+  },
+  {
+    path: '/paid-service-agreement',
+    name: 'paidServiceAgreement',
+    component: () => import('../views/PaidServiceAgreementView.vue')
   }
 ]
 

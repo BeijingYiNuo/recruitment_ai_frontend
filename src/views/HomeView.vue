@@ -84,6 +84,13 @@
     <footer class="home-footer">
       <div class="footer-inner">
         <p>&copy; 2026 面试助手系统 (Interview Assistant). 保留所有权利.</p>
+        <p class="footer-links">
+          <router-link to="/privacy-policy" class="footer-link">隐私政策</router-link>
+          <span class="footer-link-divider">|</span>
+          <router-link to="/terms-of-service" class="footer-link">用户协议</router-link>
+          <span class="footer-link-divider">|</span>
+          <router-link to="/paid-service-agreement" class="footer-link">付费协议</router-link>
+        </p>
       </div>
     </footer>
   </div>
@@ -341,6 +348,27 @@ $border-color: #dee0e3;
   color: $text-tertiary;
   font-size: 13px;
   margin: 0;
+}
+
+.footer-links {
+  margin-top: 8px !important;
+}
+
+.footer-link {
+  color: $text-tertiary;
+  font-size: 13px;
+  text-decoration: none;
+  cursor: pointer;
+
+  &:hover {
+    color: $primary-color;
+    text-decoration: underline;
+  }
+}
+
+.footer-link-divider {
+  margin: 0 8px;
+  color: $border-color;
 }
 
 /* --- Animations --- */

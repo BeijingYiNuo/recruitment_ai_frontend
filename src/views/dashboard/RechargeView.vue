@@ -88,6 +88,10 @@
         </el-button>
       </div>
     </el-dialog>
+
+    <div class="recharge-agreement">
+      支付即表示同意 <router-link to="/paid-service-agreement" class="agreement-link">《晓聘付费协议》</router-link>
+    </div>
   </div>
 </template>
 
@@ -398,5 +402,21 @@ onMounted(() => {
   font-size: 14px;
   color: #646a73;
   margin: 8px 0;
+}
+
+.recharge-agreement {
+  text-align: center;
+  font-size: 13px;
+  color: #8f959e;
+  margin-top: 20px;
+}
+
+.agreement-link {
+  color: #3370ff;
+  text-decoration: none;
+}
+
+.agreement-link:hover {
+  text-decoration: underline;
 }
 </style>

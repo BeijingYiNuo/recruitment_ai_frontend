@@ -47,6 +47,14 @@
         <div class="feishu-social-wrapper">
           <SocialButtons @wechat-login="showWeChatDialog = true" />
         </div>
+
+        <div class="feishu-policy-tip">
+          <router-link to="/privacy-policy" class="feishu-link">隐私政策</router-link>
+          <span class="policy-divider">|</span>
+          <router-link to="/terms-of-service" class="feishu-link">用户协议</router-link>
+          <span class="policy-divider">|</span>
+          <router-link to="/paid-service-agreement" class="feishu-link">付费协议</router-link>
+        </div>
       </form>
     </div>
 
@@ -313,5 +321,17 @@ function onWeChatLoginSuccess () {
 
 .feishu-social-wrapper {
   margin-top: 32px;
+}
+
+.feishu-policy-tip {
+  margin-top: 20px;
+  text-align: center;
+  font-size: 13px;
+  color: #8F959E;
+}
+
+.policy-divider {
+  margin: 0 10px;
+  color: #dee0e3;
 }
 </style>

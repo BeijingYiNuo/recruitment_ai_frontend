@@ -81,7 +81,7 @@
 
         <div class="feishu-terms">
           <input type="checkbox" id="agree" v-model="agree" class="feishu-checkbox" />
-          <label for="agree">我已阅读并同意 <a href="javascript:void(0)" class="feishu-link">用户协议</a> 和 <a href="javascript:void(0)" class="feishu-link">隐私政策</a></label>
+          <label for="agree">我已阅读并同意 <router-link to="/terms-of-service" class="feishu-link">用户协议</router-link> 和 <router-link to="/privacy-policy" class="feishu-link">隐私政策</router-link></label>
         </div>
 
         <div v-if="error" class="feishu-alert feishu-alert-error">{{ error }}</div>
