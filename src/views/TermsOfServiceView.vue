@@ -20,18 +20,18 @@
         <div class="tos-toc">
           <p>本协议将帮助您了解以下内容：</p>
           <ul>
-            <li><a href="#section1">一、协议范围</a></li>
-            <li><a href="#section2">二、账号注册与使用</a></li>
-            <li><a href="#section3">三、用户行为规范</a></li>
-            <li><a href="#section4">四、AI功能特别条款</a></li>
-            <li><a href="#section5">五、使用规范</a></li>
-            <li><a href="#section6">六、付费服务</a></li>
-            <li><a href="#section7">七、知识产权</a></li>
-            <li><a href="#section8">八、服务的变更、中断与终止</a></li>
-            <li><a href="#section9">九、免责条款</a></li>
-            <li><a href="#section10">十、法律适用与争议解决</a></li>
-            <li><a href="#section11">十一、其他</a></li>
-            <li><a href="#section12">十二、联系我们</a></li>
+            <li><a href="javascript:void(0)" @click="scrollTo('section1')">一、协议范围</a></li>
+            <li><a href="javascript:void(0)" @click="scrollTo('section2')">二、账号注册与使用</a></li>
+            <li><a href="javascript:void(0)" @click="scrollTo('section3')">三、用户行为规范</a></li>
+            <li><a href="javascript:void(0)" @click="scrollTo('section4')">四、AI功能特别条款</a></li>
+            <li><a href="javascript:void(0)" @click="scrollTo('section5')">五、使用规范</a></li>
+            <li><a href="javascript:void(0)" @click="scrollTo('section6')">六、付费服务</a></li>
+            <li><a href="javascript:void(0)" @click="scrollTo('section7')">七、知识产权</a></li>
+            <li><a href="javascript:void(0)" @click="scrollTo('section8')">八、服务的变更、中断与终止</a></li>
+            <li><a href="javascript:void(0)" @click="scrollTo('section9')">九、免责条款</a></li>
+            <li><a href="javascript:void(0)" @click="scrollTo('section10')">十、法律适用与争议解决</a></li>
+            <li><a href="javascript:void(0)" @click="scrollTo('section11')">十一、其他</a></li>
+            <li><a href="javascript:void(0)" @click="scrollTo('section12')">十二、联系我们</a></li>
           </ul>
         </div>
 
@@ -153,6 +153,13 @@ function goBack() {
     router.back()
   } else {
     router.push('/register')
+  }
+}
+
+function scrollTo(id) {
+  const el = document.getElementById(id)
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 }
 </script>

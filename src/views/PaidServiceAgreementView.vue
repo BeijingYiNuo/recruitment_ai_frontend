@@ -20,14 +20,14 @@
         <div class="psa-toc">
           <p>本协议将帮助您了解以下内容：</p>
           <ul>
-            <li><a href="#section1">一、付费服务概述</a></li>
-            <li><a href="#section2">二、付费方式</a></li>
-            <li><a href="#section3">三、服务使用与权益</a></li>
-            <li><a href="#section4">四、发票</a></li>
-            <li><a href="#section5">五、退款规则</a></li>
-            <li><a href="#section6">六、免责声明</a></li>
-            <li><a href="#section7">七、法律适用与争议解决</a></li>
-            <li><a href="#section8">八、其他</a></li>
+            <li><a href="javascript:void(0)" @click="scrollTo('section1')">一、付费服务概述</a></li>
+            <li><a href="javascript:void(0)" @click="scrollTo('section2')">二、付费方式</a></li>
+            <li><a href="javascript:void(0)" @click="scrollTo('section3')">三、服务使用与权益</a></li>
+            <li><a href="javascript:void(0)" @click="scrollTo('section4')">四、发票</a></li>
+            <li><a href="javascript:void(0)" @click="scrollTo('section5')">五、退款规则</a></li>
+            <li><a href="javascript:void(0)" @click="scrollTo('section6')">六、免责声明</a></li>
+            <li><a href="javascript:void(0)" @click="scrollTo('section7')">七、法律适用与争议解决</a></li>
+            <li><a href="javascript:void(0)" @click="scrollTo('section8')">八、其他</a></li>
           </ul>
         </div>
 
@@ -112,6 +112,13 @@ function goBack() {
     router.back()
   } else {
     router.push('/register')
+  }
+}
+
+function scrollTo(id) {
+  const el = document.getElementById(id)
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 }
 </script>

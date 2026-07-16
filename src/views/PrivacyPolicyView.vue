@@ -19,15 +19,15 @@
         <div class="pp-toc">
           <p>本政策将帮助您了解以下内容：</p>
           <ul>
-            <li><a href="#section1">一、我们如何收集和使用信息</a></li>
-            <li><a href="#section2">二、权限调用说明</a></li>
-            <li><a href="#section3">三、我们如何使用Cookie和同类技术</a></li>
-            <li><a href="#section4">四、我们如何共享、转让和公开披露信息</a></li>
-            <li><a href="#section5">五、我们如何存储和保护信息</a></li>
-            <li><a href="#section6">六、您如何管理个人信息</a></li>
-            <li><a href="#section7">七、未成年人保护</a></li>
-            <li><a href="#section8">八、本政策如何更新</a></li>
-            <li><a href="#section9">九、如何联系我们</a></li>
+            <li><a href="javascript:void(0)" @click="scrollTo('section1')">一、我们如何收集和使用信息</a></li>
+            <li><a href="javascript:void(0)" @click="scrollTo('section2')">二、权限调用说明</a></li>
+            <li><a href="javascript:void(0)" @click="scrollTo('section3')">三、我们如何使用Cookie和同类技术</a></li>
+            <li><a href="javascript:void(0)" @click="scrollTo('section4')">四、我们如何共享、转让和公开披露信息</a></li>
+            <li><a href="javascript:void(0)" @click="scrollTo('section5')">五、我们如何存储和保护信息</a></li>
+            <li><a href="javascript:void(0)" @click="scrollTo('section6')">六、您如何管理个人信息</a></li>
+            <li><a href="javascript:void(0)" @click="scrollTo('section7')">七、未成年人保护</a></li>
+            <li><a href="javascript:void(0)" @click="scrollTo('section8')">八、本政策如何更新</a></li>
+            <li><a href="javascript:void(0)" @click="scrollTo('section9')">九、如何联系我们</a></li>
           </ul>
         </div>
 
@@ -172,6 +172,13 @@ function goBack() {
     router.back()
   } else {
     router.push('/register')
+  }
+}
+
+function scrollTo(id) {
+  const el = document.getElementById(id)
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 }
 </script>
