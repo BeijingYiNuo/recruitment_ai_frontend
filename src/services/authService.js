@@ -51,6 +51,15 @@ const authService = {
     localStorage.removeItem('user')
   },
 
+  // 注销账号
+  deleteAccount: async () => {
+    const user = authService.getCurrentUser()
+    if (!user || !user.id) throw new Error('未获取到用户信息')
+    await authApi.deleteUser(user.id)
+    localStorage.removeItem('token')
+    localStorage.removeItem('user')
+  },
+
   // 检查是否已认证
   isAuthenticated: () => {
     return localStorage.getItem('token') !== null

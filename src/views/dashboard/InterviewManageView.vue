@@ -157,7 +157,7 @@
             </div>
             
             <div class="col-action">
-              <el-button type="primary" link size="small" v-if="getFirstStartableRound(item.id)" @click.stop="handleStartInterview(item)">开始面试</el-button>
+              <el-button type="primary" link size="small" v-if="getFirstStartableRound(item.id) && item.status !== 'expired'" @click.stop="handleStartInterview(item)">开始面试</el-button>
               <el-button type="success" link size="small" v-if="item.session_id && item.status !== 'completed' && item.status !== 'cancelled'" @click.stop="handleStartASR(item)">启动 ASR</el-button>
               <el-button type="primary" link size="small" v-if="item.status === 'completed'" @click.stop="handleViewReport(item)">查看面试报告</el-button>
               <el-button type="primary" link size="small" v-if="item.status === 'scheduled' || item.status === 'cancelled'" @click.stop="interviewStore.editInterview(item)">编辑</el-button>
@@ -1195,6 +1195,16 @@ const handleCreateSession = async (session) => {
     return
   }
 
+  // 过期面试重新开始后恢复为已预约状态
+  if (session.status === 'expired') {
+    try {
+      await interviewApi.updateReserveSession(session.id, { status: 'scheduled' })
+      session.status = 'scheduled'
+    } catch (e) {
+      console.warn('恢复面试状态失败:', e)
+    }
+  }
+
   router.push(`/interview-assistant/${session.id}/${roundId}`)
 }
 
@@ -1252,10 +1262,6 @@ const handleStartInterview = async (item) => {
 }
 
 const handleStartASR = async (item) => {
-  if (!item.session_id) {
-    ElMessage.warning('请先创建面试会话')
-    return
-  }
   await loadSessionRounds(item.id)
   // 取第一个轮次的ID作为默认轮次
   const rounds = roundsMap[item.id]

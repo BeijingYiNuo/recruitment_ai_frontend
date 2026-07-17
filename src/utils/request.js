@@ -50,6 +50,11 @@ request.interceptors.response.use(
           }, 500)
         }
       } 
+      // 402: 余额不足
+      else if (status === 402) {
+        const msg = data?.message || data?.detail || '余额不足'
+        ElMessage.error(msg)
+      }
       // 403: 权限不足
       else if (status === 403) {
         ElMessage.error('权限不足，无法访问该资源')

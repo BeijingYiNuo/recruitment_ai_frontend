@@ -80,6 +80,19 @@
         </div>
       </div>
 
+      <!-- 危险操作 -->
+      <div class="lark-section-divider"></div>
+
+      <div class="danger-zone">
+        <div class="danger-zone-left">
+          <h3 class="card-subtitle danger-title">注销账号</h3>
+          <p class="danger-desc">注销后您的所有数据将被永久删除且无法恢复，请谨慎操作</p>
+        </div>
+        <button class="lark-btn-danger small-btn" @click="handleDeleteAccount">
+          注销账号
+        </button>
+      </div>
+
       <!-- 编辑个人信息弹窗组件 -->
       <UserEditModal
         v-model:visible="editDialogVisible"
@@ -219,6 +232,8 @@ import { useRouter } from 'vue-router'
 import { authApi } from '../api/auth'
 import { accountApi } from '../api/account'
 import { getCurrentUser } from '../services/authService'
+import authService from '../services/authService'
+import { ElMessageBox } from 'element-plus'
 import UserEditModal from '../components/UserEditModal.vue'
 
 const router = useRouter()
@@ -361,6 +376,55 @@ const fetchAccount = async () => {
 
 const handleEdit = () => {
   editDialogVisible.value = true
+}
+
+const handleDeleteAccount = async () => {
+  try {
+    await ElMessageBox.confirm(
+      '确定要注销账号吗？<br><br>' +
+      '此操作不可逆，注销后：<br>' +
+      '• 您的所有个人资料将被永久删除<br>' +
+      '• 所有面试记录、简历数据将被清除<br>' +
+      '• 账户余额将无法退还<br>' +
+      '• 无法登录或恢复该账号',
+      '注销账号',
+      {
+        confirmButtonText: '确认注销',
+        cancelButtonText: '取消',
+        type: 'warning',
+        dangerouslyUseHTMLString: true,
+        confirmButtonClass: 'el-button--danger',
+      }
+    )
+  } catch {
+    return // 用户取消
+  }
+
+  // 二次确认
+  try {
+    await ElMessageBox.confirm(
+      '再次确认：是否注销当前账号？此操作无法撤销。',
+      '二次确认',
+      {
+        confirmButtonText: '确认注销',
+        cancelButtonText: '再想想',
+        type: 'error',
+        confirmButtonClass: 'el-button--danger',
+      }
+    )
+  } catch {
+    return
+  }
+
+  try {
+    await authService.deleteAccount()
+    ElMessage.success('账号已注销')
+    setTimeout(() => {
+      router.push('/login')
+    }, 1500)
+  } catch (error) {
+    ElMessage.error('注销失败: ' + (error?.detail || error?.message || '未知错误'))
+  }
 }
 
 onMounted(() => {
@@ -732,6 +796,54 @@ $border-color: #dee0e3;
     &.open {
       transform: rotate(180deg);
     }
+  }
+}
+
+/* --- 危险操作区 --- */
+.danger-zone {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.danger-zone-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.danger-title {
+  color: #F53F3F !important;
+}
+
+.danger-desc {
+  font-size: 13px;
+  color: #8F959E;
+  margin: 0;
+}
+
+.lark-btn-danger {
+  background-color: #F53F3F;
+  border: none;
+  color: #fff;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+
+  &:hover {
+    background-color: #d9363e;
+  }
+
+  &.small-btn {
+    height: 32px;
+    padding: 0 16px;
   }
 }
 

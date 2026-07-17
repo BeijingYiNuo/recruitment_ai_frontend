@@ -24,4 +24,10 @@ export const authApi = {
 
   // 更新用户信息
   updateUser: (userId, userData) => request.put(`/users/${userId}`, userData),
+
+  // 注销账号
+  deleteUser: (userId) => request.delete(`/users/${userId}`),
+
+  // 验证码登录 - 验证
+  verifyLoginCode: (code) => request.post('/wechat/login-code/verify', { code }),
 }
