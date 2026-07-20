@@ -21,6 +21,11 @@
           :class="{ active: loginMode === 'code' }"
           @click="loginMode = 'code'"
         >验证码登录</button>
+        <button
+          class="login-tab"
+          :class="{ active: loginMode === 'qrcode' }"
+          @click="loginMode = 'qrcode'"
+        >扫码登录</button>
       </div>
 
       <!-- 密码登录 -->
@@ -91,6 +96,46 @@
         </button>
       </div>
 
+      <!-- 扫码登录 -->
+      <div v-if="loginMode === 'qrcode'" class="qrcode-login-box">
+        <p class="code-login-desc">使用微信扫一扫下方二维码即可登录</p>
+
+        <!-- 加载中 -->
+        <div v-if="qrLoading" class="qrcode-state">
+          <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="#8F959E" stroke-width="2" class="qr-spin">
+            <circle cx="12" cy="12" r="10" stroke-dasharray="31.4 31.4" stroke-linecap="round"/>
+          </svg>
+          <p class="qrcode-state-text">获取二维码中...</p>
+        </div>
+
+        <!-- 小程序码 -->
+        <div v-else-if="qrWxacodeUrl && !qrExpired" class="qrcode-img-wrap">
+          <img :src="qrWxacodeUrl" class="qrcode-img" alt="小程序码" @error="qrExpired = true" />
+          <p class="qrcode-hint">打开微信扫一扫，登录后将自动跳转</p>
+        </div>
+
+        <!-- 已过期 -->
+        <div v-else-if="qrExpired" class="qrcode-state">
+          <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="#F54A45" stroke-width="1.5">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 8v4M12 16h.01" stroke-linecap="round"/>
+          </svg>
+          <p class="qrcode-state-text">二维码已过期</p>
+          <button class="feishu-btn feishu-btn-primary" style="width:auto;padding:0 24px;margin-top:12px" @click="qrRefresh">
+            重新获取
+          </button>
+        </div>
+
+        <!-- 登录成功 -->
+        <div v-else-if="qrConfirmed" class="qrcode-state">
+          <svg viewBox="0 0 24 24" width="48" height="48" fill="none">
+            <circle cx="12" cy="12" r="10" fill="#13A248" opacity="0.1"/>
+            <path d="M7.5 12l3 3 6-6" stroke="#13A248" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <p class="qrcode-state-text" style="color:#13A248;font-weight:500;">登录成功，正在跳转...</p>
+        </div>
+      </div>
+
       <div class="feishu-policy-tip" style="margin-top:16px">
         <router-link to="/privacy-policy" class="feishu-link">隐私政策</router-link>
         <span class="policy-divider">|</span>
@@ -112,11 +157,12 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick } from 'vue'
+import { ref, computed, nextTick, watch, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { View, Hide } from '@element-plus/icons-vue'
 import authService from '../services/authService'
 import { authApi } from '../api/auth'
+import request from '../utils/request'
 import AuthLayout from '../components/AuthLayout.vue'
 import AuthCard from '../components/AuthCard.vue'
 import SocialButtons from '../components/SocialButtons.vue'
@@ -129,9 +175,93 @@ const showPassword = ref(false)
 const loading = ref(false)
 const error = ref('')
 const showWeChatDialog = ref(false)
+const loginMode = ref('password')
 
 import heroImage from '../assets/login.jpg'
 const loginGradient = 'linear-gradient(135deg,#6366f1 0%,#8b5cf6 50%,#d946ef 100%)'
+
+// ── 扫码登录 ────────────────────────────────────────────
+
+const qrTicketId = ref('')
+const qrWxacodeUrl = ref('')
+const qrLoading = ref(false)
+const qrExpired = ref(false)
+const qrConfirmed = ref(false)
+let qrPollTimer = null
+
+function clearQrState() {
+  stopQrPolling()
+  qrTicketId.value = ''
+  qrWxacodeUrl.value = ''
+  qrLoading.value = false
+  qrExpired.value = false
+  qrConfirmed.value = false
+}
+
+async function qrRefresh() {
+  qrLoading.value = true
+  qrExpired.value = false
+  qrConfirmed.value = false
+
+  try {
+    const data = await request.post('/auth/qr-login')
+    qrTicketId.value = data.ticket_id
+    qrWxacodeUrl.value = data.wxacode_url
+    qrLoading.value = false
+    startQrPolling()
+  } catch {
+    qrLoading.value = false
+    qrExpired.value = true
+  }
+}
+
+function startQrPolling() {
+  stopQrPolling()
+  if (!qrTicketId.value) return
+
+  qrPollTimer = setInterval(async () => {
+    try {
+      const data = await request.get(`/auth/qr-login/${qrTicketId.value}/status`)
+      if (data.status === 'confirmed') {
+        stopQrPolling()
+        qrConfirmed.value = true
+        localStorage.setItem('token', data.access_token)
+        localStorage.setItem('user', JSON.stringify({ id: data.user_id }))
+        setTimeout(() => {
+          router.push('/dashboard')
+        }, 1000)
+      } else if (data.status === 'expired') {
+        stopQrPolling()
+        qrExpired.value = true
+      }
+    } catch {
+      stopQrPolling()
+      qrExpired.value = true
+    }
+  }, 2000)
+}
+
+function stopQrPolling() {
+  if (qrPollTimer) {
+    clearInterval(qrPollTimer)
+    qrPollTimer = null
+  }
+}
+
+onBeforeUnmount(() => {
+  stopQrPolling()
+})
+
+// 切换到扫码登录时自动获取二维码
+watch(loginMode, (val) => {
+  if (val === 'qrcode') {
+    qrRefresh()
+  } else {
+    stopQrPolling()
+  }
+})
+
+// ── 密码登录 ────────────────────────────────────────────
 
 const canSubmit = computed(() => {
   return username.value.trim() !== '' && password.value.length >= 8
@@ -156,7 +286,6 @@ function onWeChatLoginSuccess () {
 
 // ── 验证码登录 ────────────────────────────────────────────
 
-const loginMode = ref('password')
 const codeDigits = ref(['', '', '', '', '', ''])
 const codeInputs = ref([])
 const codeError = ref('')
@@ -503,5 +632,51 @@ async function verifyCode() {
 .policy-divider {
   margin: 0 10px;
   color: #dee0e3;
+}
+
+/* 扫码登录 */
+.qrcode-login-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.qrcode-state {
+  text-align: center;
+  padding: 32px 0;
+}
+
+.qrcode-state-text {
+  font-size: 14px;
+  color: #8F959E;
+  margin: 16px 0 0 0;
+}
+
+.qrcode-img-wrap {
+  text-align: center;
+  padding: 8px 0;
+}
+
+.qrcode-img {
+  width: 200px;
+  height: 200px;
+  display: block;
+  border-radius: 8px;
+  border: 1px solid #e8e8e8;
+}
+
+.qrcode-hint {
+  font-size: 13px;
+  color: #8F959E;
+  margin: 12px 0 0 0;
+}
+
+.qr-spin {
+  animation: qr-spin 1.5s linear infinite;
+}
+
+@keyframes qr-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 </style>
