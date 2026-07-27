@@ -190,6 +190,20 @@
                       <el-icon><Clock /></el-icon>
                       {{ round.duration_minutes }} 分钟
                     </span>
+                    <el-tag
+                      v-if="round.mode === 2"
+                      size="small"
+                      type="primary"
+                      effect="dark"
+                      style="margin-left: 6px;"
+                    >AI</el-tag>
+                    <el-tag
+                      v-else
+                      size="small"
+                      type="info"
+                      effect="plain"
+                      style="margin-left: 6px;"
+                    >辅助</el-tag>
                   </div>
                   <div class="node-actions">
                     <el-tooltip content="编辑" placement="top">
@@ -270,6 +284,15 @@
             placeholder="该轮面试的主要内容/考察点"
           />
         </el-form-item>
+        <el-form-item label="面试模式">
+          <el-radio-group v-model="roundForm.mode">
+            <el-radio :value="1">辅助面试</el-radio>
+            <el-radio :value="2">AI 自动面试</el-radio>
+          </el-radio-group>
+          <div style="font-size: 12px; color: #909399; margin-top: 4px;">
+            辅助面试：真人面试官主导，AI 提供实时分析建议；AI 自动面试：AI 面试官全自动进行
+          </div>
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="roundFormDialog.visible = false">取消</el-button>
@@ -337,6 +360,7 @@ const roundForm = reactive({
   round_type: 'TECHNICAL',
   duration_minutes: 30,
   description: '',
+  mode: 1,
 })
 const roundFormRules = {
   round_name: [
@@ -517,6 +541,7 @@ const openAddRoundDialog = () => {
   roundForm.round_type = 'TECHNICAL'
   roundForm.duration_minutes = 30
   roundForm.description = ''
+  roundForm.mode = 1
   roundFormDialog.visible = true
 }
 
@@ -527,6 +552,7 @@ const openEditRoundDialog = (round) => {
   roundForm.round_type = round.round_type
   roundForm.duration_minutes = round.duration_minutes
   roundForm.description = round.description || ''
+  roundForm.mode = round.mode ?? 1
   roundFormDialog.visible = true
 }
 
@@ -542,6 +568,7 @@ const handleSaveRound = async () => {
         round_type: roundForm.round_type,
         duration_minutes: roundForm.duration_minutes,
         description: roundForm.description || null,
+        mode: roundForm.mode,
       })
       ElMessage.success('轮次更新成功')
     } else {
@@ -550,6 +577,7 @@ const handleSaveRound = async () => {
         round_type: roundForm.round_type,
         duration_minutes: roundForm.duration_minutes,
         description: roundForm.description || null,
+        mode: roundForm.mode,
       })
       ElMessage.success('轮次添加成功')
     }

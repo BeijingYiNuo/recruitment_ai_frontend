@@ -6,6 +6,10 @@
       :isAsrActive="isAsrActive"
       :isPaused="isPaused"
       :isSysAudioActive="isSysAudioActive"
+      :ttsEnabled="tts.enabled.value"
+      :ttsSpeaking="tts.speaking.value"
+      :ttsVolume="tts.volume.value"
+      :manualAnalysisLoading="manualAnalysisLoading"
       @goBack="goBack"
       @startAsr="onStartAsr"
       @stopAsr="onStopAsr"
@@ -15,7 +19,8 @@
       @endInterview="onEndInterview"
       @stageChange="onStageChange"
       @toggleSysAudio="toggleSysAudio"
-      :manualAnalysisLoading="manualAnalysisLoading"
+      @toggleTts="tts.setEnabled(!tts.enabled.value)"
+      @ttsVolumeChange="tts.setVolume($event)"
     />
 
     <div class="page-content">
@@ -75,6 +80,7 @@ import InterviewQuestionsFloat from '../components/InterviewQuestionsFloat.vue'
 import { interviewApi } from '../api/interview'
 import { resumeApi } from '../api/resume'
 import { startMockAsr, type MockAsrHandle } from '../utils/mockAsrWs'
+import { useTts } from '../composables/useTts'
 
 const route = useRoute()
 const router = useRouter()
@@ -119,6 +125,9 @@ const asrSegments = ref<AsrSegment[]>([]) // 已确认段落
 // Mock 模式控制
 let mockHandle: MockAsrHandle | null = null
 const USE_MOCK = false// 设为 true 启用 Mock 模式，后端可用时改为 false
+
+// ========== TTS 语音合成 ==========
+const tts = useTts()
 
 // ========== 简历预览数据 ==========
 const isResumeLoading = ref(false)
@@ -545,6 +554,8 @@ onBeforeUnmount(() => {
   if (isAsrActive.value) {
     interviewApi.stopASR(sessionId, roundId).catch(() => {})
   }
+  // 清理 TTS 资源
+  tts.dispose()
   window.removeEventListener('beforeunload', handleBeforeUnload)
 })
 
@@ -619,6 +630,10 @@ const handleWsMessage = (event: MessageEvent | { data: string }) => {
         }
         streamingAdviceMap.value[index] += content
         streamingAdviceMap.value = { ...streamingAdviceMap.value }
+        // TTS 播报文本
+        if (content?.trim()) {
+          tts.feedText(content)
+        }
       } else if (response_type === 'evaluation') {
         console.log(`[Evaluation Chunk] index: ${index}, length: ${content?.length}, content: ${content?.slice(0, 20)}...`)
         if (!streamingEvaluationMap.value[index]) {
@@ -636,6 +651,8 @@ const handleWsMessage = (event: MessageEvent | { data: string }) => {
           displayName: payload.display_name,
           description: payload.description || '',
         }
+        // TTS 切换阶段：丢弃当前碎片文本，已有队列继续播报
+        tts.onStageChange()
       }
     } else {
       console.warn('[WS Unknown Type] 收到未知类型的消息:', msg.type, msg)
@@ -734,6 +751,9 @@ const onStartAsr = async () => {
       })
 
       ElMessage.success('ASR 识别通道已打通')
+
+      // TTS 自动跟随 ASR 启动
+      tts.start(sessionId, roundId)
     }
 
     socket.onmessage = handleWsMessage
@@ -791,6 +811,8 @@ const onStopAsr = async () => {
       sysStream = null
     }
     isSysAudioActive.value = false
+    // 关闭 TTS 连接（已有音频继续播完，不再接收新文本）
+    tts.stop()
     // 通知后端停止 ASR 服务（失败不阻塞前端清理）
     if (!USE_MOCK) {
       interviewApi.stopASR(sessionId, roundId).catch(err => {
@@ -935,6 +957,8 @@ async function onEndInterview() {
   // 结束面试时先清理 ASR 资源
   if (isAsrActive.value) {
     await onStopAsr()
+    // 强制打断 TTS 播报（结束面试，立即清空队列停止播放）
+    tts.terminate()
   }
   interviewInfo.value.status = '通话已结束'
   interviewInfo.value.statusColor = '#909399'
