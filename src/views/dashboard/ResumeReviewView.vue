@@ -348,7 +348,14 @@
     </el-dialog>
 
     <!-- AI 辅助审核弹窗 -->
-    <el-dialog v-model="aiReviewVisible" title="AI 辅助审核" width="520px" destroy-on-close @close="aiReviewResult = null">
+    <el-dialog v-model="aiReviewVisible" width="520px" destroy-on-close @close="aiReviewResult = null">
+      <template #header>
+        <div class="batch-dialog-header">
+          <el-icon class="batch-dialog-icon"><MagicStick /></el-icon>
+          <span class="batch-dialog-title">AI 辅助审核</span>
+          <FeatureGuideBtn :steps="aiSingleDialogSteps" title="了解此功能" label="引导" style="margin-left:8px" />
+        </div>
+      </template>
       <template v-if="!aiReviewResult">
         <el-form label-width="100px" label-position="top" style="padding: 0 4px;">
           <el-form-item label="岗位名称">
@@ -398,6 +405,12 @@
         <div class="batch-dialog-header">
           <el-icon class="batch-dialog-icon"><MagicStick /></el-icon>
           <span class="batch-dialog-title">批量 AI 简历智能审核</span>
+          <FeatureGuideBtn
+            :steps="batchAiDialogSteps"
+            title="了解此功能"
+            label="引导"
+            style="margin-left:8px"
+          />
         </div>
       </template>
 
@@ -589,6 +602,7 @@ import { resumeApi } from '../../api/resume'
 import { positionApi } from '../../api/position'
 import { ElMessage } from 'element-plus'
 import InterviewQuestionsFloat from '../../components/InterviewQuestionsFloat.vue'
+import FeatureGuideBtn from '../../components/FeatureGuideBtn.vue'
 import {
   ArrowLeft, ArrowRight, ArrowDown, Close, QuestionFilled, Check, Document, EditPen, MagicStick,
   Reading, Briefcase, Coin, Collection, List, Grid, Plus, Search,
@@ -597,6 +611,17 @@ import {
 
 const router = useRouter()
 const route = useRoute()
+
+// ---- 弹窗引导步骤 ----
+const aiSingleDialogSteps = [
+  { element: '.el-form', popover: { title: '填写审核参数', description: '岗位名称、JD、自定义要求和需求人数帮助 AI 理解您的筛选标准。填写越详细，建议越精准。点击"生成建议"提交。', side: 'left', align: 'start' } },
+  { element: '.ai-review-result', popover: { title: 'AI 建议结果', description: '绿色标签=建议通过，红色=建议淘汰。下方展示 AI 分析理由、匹配点和不足点。点击"采纳建议"将自动应用 AI 的审核结论到该候选人。', side: 'left', align: 'start' } },
+]
+const batchAiDialogSteps = [
+  { element: '.batch-info-bar', popover: { title: '审核概况', description: '此处显示已勾选的候选人数量。返回列表可重新勾选要审核的简历。', side: 'bottom', align: 'start' } },
+  { element: '.batch-section', popover: { title: '审核规则配置', description: '选择一个岗位名称可自动填充 JD，或手动粘贴岗位描述。自定义要求可补充特殊筛选条件。需求人数控制 AI 优先推荐名额。填写越详细，AI 审核越精准。', side: 'left', align: 'start' } },
+  { element: '.batch-result-row:first-child', popover: { title: '审核结果', description: '提交后每份简历会显示 AI 评估结论和建议理由。绿色=建议通过，橙色=建议待定，红色=建议淘汰。可据此批量或逐份做出最终决策。', side: 'top', align: 'start' } },
+]
 const loading = ref(false)
 const resumes = ref([])
 const currentIndex = ref(0)

@@ -246,6 +246,7 @@ const contextInterview = ref(null)
 
 const gridScrollRef = ref(null)
 
+
 // ============================================================
 const miniCalTitle = computed(() => `${miniCalYear.value}年${miniCalMonth.value + 1}月`)
 
@@ -388,6 +389,44 @@ async function handleContextAction(action) {
   }
 }
 
+// ============================================================
+//  示例数据（Mock模式）
+// ============================================================
+const isMockMode = import.meta.env.VITE_MOCK_MODE === 'true'
+
+function generateSampleSchedules() {
+  const now = new Date()
+  const weekStart = getWeekStart(now)
+  const samples = []
+  const names = ['张伟', '李娜', '王芳', '陈明', '刘洋', '赵敏', '周磊', '吴昊']
+  const statuses = ['scheduled', 'scheduled', 'ongoing', 'completed', 'completed', 'cancelled']
+  for (let i = 0; i < 7; i++) {
+    const day = new Date(weekStart); day.setDate(day.getDate() + i)
+    const dayStr = formatDateStr(day)
+    const count = dayStr === formatDateStr(now) ? 3 : (i > 0 && i < 6 ? 1 + (i % 2) : 0)
+    for (let j = 0; j < count; j++) {
+      const h = 9 + j * 2 + (i % 3)
+      samples.push({
+        id: 100 + i * 10 + j,
+        candidate_name: names[(i + j) % names.length],
+        scheduled_start_at: `${dayStr}T${String(h).padStart(2,'0')}:00:00`,
+        scheduled_end_at: `${dayStr}T${String(h + 1).padStart(2,'0')}:00:00`,
+        status: statuses[(i + j) % statuses.length],
+      })
+    }
+  }
+  return samples
+}
+
+function loadSampleData() {
+  stats.totalResumes = 156; stats.pendingReview = 23; stats.pendingInterview = 8
+  stats.pendingDecision = 5; stats.todayInterviews = 3; stats.totalPositions = 12
+  interviewList.value = generateSampleSchedules()
+}
+
+// ============================================================
+//  数据请求
+// ============================================================
 async function fetchStats() {
   statsLoading.value = true
   try {
@@ -410,12 +449,15 @@ async function fetchStats() {
     }
     stats.pendingInterview = pi; stats.todayInterviews = tc
     stats.totalPositions = Array.isArray(positions) ? positions.length : (positions?.total || 0)
-  } catch (e) { console.error('Failed to fetch stats:', e) } finally { statsLoading.value = false }
+  } catch (e) { console.error('Failed to fetch stats:', e) } finally {
+    statsLoading.value = false
+    if (isMockMode && stats.totalResumes === 0 && stats.totalPositions === 0) loadSampleData()
+  }
 }
 
 async function fetchInterviewSchedules() {
   calendarLoading.value = true
-  try { const data = await interviewApi.getUserInterviewSessions({}); interviewList.value = Array.isArray(data) ? data : (data.items || []) } catch (e) { console.error('Failed to fetch schedules:', e) } finally { calendarLoading.value = false }
+  try { const data = await interviewApi.getUserInterviewSessions({}); interviewList.value = Array.isArray(data) ? data : (data.items || []) } catch (e) { console.error('Failed to fetch schedules:', e) } finally { calendarLoading.value = false; if (isMockMode && interviewList.value.length === 0) interviewList.value = generateSampleSchedules() }
 }
 
 function getWeekStart(date) { const r = new Date(date); r.setDate(r.getDate() - r.getDay()); r.setHours(0,0,0,0); return r }
@@ -437,6 +479,7 @@ onBeforeUnmount(() => { document.removeEventListener('click', onDocClick) })
   flex-direction: column;
   gap: 18px;
 }
+
 
 .dashboard-body {
   flex: 1;
@@ -955,4 +998,98 @@ onBeforeUnmount(() => { document.removeEventListener('click', onDocClick) })
   .panel-calendar { width: 100%; min-width: 0; }
 }
 @media (max-width: 600px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } }
+</style>
+
+<style lang="scss">
+/* driver.js 引导弹窗 — 匹配晓聘设计 */
+.driver-popover {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  border-radius: 14px !important;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.05) !important;
+  padding: 22px 20px 18px !important;
+  min-width: 280px;
+  max-width: 360px;
+  background: #fff !important;
+
+  .driver-popover-title {
+    font-size: 15px;
+    font-weight: 650;
+    color: #0f172a;
+    margin-bottom: 6px;
+  }
+
+  .driver-popover-description {
+    font-size: 13px;
+    color: #64748b;
+    line-height: 1.6;
+    margin-bottom: 14px;
+  }
+
+  .driver-popover-progress-text {
+    font-size: 12px;
+    color: #94a3b8;
+  }
+
+  .driver-popover-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    button {
+      font-size: 13px;
+      font-weight: 500;
+      font-family: inherit;
+      border-radius: 8px;
+      padding: 7px 16px;
+      transition: all 0.2s;
+      border: 1px solid #e2e8f0;
+      background: #fff;
+      color: #475569;
+      cursor: pointer;
+
+      &:hover {
+        background: #f1f5f9;
+        border-color: #cbd5e1;
+      }
+    }
+  }
+
+  .driver-popover-next-btn {
+    background: #6366f1 !important;
+    border-color: #6366f1 !important;
+    color: #fff !important;
+
+    &:hover {
+      background: #4f46e5 !important;
+      border-color: #4f46e5 !important;
+    }
+  }
+
+  .driver-popover-close-btn {
+    font-size: 16px;
+    color: #94a3b8;
+    cursor: pointer;
+    border: none;
+    background: none;
+    position: absolute;
+    top: 12px;
+    right: 12px;
+
+    &:hover { color: #475569; }
+  }
+}
+
+/* 遮罩层 */
+.driver-overlay {
+  background: rgba(15, 23, 42, 0.6) !important;
+}
+
+/* 高亮元素 */
+.driver-active-element {
+  position: relative;
+  z-index: 10001 !important;
+  outline: 3px solid #6366f1 !important;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
 </style>
