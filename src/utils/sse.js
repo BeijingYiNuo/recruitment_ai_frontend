@@ -1,6 +1,6 @@
 import { fetchEventSource } from '@microsoft/fetch-event-source'
 
-const BASE_URL = 'http://localhost:8001/api'
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
 
 /**
  * 封装统一的 SSE 连接函数
