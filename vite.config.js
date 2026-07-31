@@ -1,6 +1,5 @@
 import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
-import basicSsl from '@vitejs/plugin-basic-ssl'
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
@@ -12,14 +11,13 @@ export default defineConfig(({ mode }) => {
   const targetApi = process.env.VITE_API_URL || env.VITE_API_URL || 'http://152.136.119.117:8001';
   // 报告生成服务地址（/doc2md/stream 和 /generate）
   const targetReportApi = process.env.VITE_REPORT_API_URL || env.VITE_REPORT_API_URL || 'http://152.136.119.117:8000';
-  
+
   console.log(`\n>>> [Vite Config] 当前后端接口地址: ${targetApi}`);
   console.log(`>>> [Vite Config] 报告生成服务地址: ${targetReportApi}\n`);
 
   return {
     plugins: [
       vue(),
-      basicSsl(),
     ],
     server: {
       // 端口跟随模式走

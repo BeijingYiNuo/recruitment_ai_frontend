@@ -1,9 +1,12 @@
 <template>
   <div class="container">
-    <h1>面试页面</h1>
-    
+    <div class="interview-header-row">
+      <h1>面试页面</h1>
+      <FeatureGuideBtn :steps="guideSteps" title="页面功能引导" label="引导" style="margin-left:auto" />
+    </div>
+
     <div class="user-id-display">用户ID: {{ sessionId }}</div>
-    
+
     <div class="control-section">
       <button id="createSessionBtn" class="btn btn-secondary" @click="createSession">创建会话</button>
       <button id="startAsrBtn" class="btn btn-primary" @click="startASR" :disabled="isAsrRunning">启动ASR</button>
@@ -37,9 +40,11 @@
 <script>
 import { interviewApi } from '../api/interview'
 import { createSSEConnection } from '../utils/sse'
+import FeatureGuideBtn from '../components/FeatureGuideBtn.vue'
 
 export default {
   name: 'InterviewView',
+  components: { FeatureGuideBtn },
   data() {
     return {
       sessionId: '',
@@ -66,7 +71,13 @@ export default {
         evaluation: null
       },
       followUpCount: 0,
-      evaluationCount: 0
+      evaluationCount: 0,
+      guideSteps: [
+        { element: '.control-section', popover: { title: '面试控制', description: '"创建会话"初始化面试连接；"启动ASR"开启 AI 语音识别，实时转写对话；"停止ASR"结束识别；"返回仪表盘"退出面试。启动前请确保已从面试管理页进入并携带正确的会话ID。', side: 'bottom', align: 'center' } },
+        { element: '#asrTextbox', popover: { title: '实时转写', description: '左侧大窗口实时显示 AI 语音识别的对话文本，支持逐字打字机效果呈现。面试中所有发言（面试官和候选人）都会在此展示。', side: 'right', align: 'start' } },
+        { element: '#followUpBox', popover: { title: '追问建议', description: 'AI 根据当前对话内容自动生成追问问题，帮助面试官深入挖掘候选人能力。每次新问题会自动追加序号。', side: 'left', align: 'start' } },
+        { element: '#evaluationBox', popover: { title: '实时评价', description: 'AI 在面试过程中持续分析候选人表现，自动生成阶段性评价建议，辅助面试官记录和决策。', side: 'left', align: 'start' } },
+      ],
     }
   },
   created() {
@@ -352,10 +363,18 @@ export default {
   padding: 20px;
 }
 
+.interview-header-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 20px;
+}
+.interview-header-row h1 {
+  margin-bottom: 0;
+  text-align: left;
+}
 h1 {
   text-align: center;
   color: #333;
-  margin-bottom: 20px;
 }
 
 .control-section {

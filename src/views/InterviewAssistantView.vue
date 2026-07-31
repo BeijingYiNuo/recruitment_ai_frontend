@@ -1,5 +1,9 @@
 <template>
   <div class="interview-assistant-page">
+    <div style="display:flex;align-items:center;padding:8px 20px;gap:8px;">
+      <span style="font-size:13px;color:#94a3b8;">AI 面试辅助分析</span>
+      <FeatureGuideBtn :steps="assistantGuideSteps" title="功能引导" label="引导" />
+    </div>
     <InterviewHeader
       :info="interviewInfo"
       :stageInfo="stageInfo"
@@ -72,12 +76,21 @@ import ResumePreviewPanel from '../components/interview/ResumePreviewPanel.vue'
 import FollowUpPanel from '../components/interview/FollowUpPanel.vue'
 import EvaluationPanel from '../components/interview/EvaluationPanel.vue'
 import InterviewQuestionsFloat from '../components/InterviewQuestionsFloat.vue'
+import FeatureGuideBtn from '../components/FeatureGuideBtn.vue'
 import { interviewApi } from '../api/interview'
 import { resumeApi } from '../api/resume'
 import { startMockAsr, type MockAsrHandle } from '../utils/mockAsrWs'
 
 const route = useRoute()
 const router = useRouter()
+
+const assistantGuideSteps = [
+  { element: '.left-column', popover: { title: '候选人简历', description: '左侧展示当前候选人的简历预览，方便面试过程中随时查阅教育背景、工作经历等关键信息。', side: 'right', align: 'start' } },
+  { element: '.center-column', popover: { title: '实时转写', description: '中间为对话转录面板，实时展示 ASR 语音识别结果。按发言人区分显示，支持查看历史对话片段。', side: 'top', align: 'start' } },
+  { element: '.right-column', popover: { title: 'AI 辅助', description: '右侧上方为 AI 生成的追问建议，下方为实时评价分析。面试过程中持续更新，辅助面试官做出更精准的判断。', side: 'left', align: 'start' } },
+  { element: '.stage-bar', popover: { title: '面试阶段', description: '面试分为 7 个阶段：开场介绍→自我介绍→项目深挖→技术理论→文化匹配→候选人提问→结束总结。点击圆点可跳转任意阶段，左侧箭头可逐一前进/后退。不同阶段 AI 提供针对性的辅助分析。', side: 'bottom', align: 'center' } },
+  { element: '.actions', popover: { title: '面试操作', description: '【开始面试】启动 AI 录音和分析；【系统音频】采集线上会议中候选人的声音；【暂停/恢复】临时中断或继续面试；【AI 分析】手动触发一次评估；【结束面试】后弹出结果选择（通过/不通过/待定）。', side: 'bottom', align: 'end' } },
+]
 const sessionId = route.params.sessionId as string
 const roundId = route.params.roundId as string
 const isAsrActive = ref(false)

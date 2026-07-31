@@ -1,152 +1,159 @@
 <template>
   <div class="dashboard-home">
-    <!-- ====== 顶部数据统计卡片 ====== -->
+    <!-- ====== 数据统计卡片 ====== -->
     <div class="stats-grid" v-loading="statsLoading" element-loading-text="加载统计数据...">
       <div
         v-for="card in STAT_CARDS"
         :key="card.key"
         class="stat-card"
-        :class="{ 'is-clickable': !!card.path }"
+        :class="[`stat-card--${card.key}`, { 'is-clickable': !!card.path }]"
         @click="card.path && router.push(card.path)"
       >
-        <el-tooltip :content="card.tooltip" placement="top" :show-after="400">
-          <div class="stat-card-body">
-            <div class="stat-icon" :class="'stat-icon--' + card.key">
-              <el-icon :size="22"><component :is="card.icon" /></el-icon>
-            </div>
-            <div class="stat-info">
-              <span class="stat-value">{{ stats[card.key] }}</span>
-              <span class="stat-label">{{ card.label }}</span>
+        <div class="stat-card-inner">
+          <div class="stat-card-left">
+            <div class="stat-icon-wrap">
+              <div class="stat-icon-bg"></div>
+              <el-icon :size="20"><component :is="card.icon" /></el-icon>
             </div>
           </div>
-        </el-tooltip>
+          <div class="stat-card-right">
+            <div class="stat-value-row">
+              <span class="stat-number">{{ stats[card.key] }}</span>
+              <span class="stat-trend-icon">
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 8l3-3 2 2 3-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </span>
+            </div>
+            <span class="stat-desc">{{ card.label }}</span>
+          </div>
+        </div>
+        <div class="stat-card-shine"></div>
       </div>
     </div>
 
-    <!-- ====== 主体区域：左侧日历 + 右侧日程 ====== -->
+    <!-- ====== 主体区域 ====== -->
     <div class="dashboard-body">
-      <!-- ===== 左侧迷你日历面板 ===== -->
-      <div class="left-calendar-panel">
-        <div class="mini-cal">
-          <!-- 标题 + 翻页 -->
-          <div class="mini-cal-header">
-            <span class="mini-cal-title">{{ miniCalTitle }}</span>
-            <div class="mini-cal-nav">
-              <button class="mini-cal-nav-btn" @click="prevMonth">‹</button>
-              <button class="mini-cal-nav-btn" @click="nextMonth">›</button>
-            </div>
+      <!-- ===== 左侧迷你日历 ===== -->
+      <div class="panel-calendar">
+        <div class="panel-calendar-header">
+          <span class="panel-calendar-title">{{ miniCalTitle }}</span>
+          <div class="panel-calendar-nav">
+            <button class="cal-nav-btn" @click="prevMonth">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9 3L5 7l4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <button class="cal-nav-btn" @click="nextMonth">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M5 3l4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
           </div>
-          <!-- 快捷切换 -->
-          <div class="mini-cal-quick">
-            <button class="mini-cal-qbtn" :class="{ active: quickActive === 'week' }" @click="goThisWeek">本周</button>
-            <button class="mini-cal-qbtn" :class="{ active: quickActive === 'month' }" @click="goThisMonth">本月</button>
-          </div>
-          <!-- 星期行 -->
-          <div class="mini-cal-weekdays">
-            <span v-for="w in MINI_WEEK_LABELS" :key="w">{{ w }}</span>
-          </div>
-          <!-- 日期网格 -->
-          <div class="mini-cal-grid">
-            <div
-              v-for="(cell, idx) in miniCalCells"
-              :key="idx"
-              class="mini-cal-cell"
-              :class="{
-                'is-other-month': cell.isOtherMonth,
-                'is-weekend': cell.isWeekend,
-                'is-today': cell.isToday,
-                'is-selected': cell.dateStr === selectedDate,
-                'is-in-month': !cell.isOtherMonth,
-              }"
-              @click="onMiniDateClick(cell)"
-            >
-              {{ cell.day }}
-              <span v-if="cell.hasEvent && !cell.isToday" class="event-dot"></span>
-            </div>
+        </div>
+
+        <div class="panel-calendar-quick">
+          <button :class="{ active: quickActive === 'week' }" @click="goThisWeek">本周</button>
+          <button :class="{ active: quickActive === 'month' }" @click="goThisMonth">本月</button>
+        </div>
+
+        <div class="panel-calendar-weekdays">
+          <span v-for="w in MINI_WEEK_LABELS" :key="w">{{ w }}</span>
+        </div>
+
+        <div class="panel-calendar-grid">
+          <div
+            v-for="(cell, idx) in miniCalCells"
+            :key="idx"
+            class="cal-cell"
+            :class="{
+              'is-dimmed': cell.isOtherMonth,
+              'is-weekend': cell.isWeekend,
+              'is-today': cell.isToday,
+              'is-selected': cell.dateStr === selectedDate,
+            }"
+            @click="onMiniDateClick(cell)"
+          >
+            <span class="cal-cell-num">{{ cell.day }}</span>
+            <span v-if="cell.hasEvent && !cell.isToday" class="cal-cell-dot"></span>
           </div>
         </div>
       </div>
 
-      <!-- ===== 右侧约见安排日程模块 ===== -->
-      <div class="right-schedule-panel">
-        <!-- 标题栏 -->
-        <div class="schedule-topbar">
-          <div class="schedule-topbar-left">
+      <!-- ===== 右侧日程面板 ===== -->
+      <div class="panel-schedule">
+        <div class="panel-schedule-top">
+          <div class="schedule-top-left">
             <h3 class="schedule-title">约见安排</h3>
-            <span class="schedule-hint">点击可跳转详情 · 右键可操作</span>
+            <span class="schedule-subtitle">点击可跳转详情 · 右键可操作</span>
           </div>
-          <el-button size="small" class="btn-new-interview" @click="handleNewInterview">
+          <el-button type="primary" size="small" class="btn-schedule-new" @click="handleNewInterview">
             <el-icon><Plus /></el-icon> 新建面试
           </el-button>
         </div>
 
-        <!-- 日期工具栏 -->
-        <div class="schedule-toolbar">
-          <div class="schedule-toolbar-left">
-            <button class="btn-today" @click="goToday">今天</button>
-            <button class="schedule-nav-btn" @click="prevWeek">‹</button>
-            <button class="schedule-nav-btn" @click="nextWeek">›</button>
-            <span class="schedule-week-title">{{ scheduleTitle }}</span>
-          </div>
+        <div class="panel-schedule-tools">
+          <button class="tool-btn tool-btn-today" @click="goToday">今天</button>
+          <button class="tool-btn tool-btn-nav" @click="prevWeek">‹</button>
+          <button class="tool-btn tool-btn-nav" @click="nextWeek">›</button>
+          <span class="tool-week-label">{{ scheduleTitle }}</span>
         </div>
 
-        <!-- 日程主体（时间轴 + 网格） -->
-        <div class="schedule-body">
-          <div class="schedule-scroll-wrap" ref="gridScrollRef" v-loading="calendarLoading">
-            <!-- 整体空态 -->
-            <div v-if="!calendarLoading && interviewList.length === 0" class="schedule-empty-all">
-              <el-empty description="暂无已预约面试安排" :image-size="80" />
+        <div class="panel-schedule-body">
+          <div class="schedule-scroll" ref="gridScrollRef" v-loading="calendarLoading">
+            <div v-if="!calendarLoading && interviewList.length === 0" class="schedule-empty">
+              <div class="empty-illustration">
+                <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+                  <rect x="8" y="12" width="48" height="42" rx="6" stroke="#cbd5e1" stroke-width="2"/>
+                  <line x1="8" y1="24" x2="56" y2="24" stroke="#cbd5e1" stroke-width="2"/>
+                  <line x1="20" y1="8" x2="20" y2="16" stroke="#cbd5e1" stroke-width="2" stroke-linecap="round"/>
+                  <line x1="44" y1="8" x2="44" y2="16" stroke="#cbd5e1" stroke-width="2" stroke-linecap="round"/>
+                  <circle cx="22" cy="33" r="2" fill="#94a3b8"/>
+                  <circle cx="32" cy="33" r="2" fill="#94a3b8"/>
+                  <circle cx="42" cy="33" r="2" fill="#94a3b8"/>
+                </svg>
+              </div>
+              <span class="empty-text">暂无已预约面试安排</span>
             </div>
             <div v-else class="schedule-grid">
-              <!-- 固定日期头（粘性顶部，随水平滚动，垂直固定） -->
-              <div class="schedule-header-sticky">
-                <div class="schedule-gutter-spacer"></div>
+              <div class="schedule-header">
+                <div class="schedule-gutter"></div>
                 <div
                   v-for="day in weekDays"
                   :key="day.dateStr"
-                  class="schedule-col-header"
+                  class="schedule-day-head"
                   :class="{ 'is-today': day.isToday }"
                 >
-                  <span class="sched-day-name">{{ day.name }}</span>
-                  <span class="sched-day-num">{{ day.number }}</span>
+                  <span class="day-name">{{ day.name }}</span>
+                  <span class="day-num">{{ day.number }}</span>
                 </div>
               </div>
-              <!-- 时间轴 + 列体 -->
               <div class="schedule-body-row" :style="{ height: totalGridHeight + 'px' }">
-                <div class="schedule-time-gutter">
+                <div class="schedule-time-axis">
                   <div
                     v-for="hour in visibleHours"
                     :key="hour"
-                    class="schedule-time-label"
+                    class="time-tick"
                     :style="{ top: (hour - startHour) * hourHeight + 'px' }"
-                  >
-                    {{ formatHour(hour) }}
-                  </div>
+                  >{{ formatHour(hour) }}</div>
                 </div>
                 <div class="schedule-columns">
                   <div
                     v-for="day in weekDays"
                     :key="day.dateStr"
-                    class="schedule-column"
+                    class="schedule-col"
                     :class="{ 'is-today': day.isToday, 'is-selected': day.dateStr === selectedDate }"
                   >
                     <div
                       v-for="hour in visibleHours"
                       :key="hour"
-                      class="schedule-hour-line"
+                      class="hour-line"
                       :style="{ top: (hour - startHour) * hourHeight + 'px' }"
                     ></div>
-
                     <div
                       v-for="evt in getEventsForDay(day.dateStr)"
                       :key="evt.id"
-                      class="schedule-event"
-                      :class="'status-' + (evt.status || 'scheduled')"
+                      class="event-chip"
+                      :class="'event--' + (evt.status || 'scheduled')"
                       :style="getEventStyle(evt)"
                       @click="handleEventClick(evt)"
                       @contextmenu.prevent="handleContextMenu($event, evt)"
                     >
-                      <div class="sched-ev-title">{{ evt.candidate_name || '未命名面试' }}</div>
+                      <span class="event-label">{{ evt.candidate_name || '未命名面试' }}</span>
                     </div>
                   </div>
                 </div>
@@ -157,7 +164,7 @@
       </div>
     </div>
 
-    <!-- ====== 右键菜单（teleport 到 body 避免裁剪） ====== -->
+    <!-- ====== 右键菜单 ====== -->
     <div
       v-if="contextMenuVisible"
       class="context-menu"
@@ -165,19 +172,19 @@
     >
       <div
         v-if="contextInterview?.status === 'scheduled' || contextInterview?.status === 'ongoing'"
-        class="context-menu-item context-menu-item-danger"
+        class="ctx-item ctx-item--danger"
         @click="handleContextAction('cancel')"
       >
         <el-icon><CircleClose /></el-icon><span>取消面试</span>
       </div>
       <div
         v-else-if="contextInterview?.status === 'cancelled'"
-        class="context-menu-item context-menu-item-success"
+        class="ctx-item ctx-item--success"
         @click="handleContextAction('restore')"
       >
         <el-icon><CircleCheck /></el-icon><span>恢复预约</span>
       </div>
-      <div class="context-menu-item" @click="handleContextAction('view-resume')">
+      <div class="ctx-item" @click="handleContextAction('view-resume')">
         <el-icon><Document /></el-icon><span>查看简历</span>
       </div>
     </div>
@@ -201,8 +208,6 @@ const router = useRouter()
 const interviewStore = useInterviewStore()
 
 // ============================================================
-//  常量 / 配置
-// ============================================================
 const STAT_CARDS = [
   { key: 'totalResumes',    label: '总体简历数',   icon: Document,       tooltip: '系统内所有简历的总数',              path: '/dashboard/cv' },
   { key: 'pendingReview',   label: '待审阅简历',   icon: Edit,           tooltip: '尚未进行审核的简历数量，请及时处理',  path: '/dashboard/resume-review' },
@@ -215,112 +220,62 @@ const STAT_CARDS = [
 const DAY_NAMES = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
 const MINI_WEEK_LABELS = ['日', '一', '二', '三', '四', '五', '六']
 
-// ============================================================
-//  时间网格常量
-// ============================================================
 const startHour = 8
 const endHour = 20
-const hourHeight = 60 // px
+const hourHeight = 60
 
-// ============================================================
-//  数据状态
-// ============================================================
 const statsLoading = ref(false)
 const calendarLoading = ref(false)
 const stats = reactive({
-  totalResumes: 0,
-  pendingReview: 0,
-  pendingInterview: 0,
-  pendingDecision: 0,
-  todayInterviews: 0,
-  totalPositions: 0,
+  totalResumes: 0, pendingReview: 0, pendingInterview: 0,
+  pendingDecision: 0, todayInterviews: 0, totalPositions: 0,
 })
-
 const interviewList = ref([])
 
-// ============================================================
-//  日历状态
-// ============================================================
 const miniCalYear = ref(new Date().getFullYear())
 const miniCalMonth = ref(new Date().getMonth())
 const selectedDate = ref(formatDateStr(new Date()))
 const currentWeekStart = ref(getWeekStart(new Date()))
-const quickActive = ref('') // 'week' | 'month' | ''
+const quickActive = ref('')
 
-// ============================================================
-//  右键菜单状态
-// ============================================================
 const contextMenuVisible = ref(false)
 const contextMenuX = ref(0)
 const contextMenuY = ref(0)
 const contextInterview = ref(null)
 
-// ============================================================
-//  refs
-// ============================================================
 const gridScrollRef = ref(null)
 
-// ============================================================
-//  计算属性
+
 // ============================================================
 const miniCalTitle = computed(() => `${miniCalYear.value}年${miniCalMonth.value + 1}月`)
 
 const miniCalCells = computed(() => {
-  const year = miniCalYear.value
-  const month = miniCalMonth.value
+  const year = miniCalYear.value, month = miniCalMonth.value
   const firstDay = new Date(year, month, 1)
   const startDow = firstDay.getDay()
   const daysInMonth = new Date(year, month + 1, 0).getDate()
   const prevMonthDays = new Date(year, month, 0).getDate()
   const todayStr = formatDateStr(new Date())
-  // 构建有面试安排的日期集合
   const eventDates = new Set()
   for (const evt of interviewList.value) {
-    if (evt?.scheduled_start_at) {
-      eventDates.add(evt.scheduled_start_at.slice(0, 10))
-    }
+    if (evt?.scheduled_start_at) eventDates.add(evt.scheduled_start_at.slice(0, 10))
   }
   const cells = []
-
-  // 上月填充
   for (let i = startDow - 1; i >= 0; i--) {
     const date = new Date(year, month - 1, prevMonthDays - i)
-    const dateStr = formatDateStr(date)
-    cells.push({
-      day: date.getDate(),
-      dateStr,
-      isOtherMonth: true,
-      isWeekend: [0, 6].includes(date.getDay()),
-      isToday: dateStr === todayStr,
-      hasEvent: eventDates.has(dateStr),
-    })
+    const ds = formatDateStr(date)
+    cells.push({ day: date.getDate(), dateStr: ds, isOtherMonth: true, isWeekend: [0,6].includes(date.getDay()), isToday: ds === todayStr, hasEvent: eventDates.has(ds) })
   }
-  // 本月
   for (let d = 1; d <= daysInMonth; d++) {
     const date = new Date(year, month, d)
-    const dateStr = formatDateStr(date)
-    cells.push({
-      day: d,
-      dateStr,
-      isOtherMonth: false,
-      isWeekend: [0, 6].includes(date.getDay()),
-      isToday: dateStr === todayStr,
-      hasEvent: eventDates.has(dateStr),
-    })
+    const ds = formatDateStr(date)
+    cells.push({ day: d, dateStr: ds, isOtherMonth: false, isWeekend: [0,6].includes(date.getDay()), isToday: ds === todayStr, hasEvent: eventDates.has(ds) })
   }
-  // 下月填充
   const remaining = 42 - cells.length
   for (let d = 1; d <= remaining; d++) {
     const date = new Date(year, month + 1, d)
-    const dateStr = formatDateStr(date)
-    cells.push({
-      day: d,
-      dateStr,
-      isOtherMonth: true,
-      isWeekend: [0, 6].includes(date.getDay()),
-      isToday: dateStr === todayStr,
-      hasEvent: eventDates.has(dateStr),
-    })
+    const ds = formatDateStr(date)
+    cells.push({ day: d, dateStr: ds, isOtherMonth: true, isWeekend: [0,6].includes(date.getDay()), isToday: ds === todayStr, hasEvent: eventDates.has(ds) })
   }
   return cells
 })
@@ -331,260 +286,99 @@ const weekDays = computed(() => {
   for (let i = 0; i < 7; i++) {
     const date = new Date(currentWeekStart.value)
     date.setDate(date.getDate() + i)
-    const dateStr = formatDateStr(date)
-    days.push({
-      date,
-      dateStr,
-      name: DAY_NAMES[date.getDay()],
-      number: date.getDate(),
-      isToday: dateStr === todayStr,
-    })
+    const ds = formatDateStr(date)
+    days.push({ date, dateStr: ds, name: DAY_NAMES[date.getDay()], number: date.getDate(), isToday: ds === todayStr })
   }
   return days
 })
 
-const visibleHours = computed(() => {
-  const hours = []
-  for (let h = startHour; h <= endHour; h++) hours.push(h)
-  return hours
-})
-
+const visibleHours = computed(() => { const h = []; for (let i = startHour; i <= endHour; i++) h.push(i); return h })
 const totalGridHeight = computed(() => (endHour - startHour) * hourHeight + 30)
-
 const scheduleTitle = computed(() => {
-  const start = currentWeekStart.value
-  const end = new Date(start)
-  end.setDate(end.getDate() + 6)
-  const sy = start.getFullYear()
-  const sm = start.getMonth() + 1
-  const ey = end.getFullYear()
-  const em = end.getMonth() + 1
+  const s = currentWeekStart.value, e = new Date(s); e.setDate(e.getDate() + 6)
+  const sy = s.getFullYear(), sm = s.getMonth()+1, ey = e.getFullYear(), em = e.getMonth()+1
   if (sy === ey && sm === em) return `${sy}年${sm}月`
   if (sy === ey) return `${sy}年${sm}月 - ${em}月`
   return `${sy}年${sm}月 - ${ey}年${em}月`
 })
 
 // ============================================================
-//  迷你日历操作
-// ============================================================
-function prevMonth() {
-  if (miniCalMonth.value === 0) { miniCalMonth.value = 11; miniCalYear.value-- }
-  else { miniCalMonth.value-- }
-  quickActive.value = ''
-}
+function prevMonth() { if (miniCalMonth.value === 0) { miniCalMonth.value = 11; miniCalYear.value-- } else miniCalMonth.value--; quickActive.value = '' }
+function nextMonth() { if (miniCalMonth.value === 11) { miniCalMonth.value = 0; miniCalYear.value++ } else miniCalMonth.value++; quickActive.value = '' }
+function onMiniDateClick(cell) { quickActive.value = ''; selectedDate.value = cell.dateStr; const [y,m,d] = cell.dateStr.split('-').map(Number); currentWeekStart.value = getWeekStart(new Date(y,m-1,d)); scrollToSelectedDate() }
+function goThisWeek() { quickActive.value = 'week'; const t = new Date(); miniCalYear.value = t.getFullYear(); miniCalMonth.value = t.getMonth(); currentWeekStart.value = getWeekStart(t); selectedDate.value = formatDateStr(t); scrollToSelectedDate() }
+function goThisMonth() { quickActive.value = 'month'; const t = new Date(); miniCalYear.value = t.getFullYear(); miniCalMonth.value = t.getMonth(); currentWeekStart.value = getWeekStart(t); selectedDate.value = formatDateStr(t); scrollToSelectedDate() }
 
-function nextMonth() {
-  if (miniCalMonth.value === 11) { miniCalMonth.value = 0; miniCalYear.value++ }
-  else { miniCalMonth.value++ }
-  quickActive.value = ''
-}
-
-function onMiniDateClick(cell) {
-  quickActive.value = ''
-  selectedDate.value = cell.dateStr
-  const [y, m, d] = cell.dateStr.split('-').map(Number)
-  currentWeekStart.value = getWeekStart(new Date(y, m - 1, d))
-  scrollToSelectedDate()
-}
-
-function goThisWeek() {
-  quickActive.value = 'week'
-  const today = new Date()
-  miniCalYear.value = today.getFullYear()
-  miniCalMonth.value = today.getMonth()
-  currentWeekStart.value = getWeekStart(today)
-  selectedDate.value = formatDateStr(today)
-  scrollToSelectedDate()
-}
-
-function goThisMonth() {
-  quickActive.value = 'month'
-  const today = new Date()
-  miniCalYear.value = today.getFullYear()
-  miniCalMonth.value = today.getMonth()
-  currentWeekStart.value = getWeekStart(today)
-  selectedDate.value = formatDateStr(today)
-  scrollToSelectedDate()
-}
-
-// 根据周变化同步迷你日历月份
 watch(currentWeekStart, (val) => {
-  if (quickActive.value) return // 快捷按钮状态下不自动切换
-  const middle = new Date(val)
-  middle.setDate(middle.getDate() + 3)
-  miniCalYear.value = middle.getFullYear()
-  miniCalMonth.value = middle.getMonth()
+  if (quickActive.value) return
+  const mid = new Date(val); mid.setDate(mid.getDate() + 3)
+  miniCalYear.value = mid.getFullYear(); miniCalMonth.value = mid.getMonth()
 })
 
-// ============================================================
-//  日程操作
-// ============================================================
-function goToday() {
-  quickActive.value = ''
-  const today = new Date()
-  currentWeekStart.value = getWeekStart(today)
-  selectedDate.value = formatDateStr(today)
-  scrollToSelectedDate()
-}
-
-function prevWeek() {
-  const date = new Date(currentWeekStart.value)
-  date.setDate(date.getDate() - 7)
-  currentWeekStart.value = date
-  quickActive.value = ''
-  scrollToSelectedDate()
-}
-
-function nextWeek() {
-  const date = new Date(currentWeekStart.value)
-  date.setDate(date.getDate() + 7)
-  currentWeekStart.value = date
-  quickActive.value = ''
-  scrollToSelectedDate()
-}
+function goToday() { quickActive.value = ''; const t = new Date(); currentWeekStart.value = getWeekStart(t); selectedDate.value = formatDateStr(t); scrollToSelectedDate() }
+function prevWeek() { const d = new Date(currentWeekStart.value); d.setDate(d.getDate() - 7); currentWeekStart.value = d; quickActive.value = ''; scrollToSelectedDate() }
+function nextWeek() { const d = new Date(currentWeekStart.value); d.setDate(d.getDate() + 7); currentWeekStart.value = d; quickActive.value = ''; scrollToSelectedDate() }
 
 function scrollToSelectedDate() {
   nextTick(() => {
     if (!gridScrollRef.value) return
-    const cols = gridScrollRef.value.querySelectorAll('.schedule-column')
+    const cols = gridScrollRef.value.querySelectorAll('.schedule-col')
     const idx = weekDays.value.findIndex(d => d.dateStr === selectedDate.value)
-    if (idx >= 0 && cols[idx]) {
-      cols[idx].scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
-    }
+    if (idx >= 0 && cols[idx]) cols[idx].scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
   })
 }
 
-function handleNewInterview() {
-  router.push('/dashboard/interview-manage')
-}
+function handleNewInterview() { router.push('/dashboard/interview-manage') }
 
-// ============================================================
-//  面试事件渲染（时间轴布局）
-// ============================================================
 function getMinuteOfDay(dateStr) {
   if (!dateStr) return 0
   const d = new Date(dateStr.replace('T', ' '))
   return d.getHours() * 60 + d.getMinutes()
 }
 
-/**
- * 为一天内的事件分配列布局，解决重叠事件文字堆叠问题
- * 使用贪心算法：按开始时间排序，依次分配到第一个可用列
- */
 function assignEventLayout(events) {
-  if (events.length <= 1) {
-    return events.map(evt => ({ ...evt, _col: 0, _totalCols: 1 }))
-  }
-
-  const sorted = events
-    .map(evt => ({
-      ...evt,
-      _startMin: getMinuteOfDay(evt.scheduled_start_at),
-      _endMin: getMinuteOfDay(evt.scheduled_end_at),
-    }))
-    .sort((a, b) => a._startMin - b._startMin || a._endMin - b._endMin)
-
-  const columns = []
+  if (events.length <= 1) return events.map(e => ({ ...e, _col: 0, _totalCols: 1 }))
+  const sorted = events.map(e => ({ ...e, _startMin: getMinuteOfDay(e.scheduled_start_at), _endMin: getMinuteOfDay(e.scheduled_end_at) })).sort((a,b) => a._startMin - b._startMin || a._endMin - b._endMin)
+  const cols = []
   for (const evt of sorted) {
     let placed = false
-    for (let c = 0; c < columns.length; c++) {
-      if (evt._startMin >= columns[c]) {
-        columns[c] = evt._endMin
-        evt._col = c
-        placed = true
-        break
-      }
-    }
-    if (!placed) {
-      evt._col = columns.length
-      columns.push(evt._endMin)
-    }
+    for (let c = 0; c < cols.length; c++) { if (evt._startMin >= cols[c]) { cols[c] = evt._endMin; evt._col = c; placed = true; break } }
+    if (!placed) { evt._col = cols.length; cols.push(evt._endMin) }
   }
-
-  const totalCols = columns.length
-  for (const evt of sorted) {
-    evt._totalCols = totalCols
-  }
-
+  const total = cols.length
+  for (const e of sorted) e._totalCols = total
   return sorted
 }
 
 function getEventStyle(evt) {
-  const startMin = getMinuteOfDay(evt.scheduled_start_at)
-  const endMin = getMinuteOfDay(evt.scheduled_end_at)
-  const topPx = ((startMin - startHour * 60) / 60) * hourHeight
-  const rawHeight = Math.max(((endMin - startMin) / 60) * hourHeight, 22)
-  const height = rawHeight - 2
-
-  evt._height = height
-
-  const col = evt._col || 0
-  const totalCols = evt._totalCols || 1
-  const colWidth = (100 - 2) / totalCols
-  const left = col * colWidth + 1
-  const width = colWidth - 1
-
-  return {
-    top: `${topPx}px`,
-    height: `${height}px`,
-    left: `${left}%`,
-    width: `${width}%`,
-  }
+  const sm = getMinuteOfDay(evt.scheduled_start_at), em = getMinuteOfDay(evt.scheduled_end_at)
+  const top = ((sm - startHour * 60) / 60) * hourHeight
+  const h = Math.max(((em - sm) / 60) * hourHeight, 22) - 2
+  evt._height = h
+  const col = evt._col || 0, total = evt._totalCols || 1, cw = (100 - 2) / total
+  return { top: `${top}px`, height: `${h}px`, left: `${col * cw + 1}%`, width: `${cw - 1}%` }
 }
 
-function formatHour(hour) {
-  return `${String(hour).padStart(2, '0')}:00`
-}
+function formatHour(h) { return `${String(h).padStart(2, '0')}:00` }
+function getEventsForDay(ds) { return assignEventLayout(interviewList.value.filter(e => e?.scheduled_start_at?.slice(0,10) === ds)) }
+function handleEventClick(evt) { closeContextMenu(); router.push('/dashboard/interview-manage?highlight=' + evt.id) }
 
-function getEventsForDay(dateStr) {
-  const events = interviewList.value.filter(
-    evt => evt?.scheduled_start_at?.slice(0, 10) === dateStr
-  )
-  return assignEventLayout(events)
-}
-
-function handleEventClick(evt) {
-  closeContextMenu()
-  router.push('/dashboard/interview-manage?highlight=' + evt.id)
-}
-
-// ============================================================
-//  右键菜单
-// ============================================================
-function handleContextMenu(event, interview) {
-  contextMenuX.value = event.clientX
-  contextMenuY.value = event.clientY
-  contextInterview.value = interview
-  contextMenuVisible.value = true
-}
-
-function closeContextMenu() {
-  contextMenuVisible.value = false
-  contextInterview.value = null
-}
-
-function onDocClick() {
-  closeContextMenu()
-}
+function handleContextMenu(e, interview) { contextMenuX.value = e.clientX; contextMenuY.value = e.clientY; contextInterview.value = interview; contextMenuVisible.value = true }
+function closeContextMenu() { contextMenuVisible.value = false; contextInterview.value = null }
+function onDocClick() { closeContextMenu() }
 
 async function handleContextAction(action) {
-  const interview = contextInterview.value
-  if (!interview) return
-  closeContextMenu()
-
+  const iv = contextInterview.value; if (!iv) return; closeContextMenu()
   switch (action) {
     case 'cancel':
-      if (interview.status === 'cancelled') {
-        ElMessage.info('该面试已取消')
-        return
-      }
+      if (iv.status === 'cancelled') { ElMessage.info('该面试已取消'); return }
       try {
         await ElMessageBox.confirm(
-          `确定要取消「${interview.candidate_name}」的面试安排吗？`,
+          `确定要取消「${iv.candidate_name}」的面试安排吗？`,
           '取消面试确认',
           { confirmButtonText: '确定取消', cancelButtonText: '暂不', type: 'warning' }
         )
-        await interviewApi.updateReserveSession(interview.id, { status: 'cancelled' })
+        await interviewApi.updateReserveSession(iv.id, { status: 'cancelled' })
         ElMessage.success('已取消面试安排')
         interviewStore.invalidateSessionCache()
         fetchInterviewSchedules()
@@ -598,11 +392,11 @@ async function handleContextAction(action) {
     case 'restore':
       try {
         await ElMessageBox.confirm(
-          `确定要将「${interview.candidate_name}」恢复为已预约状态吗？`,
+          `确定要将「${iv.candidate_name}」恢复为已预约状态吗？`,
           '恢复预约确认',
           { confirmButtonText: '确定恢复', cancelButtonText: '暂不', type: 'info' }
         )
-        await interviewApi.updateReserveSession(interview.id, { status: 'scheduled' })
+        await interviewApi.updateReserveSession(iv.id, { status: 'scheduled' })
         ElMessage.success('已恢复预约')
         interviewStore.invalidateSessionCache()
         fetchInterviewSchedules()
@@ -613,10 +407,43 @@ async function handleContextAction(action) {
         }
       }
       break
-    case 'view-resume':
-      router.push('/dashboard/cv?highlight=' + interview.id)
-      break
+    case 'view-resume': router.push('/dashboard/cv?highlight=' + iv.id); break
   }
+}
+
+// ============================================================
+//  示例数据（Mock模式）
+// ============================================================
+const isMockMode = import.meta.env.VITE_MOCK_MODE === 'true'
+
+function generateSampleSchedules() {
+  const now = new Date()
+  const weekStart = getWeekStart(now)
+  const samples = []
+  const names = ['张伟', '李娜', '王芳', '陈明', '刘洋', '赵敏', '周磊', '吴昊']
+  const statuses = ['scheduled', 'scheduled', 'ongoing', 'completed', 'completed', 'cancelled']
+  for (let i = 0; i < 7; i++) {
+    const day = new Date(weekStart); day.setDate(day.getDate() + i)
+    const dayStr = formatDateStr(day)
+    const count = dayStr === formatDateStr(now) ? 3 : (i > 0 && i < 6 ? 1 + (i % 2) : 0)
+    for (let j = 0; j < count; j++) {
+      const h = 9 + j * 2 + (i % 3)
+      samples.push({
+        id: 100 + i * 10 + j,
+        candidate_name: names[(i + j) % names.length],
+        scheduled_start_at: `${dayStr}T${String(h).padStart(2,'0')}:00:00`,
+        scheduled_end_at: `${dayStr}T${String(h + 1).padStart(2,'0')}:00:00`,
+        status: statuses[(i + j) % statuses.length],
+      })
+    }
+  }
+  return samples
+}
+
+function loadSampleData() {
+  stats.totalResumes = 156; stats.pendingReview = 23; stats.pendingInterview = 8
+  stats.pendingDecision = 5; stats.todayInterviews = 3; stats.totalPositions = 12
+  interviewList.value = generateSampleSchedules()
 }
 
 // ============================================================
@@ -632,113 +459,61 @@ async function fetchStats() {
     ])
     const allList = Array.isArray(resumesResult) ? resumesResult : (resumesResult?.items || [])
     const sessionList = Array.isArray(sessions) ? sessions : (sessions?.items || [])
-
     stats.totalResumes = allList.length
     stats.pendingReview = allList.filter(r => !r.review_status || r.review_status === '').length
     stats.pendingDecision = allList.filter(r => r.review_status === 'PENDING').length
-
     const now = new Date()
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    const todayEnd = new Date(todayStart.getTime() + 86400000)
-
-    let pendingInterview = 0
-    let todayCount = 0
+    const ts = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const te = new Date(ts.getTime() + 86400000)
+    let pi = 0, tc = 0
     for (const s of sessionList) {
-      if (s.status === 'scheduled') {
-        pendingInterview++
-        const st = new Date(s.scheduled_start_at?.replace('T', ' ') || s.scheduled_start_at)
-        if (st >= todayStart && st < todayEnd) todayCount++
-      }
+      if (s.status === 'scheduled') { pi++; const st = new Date(s.scheduled_start_at?.replace('T',' ')||s.scheduled_start_at); if (st>=ts && st<te) tc++ }
     }
-    stats.pendingInterview = pendingInterview
-    stats.todayInterviews = todayCount
+    stats.pendingInterview = pi; stats.todayInterviews = tc
     stats.totalPositions = Array.isArray(positions) ? positions.length : (positions?.total || 0)
-  } catch (e) {
-    console.error('Failed to fetch stats:', e)
-  } finally {
+  } catch (e) { console.error('Failed to fetch stats:', e) } finally {
     statsLoading.value = false
+    if (isMockMode && stats.totalResumes === 0 && stats.totalPositions === 0) loadSampleData()
   }
 }
 
 async function fetchInterviewSchedules() {
   calendarLoading.value = true
-  try {
-    const data = await interviewApi.getUserInterviewSessions({})
-    interviewList.value = Array.isArray(data) ? data : (data.items || [])
-  } catch (error) {
-    console.error('Failed to fetch schedules:', error)
-  } finally {
-    calendarLoading.value = false
-  }
+  try { const data = await interviewApi.getUserInterviewSessions({}); interviewList.value = Array.isArray(data) ? data : (data.items || []) } catch (e) { console.error('Failed to fetch schedules:', e) } finally { calendarLoading.value = false; if (isMockMode && interviewList.value.length === 0) interviewList.value = generateSampleSchedules() }
 }
 
-// ============================================================
-//  工具函数
-// ============================================================
-function getWeekStart(date) {
-  const result = new Date(date)
-  const day = result.getDay()
-  result.setDate(result.getDate() - day)
-  result.setHours(0, 0, 0, 0)
-  return result
-}
+function getWeekStart(date) { const r = new Date(date); r.setDate(r.getDate() - r.getDay()); r.setHours(0,0,0,0); return r }
+function formatDateStr(date) { const y=date.getFullYear(), m=String(date.getMonth()+1).padStart(2,'0'), d=String(date.getDate()).padStart(2,'0'); return `${y}-${m}-${d}` }
 
-function formatDateStr(date) {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
-}
-
-// ============================================================
-//  生命周期
-// ============================================================
 onMounted(async () => {
   await Promise.all([fetchStats(), fetchInterviewSchedules()])
   document.addEventListener('click', onDocClick)
   scrollToSelectedDate()
 })
-
-onBeforeUnmount(() => {
-  document.removeEventListener('click', onDocClick)
-})
+onBeforeUnmount(() => { document.removeEventListener('click', onDocClick) })
 </script>
 
 <style scoped lang="scss">
-// ============================================================
-//  Variables
-// ============================================================
-$primary: #3370ff;
-$primary-hover: #2458d9;
-$text-main: #1f2329;
-$text-secondary: #646a73;
-$text-tertiary: #8f959e;
-$border: #dee0e3;
-$bg-body: #f5f6f7;
-$radius: 12px;
-
-// ============================================================
-//  Layout
-// ============================================================
 .dashboard-home {
   max-width: 1400px;
-  height: calc(100vh - 100px);
+  height: calc(100vh - 104px);
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 18px;
 }
+
 
 .dashboard-body {
   flex: 1;
   min-height: 0;
   display: flex;
-  gap: 16px;
+  gap: 18px;
   overflow: hidden;
 }
 
-// ============================================================
-//  数据统计卡片
-// ============================================================
+/* ============================================================
+   STAT CARDS
+   ============================================================ */
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
@@ -747,612 +522,596 @@ $radius: 12px;
 }
 
 .stat-card {
-  background: #fff;
-  border-radius: $radius;
-  border: 1px solid $border;
-  display: flex;
-  flex-direction: column;
-  padding: 18px 20px 14px;
-  box-shadow: 0 1px 4px rgba(31, 35, 41, 0.04);
-  transition: box-shadow 0.25s, background-color 0.25s, transform 0.2s;
-  min-height: 100px;
+  position: relative;
+  background: var(--color-bg-card);
+  border-radius: 14px;
+  border: 1px solid var(--color-border-default);
+  padding: 18px 18px 16px;
+  cursor: default;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
 
-  &.is-clickable {
-    cursor: pointer;
-  }
+  &.is-clickable { cursor: pointer; }
 
   &:hover {
-    background-color: #f9fafb;
-    box-shadow: 0 4px 16px rgba(31, 35, 41, 0.08);
-    transform: translateY(-1px);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-card-hover);
+    border-color: var(--color-border-strong);
+    .stat-card-shine { opacity: 1; }
   }
 }
 
-.stat-card-body {
+.stat-card-shine {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: linear-gradient(135deg, transparent 40%, rgba(255,255,255,0.15) 50%, transparent 60%);
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+}
+
+.stat-card-inner {
   display: flex;
   align-items: flex-start;
   gap: 14px;
+  position: relative;
+  z-index: 1;
 }
 
-.stat-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 10px;
+.stat-icon-wrap {
+  position: relative;
+  width: 42px; height: 42px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
 
-  &.stat-icon--totalResumes     { background: #eef2fe; color: $primary; }
-  &.stat-icon--pendingReview    { background: #fff4e5; color: #ff8800; }
-  &.stat-icon--pendingInterview { background: #e4f7eb; color: #13a248; }
-  &.stat-icon--pendingDecision  { background: #fce8e6; color: #f53f3f; }
-  &.stat-icon--todayInterviews  { background: #f0f4ff; color: $primary; }
-  &.stat-icon--totalPositions   { background: #f3e8ff; color: #9333ea; }
+  .stat-icon-bg {
+    position: absolute; inset: 0;
+    border-radius: 12px; opacity: 0.12;
+  }
 }
 
-.stat-info {
-  flex: 1;
+.stat-card--totalResumes     .stat-icon-wrap { color: #818cf8; .stat-icon-bg { background: #818cf8; } }
+.stat-card--pendingReview    .stat-icon-wrap { color: #fbbf24; .stat-icon-bg { background: #fbbf24; } }
+.stat-card--pendingInterview .stat-icon-wrap { color: #34d399; .stat-icon-bg { background: #34d399; } }
+.stat-card--pendingDecision  .stat-icon-wrap { color: #f87171; .stat-icon-bg { background: #f87171; } }
+.stat-card--todayInterviews  .stat-icon-wrap { color: #60a5fa; .stat-icon-bg { background: #60a5fa; } }
+.stat-card--totalPositions   .stat-icon-wrap { color: #a78bfa; .stat-icon-bg { background: #a78bfa; } }
+
+.stat-card-right { flex: 1; min-width: 0; }
+
+.stat-value-row {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: baseline;
+  gap: 6px;
 }
 
-.stat-value {
-  font-size: 26px;
+.stat-number {
+  font-size: 28px;
   font-weight: 700;
-  color: $text-main;
-  line-height: 1.2;
+  color: var(--color-text-main);
+  line-height: 1.1;
+  letter-spacing: -0.5px;
+  font-variant-numeric: tabular-nums;
 }
 
-.stat-label {
-  font-size: 13px;
-  color: $text-tertiary;
+.stat-trend-icon {
+  color: var(--color-success-green);
+  display: flex;
+  opacity: 0.45;
 }
 
-// ============================================================
-//  左侧迷你日历面板
-// ============================================================
-.left-calendar-panel {
-  width: 235px;
-  min-width: 235px;
-  background: #fff;
-  border-radius: $radius;
-  border: 1px solid $border;
-  padding: 20px 16px;
+.stat-desc {
+  font-size: 12.5px;
+  color: var(--color-text-tertiary);
+  margin-top: 3px;
+  display: block;
+  font-weight: 450;
+}
+
+/* ============================================================
+   CALENDAR PANEL
+   ============================================================ */
+.panel-calendar {
+  width: 240px; min-width: 240px;
+  background: var(--color-bg-card);
+  border-radius: 14px;
+  border: 1px solid var(--color-border-default);
+  padding: 20px 16px 16px;
+  box-shadow: var(--shadow-card);
   flex-shrink: 0;
-  overflow: hidden;
-  box-sizing: border-box;
+  display: flex; flex-direction: column;
 }
 
-.mini-cal-header {
+.panel-calendar-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 
-.mini-cal-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: $text-main;
+.panel-calendar-title {
+  font-size: 14.5px;
+  font-weight: 650;
+  color: var(--color-text-main);
 }
 
-.mini-cal-nav {
-  display: flex;
-  gap: 2px;
-}
+.panel-calendar-nav { display: flex; gap: 2px; }
 
-.mini-cal-nav-btn {
-  width: 22px;
-  height: 22px;
+.cal-nav-btn {
+  width: 26px; height: 26px;
   display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  background: transparent;
-  border-radius: 4px;
+  align-items: center; justify-content: center;
+  border: none; background: transparent;
+  border-radius: 6px;
   cursor: pointer;
-  font-size: 15px;
-  color: $text-secondary;
+  color: var(--color-text-tertiary);
   transition: all 0.15s;
+  &:hover { background: var(--color-bg-hover); color: var(--color-text-main); }
+}
 
-  &:hover {
-    background: #f0f1f5;
-    color: $primary;
+.panel-calendar-quick {
+  display: flex; gap: 6px;
+  margin-bottom: 12px;
+
+  button {
+    flex: 1; height: 28px;
+    border-radius: 7px;
+    border: 1px solid var(--color-border-default);
+    background: var(--color-bg-card);
+    font-size: 12px; font-weight: 500;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: all 0.15s;
+    &:hover { border-color: var(--color-primary-blue); color: var(--color-primary-blue); }
+    &.active { background: var(--color-primary-blue); border-color: var(--color-primary-blue); color: #fff; }
   }
 }
 
-// 快捷按钮
-.mini-cal-quick {
-  display: flex;
-  gap: 6px;
-  margin-bottom: 10px;
-}
-
-.mini-cal-qbtn {
-  flex: 1;
-  height: 26px;
-  border-radius: 4px;
-  border: 1px solid $border;
-  background: #fff;
-  font-size: 12px;
-  color: $text-secondary;
-  cursor: pointer;
-  transition: all 0.15s;
-
-  &:hover {
-    border-color: $primary;
-    color: $primary;
-  }
-
-  &.active {
-    background: $primary;
-    border-color: $primary;
-    color: #fff;
-  }
-}
-
-.mini-cal-weekdays {
+.panel-calendar-weekdays {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   text-align: center;
-  margin-bottom: 2px;
-
+  margin-bottom: 4px;
   span {
-    font-size: 12px;
-    color: $text-tertiary;
-    height: 24px;
-    line-height: 24px;
+    font-size: 11.5px;
+    color: var(--color-text-tertiary);
+    height: 26px; line-height: 26px;
   }
 }
 
-.mini-cal-grid {
+.panel-calendar-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
+  flex: 1;
 }
 
-.mini-cal-cell {
-  height: 26px;
-  line-height: 26px;
+.cal-cell {
+  height: 28px; line-height: 28px;
   text-align: center;
   font-size: 13px;
-  border-radius: 4px;
+  border-radius: 50%;
   cursor: pointer;
   transition: all 0.12s;
-  color: $text-main;
+  color: var(--color-text-main);
   position: relative;
+  font-variant-numeric: tabular-nums;
 
-  &:hover {
-    background: #f0f1f5;
-  }
+  &:hover { background: var(--color-bg-hover); }
 
-  &.is-other-month {
-    color: #c0c4cc;
-  }
+  &.is-dimmed { color: var(--color-text-tertiary); opacity: 0.5; }
+  &.is-weekend:not(.is-dimmed) { color: var(--color-text-tertiary); }
 
-  &.is-weekend:not(.is-other-month) {
-    color: #a8abb3;
-  }
-
-  // 今日蓝色圆点
   &.is-today {
-    font-weight: 600;
-    color: $primary;
-
+    font-weight: 650;
+    color: var(--color-primary-blue);
     &::after {
       content: '';
       position: absolute;
-      bottom: 1px;
-      left: 50%;
+      bottom: 2px; left: 50%;
       transform: translateX(-50%);
-      width: 4px;
-      height: 4px;
+      width: 4px; height: 4px;
       border-radius: 50%;
-      background: $primary;
+      background: var(--color-primary-blue);
     }
   }
 
   &.is-selected {
-    background: $primary;
+    background: var(--color-primary-blue);
     color: #fff;
-    font-weight: 600;
-    border-radius: 50%;
-
+    font-weight: 650;
     &::after { display: none; }
-    &:hover { background: $primary-hover; }
+    &:hover { background: var(--color-primary-blue-hover); }
   }
 }
 
-// 面试安排标记点（橙色圆点，不被今天蓝点覆盖）
-.event-dot {
+.cal-cell-num { position: relative; z-index: 1; }
+
+.cal-cell-dot {
   position: absolute;
-  bottom: 2px;
-  left: 50%;
+  bottom: 2px; left: 50%;
   transform: translateX(-50%);
-  width: 4px;
-  height: 4px;
+  width: 4px; height: 4px;
   border-radius: 50%;
-  background: #ff8800;
+  background: var(--color-warning-yellow);
   z-index: 1;
 }
 
-// ============================================================
-//  右侧日程面板
-// ============================================================
-.right-schedule-panel {
-  flex: 1;
-  min-width: 0;
-  background: #fff;
-  border-radius: $radius;
-  border: 1px solid $border;
-  display: flex;
-  flex-direction: column;
+/* ============================================================
+   SCHEDULE PANEL
+   ============================================================ */
+.panel-schedule {
+  flex: 1; min-width: 0;
+  background: var(--color-bg-card);
+  border-radius: 14px;
+  border: 1px solid var(--color-border-default);
+  display: flex; flex-direction: column;
   overflow: hidden;
+  box-shadow: var(--shadow-card);
 }
 
-// ---- 标题栏 ----
-.schedule-topbar {
+.panel-schedule-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 20px 10px;
-  border-bottom: 1px solid $border;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--color-border-default);
   flex-shrink: 0;
 }
 
-.schedule-topbar-left {
+.schedule-top-left {
   display: flex;
   align-items: baseline;
-  gap: 14px;
+  gap: 12px;
 }
 
 .schedule-title {
   margin: 0;
-  font-size: 17px;
-  font-weight: 700;
-  color: $text-main;
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--color-text-main);
 }
 
-.schedule-hint {
+.schedule-subtitle {
   font-size: 12px;
-  color: $text-tertiary;
+  color: var(--color-text-tertiary);
 }
 
-.btn-new-interview {
-  font-size: 12px;
+.btn-schedule-new {
+  border-radius: 8px !important;
+  font-weight: 500 !important;
+  font-size: 12.5px !important;
+  background: var(--color-primary-blue) !important;
+  border-color: var(--color-primary-blue) !important;
+  &:hover {
+    background: var(--color-primary-blue-hover) !important;
+    border-color: var(--color-primary-blue-hover) !important;
+  }
 }
 
-// ---- 日期工具栏 ----
-.schedule-toolbar {
-  padding: 8px 20px 6px;
-  flex-shrink: 0;
-}
-
-.schedule-toolbar-left {
+.panel-schedule-tools {
+  padding: 8px 20px 8px;
   display: flex;
   align-items: center;
   gap: 4px;
+  flex-shrink: 0;
 }
 
-.btn-today {
-  height: 28px;
-  padding: 0 14px;
-  border-radius: 6px;
-  border: 1px solid $primary;
-  background: $primary;
-  color: #fff;
-  font-size: 12px;
-  font-weight: 500;
+.tool-btn {
+  border: none;
   cursor: pointer;
   transition: all 0.15s;
-  margin-right: 6px;
+  font-size: 12.5px;
+  color: var(--color-text-secondary);
 
-  &:hover {
-    background: $primary-hover;
-    border-color: $primary-hover;
+  &-today {
+    height: 28px;
+    padding: 0 14px;
+    border-radius: 7px;
+    background: var(--color-primary-blue);
+    color: #fff;
+    font-weight: 500;
+    margin-right: 8px;
+    &:hover { background: var(--color-primary-blue-hover); }
+  }
+
+  &-nav {
+    width: 28px; height: 28px;
+    display: inline-flex;
+    align-items: center; justify-content: center;
+    border-radius: 7px;
+    border: 1px solid var(--color-border-default);
+    background: var(--color-bg-card);
+    color: var(--color-text-secondary);
+    font-size: 15px;
+    &:hover { border-color: var(--color-primary-blue); color: var(--color-primary-blue); }
   }
 }
 
-.schedule-nav-btn {
-  width: 26px;
-  height: 26px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid $border;
-  background: #fff;
-  border-radius: 6px;
-  cursor: pointer;
+.tool-week-label {
   font-size: 14px;
-  color: $text-secondary;
-  transition: all 0.15s;
-
-  &:hover {
-    border-color: $primary;
-    color: $primary;
-  }
-}
-
-.schedule-week-title {
-  font-size: 15px;
-  font-weight: 700;
-  color: $text-main;
+  font-weight: 650;
+  color: var(--color-text-main);
   margin-left: 12px;
 }
 
-// ---- 日程主体 ----
-.schedule-body {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
+/* --- Schedule Body --- */
+.panel-schedule-body {
+  flex: 1; min-height: 0;
+  display: flex; flex-direction: column;
 }
 
-// ---- 滚动容器 ----
-.schedule-scroll-wrap {
-  flex: 1;
-  min-height: 0;
+.schedule-scroll {
+  flex: 1; min-height: 0;
   overflow: auto;
-
   &::-webkit-scrollbar { width: 5px; height: 5px; }
   &::-webkit-scrollbar-track { background: transparent; }
   &::-webkit-scrollbar-thumb {
-    background: rgba(144, 147, 153, 0.2);
-    border-radius: 3px;
-    &:hover { background: rgba(144, 147, 153, 0.4); }
+    background: rgba(148,163,184,0.25);
+    border-radius: 4px;
+    &:hover { background: rgba(148,163,184,0.4); }
   }
 }
 
-// ---- 时间轴网格 ----
+.schedule-empty {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  height: 380px; gap: 12px;
+}
+
+.empty-illustration { opacity: 0.4; }
+.empty-text { font-size: 13px; color: var(--color-text-tertiary); }
+
 .schedule-grid {
-  display: flex;
-  flex-direction: column;
+  display: flex; flex-direction: column;
   min-width: min-content;
-  position: relative;
 }
 
-// 粘性日期头
-.schedule-header-sticky {
+.schedule-header {
   display: flex;
-  position: sticky;
-  top: 0;
+  position: sticky; top: 0;
   z-index: 10;
-  background: #fff;
+  background: var(--color-bg-card);
   flex-shrink: 0;
-  border-bottom: 1px solid $border;
+  border-bottom: 1px solid var(--color-border-default);
 }
 
-.schedule-gutter-spacer {
-  width: 48px;
-  flex-shrink: 0;
-}
+.schedule-gutter { width: 50px; flex-shrink: 0; }
 
-.schedule-col-header {
+.schedule-day-head {
   flex: 1;
-  min-width: 150px;
-  max-width: 220px;
-  display: flex;
-  flex-direction: column;
+  min-width: 130px; max-width: 200px;
+  display: flex; flex-direction: column;
   align-items: center;
-  padding: 8px 0 10px;
+  padding: 10px 0 10px;
   gap: 2px;
 
-  .sched-day-name {
-    font-size: 12px;
-    color: $text-tertiary;
-  }
-
-  .sched-day-num {
-    font-size: 18px;
-    font-weight: 500;
-    width: 30px;
-    height: 30px;
-    line-height: 30px;
-    text-align: center;
+  .day-name { font-size: 11.5px; color: var(--color-text-tertiary); }
+  .day-num {
+    font-size: 16px; font-weight: 550;
+    width: 28px; height: 28px;
+    line-height: 28px; text-align: center;
     border-radius: 50%;
-    color: $text-main;
+    color: var(--color-text-main);
   }
 
   &.is-today {
-    .sched-day-name { color: $primary; font-weight: 500; }
-    .sched-day-num { background: $primary; color: #fff; font-weight: 600; }
+    .day-name { color: var(--color-primary-blue); font-weight: 550; }
+    .day-num { background: var(--color-primary-blue); color: #fff; font-weight: 650; }
   }
 }
 
-// 主体行（时间 gutter + 列）
-.schedule-body-row {
-  display: flex;
-  position: relative;
+.schedule-body-row { display: flex; position: relative; }
+
+.schedule-time-axis {
+  position: sticky; left: 0; z-index: 5;
+  width: 50px; flex-shrink: 0;
+  background: var(--color-bg-card);
 }
 
-// 时间轴刻度
-.schedule-time-gutter {
-  position: sticky;
-  left: 0;
-  z-index: 5;
-  width: 48px;
-  flex-shrink: 0;
-  background: #fff;
-}
-
-.schedule-time-label {
+.time-tick {
   position: absolute;
-  left: 0;
-  right: 4px;
+  left: 0; right: 6px;
   text-align: right;
   font-size: 11px;
-  color: $text-tertiary;
+  color: var(--color-text-tertiary);
   transform: translateY(-50%);
   line-height: 1;
   pointer-events: none;
 }
 
-// 列容器
-.schedule-columns {
-  display: flex;
-  flex: 1;
-}
+.schedule-columns { display: flex; flex: 1; }
 
-.schedule-column {
+.schedule-col {
   flex: 1;
-  min-width: 150px;
-  max-width: 220px;
+  min-width: 130px; max-width: 200px;
   position: relative;
-  border-left: 1px solid #eef0f3;
-
-  &:last-child { border-right: 1px solid #eef0f3; }
-
-  &.is-today {
-    background: rgba(51, 112, 255, 0.04);
-  }
-
-  &.is-selected {
-    background: rgba(51, 112, 255, 0.06);
-  }
+  border-left: 1px solid var(--color-border-subtle);
+  &:last-child { border-right: 1px solid var(--color-border-subtle); }
+  &.is-today { background: rgba(99,102,241,0.04); }
+  &.is-selected { background: rgba(99,102,241,0.07); }
 }
 
-// 整点刻度线
-.schedule-hour-line {
+.hour-line {
   position: absolute;
-  left: 0;
-  right: 0;
+  left: 0; right: 0;
   height: 1px;
-  background: #f0f1f5;
+  background: var(--color-border-subtle);
   pointer-events: none;
 }
 
-// 每列的最后一根刻度线不显示（与底边重复）
-.schedule-column .schedule-hour-line:last-child {
-  display: none;
-}
-
-// ---- 面试事件卡片 ----
-.schedule-event {
+/* --- Event Chips --- */
+.event-chip {
   position: absolute;
   border-radius: 6px;
-  padding: 4px 6px;
+  padding: 3px 8px;
   cursor: pointer;
-  font-size: 12px;
-  line-height: 1.4;
-  box-shadow: 0 0.5px 2px rgba(0, 0, 0, 0.08);
+  font-size: 11.5px; font-weight: 550;
+  line-height: 1.5;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
   transition: box-shadow 0.2s, transform 0.15s;
   border-left: 3px solid transparent;
   overflow: hidden;
   z-index: 3;
 
   &:hover {
-    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.13);
+    box-shadow: 0 4px 14px rgba(0,0,0,0.15);
     transform: translateY(-1px);
     z-index: 4;
   }
 
-  // 状态配色
-  &.status-scheduled,
-  &.status-pending {
-    background: #fff4e5;
-    border-left-color: #ff8800;
-    color: #b85c00;
-  }
-
-  &.status-ongoing {
-    background: #e1ecfe;
-    border-left-color: $primary;
-    color: #1a56db;
-  }
-
-  &.status-completed,
-  &.status-passed {
-    background: #e8fff0;
-    border-left-color: #00b42a;
-    color: #007d24;
-  }
-
-  &.status-cancelled,
-  &.status-failed {
-    background: #fce8e6;
-    border-left-color: #f53f3f;
-    color: #b82727;
-  }
-
-  &.status-expired {
-    background: #f0f1f5;
-    border-left-color: #8f959e;
-    color: #8f959e;
-  }
+  &.event--scheduled,
+  &.event--pending { background: rgba(251,191,36,0.2); border-left-color: #fbbf24; color: #fbbf24; }
+  &.event--ongoing { background: rgba(129,140,248,0.2); border-left-color: #818cf8; color: #a5b4fc; }
+  &.event--completed,
+  &.event--passed { background: rgba(52,211,153,0.2); border-left-color: #34d399; color: #34d399; }
+  &.event--cancelled,
+  &.event--failed { background: rgba(248,113,113,0.2); border-left-color: #f87171; color: #f87171; }
+  &.event--expired { background: var(--color-bg-hover); border-left-color: var(--color-text-tertiary); color: var(--color-text-tertiary); }
 }
 
-.sched-ev-title {
-  font-weight: 600;
+.event-label {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  display: block;
 }
 
-// 整体空态
-.schedule-empty-all {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 400px;
-}
-
-// ============================================================
-//  右键菜单
-// ============================================================
+/* ============================================================
+   CONTEXT MENU
+   ============================================================ */
 .context-menu {
   position: fixed;
   z-index: 9999;
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-  padding: 4px 0;
-  min-width: 130px;
-  border: 1px solid $border;
+  background: var(--color-bg-card);
+  border-radius: 10px;
+  box-shadow: var(--shadow-dropdown);
+  border: 1px solid var(--color-border-default);
+  padding: 4px;
+  min-width: 140px;
 }
 
-.context-menu-item {
+.ctx-item {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 16px;
+  padding: 8px 12px;
   font-size: 13px;
-  color: $text-main;
+  color: var(--color-text-main);
   cursor: pointer;
+  border-radius: 7px;
   transition: background 0.12s;
 
-  .el-icon { font-size: 15px; color: $text-secondary; }
-
-  &:hover { background: #f5f6f8; }
-
-  &.context-menu-item-danger .el-icon { color: #f53f3f; }
-  &.context-menu-item-success .el-icon { color: #13a248; }
+  .el-icon { font-size: 15px; color: var(--color-text-secondary); }
+  &:hover { background: var(--color-bg-hover); }
+  &--danger .el-icon { color: var(--color-error-red); }
+  &--success .el-icon { color: var(--color-success-green); }
 }
 
-// ============================================================
-//  响应式
-// ============================================================
-@media (max-width: 1200px) {
-  .stats-grid { grid-template-columns: repeat(3, 1fr); }
-}
-
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width: 1200px) { .stats-grid { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 900px) {
-  .dashboard-body {
-    flex-direction: column;
+  .dashboard-body { flex-direction: column; }
+  .panel-calendar { width: 100%; min-width: 0; }
+}
+@media (max-width: 600px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } }
+</style>
+
+<style lang="scss">
+/* driver.js 引导弹窗 — 匹配晓聘设计 */
+.driver-popover {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  border-radius: 14px !important;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.05) !important;
+  padding: 22px 20px 18px !important;
+  min-width: 280px;
+  max-width: 360px;
+  background: #fff !important;
+
+  .driver-popover-title {
+    font-size: 15px;
+    font-weight: 650;
+    color: #0f172a;
+    margin-bottom: 6px;
   }
-  .left-calendar-panel {
-    width: 100%;
-    min-width: 0;
+
+  .driver-popover-description {
+    font-size: 13px;
+    color: #64748b;
+    line-height: 1.6;
+    margin-bottom: 14px;
   }
-  .mini-cal-grid {
-    max-width: 350px;
-    margin: 0 auto;
+
+  .driver-popover-progress-text {
+    font-size: 12px;
+    color: #94a3b8;
+  }
+
+  .driver-popover-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    button {
+      font-size: 13px;
+      font-weight: 500;
+      font-family: inherit;
+      border-radius: 8px;
+      padding: 7px 16px;
+      transition: all 0.2s;
+      border: 1px solid #e2e8f0;
+      background: #fff;
+      color: #475569;
+      cursor: pointer;
+
+      &:hover {
+        background: #f1f5f9;
+        border-color: #cbd5e1;
+      }
+    }
+  }
+
+  .driver-popover-next-btn {
+    background: #6366f1 !important;
+    border-color: #6366f1 !important;
+    color: #fff !important;
+
+    &:hover {
+      background: #4f46e5 !important;
+      border-color: #4f46e5 !important;
+    }
+  }
+
+  .driver-popover-close-btn {
+    font-size: 16px;
+    color: #94a3b8;
+    cursor: pointer;
+    border: none;
+    background: none;
+    position: absolute;
+    top: 12px;
+    right: 12px;
+
+    &:hover { color: #475569; }
   }
 }
 
-@media (max-width: 600px) {
-  .stats-grid { grid-template-columns: repeat(2, 1fr); }
-  .schedule-topbar-left { flex-direction: column; gap: 4px; }
-  .schedule-hint { display: none; }
+/* 遮罩层 */
+.driver-overlay {
+  background: rgba(15, 23, 42, 0.6) !important;
+}
+
+/* 高亮元素 */
+.driver-active-element {
+  position: relative;
+  z-index: 10001 !important;
+  outline: 3px solid #6366f1 !important;
+  outline-offset: 2px;
+  border-radius: 6px;
 }
 </style>
