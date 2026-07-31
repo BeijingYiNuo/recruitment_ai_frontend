@@ -59,15 +59,19 @@
             </div>
           </div>
           <div class="card-actions">
+            <el-tooltip v-if="pos.is_locked" content="该岗位已有面试开始，配置已锁定" placement="top">
+              <el-tag size="small" type="warning" effect="plain" style="margin-right: 6px;">已锁定</el-tag>
+            </el-tooltip>
             <el-button size="small" @click="openRoundsDialog(pos)">面试流程</el-button>
-            <el-button size="small" @click="openEditDialog(pos)">编辑</el-button>
+            <el-button size="small" :disabled="pos.is_locked" @click="openEditDialog(pos)">编辑</el-button>
             <el-popconfirm
               title="确认删除此岗位？"
               confirm-button-text="删除"
               @confirm="handleDelete(pos)"
+              :disabled="pos.is_locked"
             >
               <template #reference>
-                <el-button size="small" type="danger" plain>删除</el-button>
+                <el-button size="small" type="danger" plain :disabled="pos.is_locked">删除</el-button>
               </template>
             </el-popconfirm>
           </div>
@@ -143,12 +147,20 @@
       top="5vh"
     >
       <div class="rounds-header">
-        <el-button size="small" type="primary" @click="openAddRoundDialog">
+        <el-button size="small" type="primary" :disabled="roundsDialog.isLocked" @click="openAddRoundDialog">
           <el-icon><Plus /></el-icon>
           新增面试轮次
         </el-button>
         <span class="rounds-hint">共 {{ rounds.length }} 轮面试</span>
       </div>
+      <el-alert
+        v-if="roundsDialog.isLocked"
+        title="该岗位已有面试开始，面试流程已锁定，不可修改（含轮次AI面试属性）"
+        type="warning"
+        show-icon
+        :closable="false"
+        style="margin-bottom: 12px;"
+      />
 
       <!-- 可视化流程图 -->
       <div class="flow-canvas" v-loading="roundsDialog.loading">
@@ -191,7 +203,7 @@
                       {{ round.duration_minutes }} 分钟
                     </span>
                     <el-tag
-                      v-if="round.mode === 2"
+                      v-if="round.round_type === 'AI_INTERVIEW'"
                       size="small"
                       type="primary"
                       effect="dark"
@@ -207,12 +219,12 @@
                   </div>
                   <div class="node-actions">
                     <el-tooltip content="编辑" placement="top">
-                      <el-button size="small" circle @click="openEditRoundDialog(round)">
+                      <el-button size="small" circle :disabled="roundsDialog.isLocked" @click="openEditRoundDialog(round)">
                         <el-icon><Edit /></el-icon>
                       </el-button>
                     </el-tooltip>
                     <el-tooltip content="删除" placement="top">
-                      <el-button size="small" circle type="danger" plain @click="handleDeleteRound(round)">
+                      <el-button size="small" circle type="danger" plain :disabled="roundsDialog.isLocked" @click="handleDeleteRound(round)">
                         <el-icon><Delete /></el-icon>
                       </el-button>
                     </el-tooltip>
@@ -270,6 +282,7 @@
             <el-option label="行为面" value="BEHAVIORAL" />
             <el-option label="笔试" value="WRITTEN" />
             <el-option label="群面" value="GROUP" />
+            <el-option label="AI面试" value="AI_INTERVIEW" />
           </el-select>
         </el-form-item>
         <el-form-item label="面试时长">
@@ -284,13 +297,17 @@
             placeholder="该轮面试的主要内容/考察点"
           />
         </el-form-item>
-        <el-form-item label="面试模式">
-          <el-radio-group v-model="roundForm.mode">
-            <el-radio :value="1">辅助面试</el-radio>
-            <el-radio :value="2">AI 自动面试</el-radio>
-          </el-radio-group>
+        <el-form-item label="AI面试音色" v-if="roundForm.round_type === 'AI_INTERVIEW'">
+          <el-select v-model="roundForm.ai_speaker" style="width: 100%">
+            <el-option
+              v-for="opt in aiSpeakerOptions"
+              :key="opt.value"
+              :label="opt.label"
+              :value="opt.value"
+            />
+          </el-select>
           <div style="font-size: 12px; color: #909399; margin-top: 4px;">
-            辅助面试：真人面试官主导，AI 提供实时分析建议；AI 自动面试：AI 面试官全自动进行
+            仅 AI 自动面试可用，默认跟随系统音色；确认火山男声（稳重）音色 id 后可在此补充选项
           </div>
         </el-form-item>
       </el-form>
@@ -345,6 +362,7 @@ const roundsDialog = reactive({
   loading: false,
   positionName: '',
   positionId: null,
+  isLocked: false,
 })
 
 // 轮次名称枚举：一面 ~ 十面
@@ -353,6 +371,12 @@ const roundNameOptions = Array.from({ length: 10 }, (_, i) => {
   return `${chineseNum[i]}面`
 })
 
+// AI 面试音色选项：默认跟随系统音色；确认火山男声（稳重）音色 id 后在此补充，
+// 例如 { label: '男声·稳重', value: 'zh_male_xxx_bigtts' }
+const aiSpeakerOptions = [
+  { label: '默认音色（跟随系统）', value: '' },
+]
+
 // 轮次表单
 const roundFormRef = ref(null)
 const roundForm = reactive({
@@ -360,7 +384,7 @@ const roundForm = reactive({
   round_type: 'TECHNICAL',
   duration_minutes: 30,
   description: '',
-  mode: 1,
+  ai_speaker: '',
 })
 const roundFormRules = {
   round_name: [
@@ -489,6 +513,7 @@ const handleDelete = async (pos) => {
 const openRoundsDialog = async (pos) => {
   roundsDialog.positionId = pos.id
   roundsDialog.positionName = pos.name
+  roundsDialog.isLocked = !!pos.is_locked
   roundsDialog.visible = true
   await loadRounds()
 }
@@ -518,6 +543,7 @@ const roundTypeLabel = (type) => {
     BEHAVIORAL: '行为面',
     WRITTEN: '笔试',
     GROUP: '群面',
+    AI_INTERVIEW: 'AI面试',
   }
   return map[type] || type
 }
@@ -530,6 +556,7 @@ const roundTypeTag = (type) => {
     BEHAVIORAL: '',
     WRITTEN: 'info',
     GROUP: 'danger',
+    AI_INTERVIEW: 'primary',
   }
   return map[type] || ''
 }
@@ -541,7 +568,7 @@ const openAddRoundDialog = () => {
   roundForm.round_type = 'TECHNICAL'
   roundForm.duration_minutes = 30
   roundForm.description = ''
-  roundForm.mode = 1
+  roundForm.ai_speaker = ''
   roundFormDialog.visible = true
 }
 
@@ -552,7 +579,7 @@ const openEditRoundDialog = (round) => {
   roundForm.round_type = round.round_type
   roundForm.duration_minutes = round.duration_minutes
   roundForm.description = round.description || ''
-  roundForm.mode = round.mode ?? 1
+  roundForm.ai_speaker = round.ai_speaker || ''
   roundFormDialog.visible = true
 }
 
@@ -568,7 +595,7 @@ const handleSaveRound = async () => {
         round_type: roundForm.round_type,
         duration_minutes: roundForm.duration_minutes,
         description: roundForm.description || null,
-        mode: roundForm.mode,
+        ai_speaker: roundForm.ai_speaker || null,
       })
       ElMessage.success('轮次更新成功')
     } else {
@@ -577,7 +604,7 @@ const handleSaveRound = async () => {
         round_type: roundForm.round_type,
         duration_minutes: roundForm.duration_minutes,
         description: roundForm.description || null,
-        mode: roundForm.mode,
+        ai_speaker: roundForm.ai_speaker || null,
       })
       ElMessage.success('轮次添加成功')
     }
@@ -808,6 +835,9 @@ const handleDeleteRound = async (round) => {
     }
     &.dot-group {
       background: linear-gradient(135deg, #e74c3c, #ec7063);
+    }
+    &.dot-ai_interview {
+      background: linear-gradient(135deg, #673ab7, #9575cd);
     }
   }
 

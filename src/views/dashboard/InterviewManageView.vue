@@ -307,6 +307,37 @@
       </template>
     </el-dialog>
 
+    <!-- AI 面试链接弹窗 -->
+    <el-dialog v-model="linkDialogVisible" title="AI 面试链接" width="520px" class="lark-dialog" :close-on-click-modal="false">
+      <div style="padding: 10px 0;">
+        <div style="margin-bottom: 16px;">
+          <p style="font-size: 14px; color: #1f2329; margin: 0 0 8px;">
+            请将以下面试链接发送给候选人，候选人打开链接即可开始 AI 面试：
+          </p>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <el-input
+            :model-value="interviewLink"
+            readonly
+            style="flex: 1;"
+          >
+            <template #prepend>链接</template>
+          </el-input>
+          <el-button type="primary" @click="copyInterviewLink">
+            {{ linkCopied ? '已复制' : '复制链接' }}
+          </el-button>
+        </div>
+        <div style="margin-top: 12px; font-size: 12px; color: #8f959e;">
+          <p style="margin: 0;">• 链接有效期为 48 小时</p>
+          <p style="margin: 4px 0 0;">• 候选人无需登录即可参加面试</p>
+          <p style="margin: 4px 0 0;">• 请确保候选人环境麦克风可用</p>
+        </div>
+      </div>
+      <template #footer>
+        <el-button type="primary" @click="linkDialogVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 简历预览弹窗 -->
     <el-dialog v-model="previewDialogVisible" title="简历预览" width="800px" class="lark-dialog">
       <div v-loading="previewLoading" style="min-height: 400px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
@@ -553,7 +584,8 @@ const roundTypeLabel = (type) => {
     'MANAGER': '主管面',
     'BEHAVIORAL': '行为面',
     'WRITTEN': '笔试',
-    'GROUP': '群面'
+    'GROUP': '群面',
+    'AI_INTERVIEW': 'AI面试'
   }
   return map[type] || type
 }
@@ -561,6 +593,7 @@ const roundTypeLabel = (type) => {
 const roundStatusLabel = (status) => {
   const map = {
     'pending': '待面试',
+    'evaluating': '评估中',
     'pass': '通过',
     'fail': '未通过',
     'pending_review': '待定',
@@ -572,6 +605,8 @@ const roundStatusLabel = (status) => {
 
 // 单节点流程：节点颜色按计划状态显示，多节点则显示轮次实际状态
 const roundDisplayStatus = (session, round) => {
+  // "评估中"是 AI 面试结束后的真实轮次状态，优先展示（单轮次会话按会话状态映射会丢失）
+  if (round.status === 'evaluating') return 'evaluating'
   const rounds = roundsMap[session.id]
   if (rounds && rounds.length === 1) {
     const map = {
@@ -1084,6 +1119,26 @@ const handleViewDetail = async (id) => {
   }
 }
 
+// AI 面试链接
+const linkDialogVisible = ref(false)
+const interviewLink = ref('')
+const linkCopied = ref(false)
+const linkLoading = ref(false)
+
+const copyInterviewLink = async () => {
+  try {
+    await navigator.clipboard.writeText(window.location.origin + interviewLink.value)
+    linkCopied.value = true
+    setTimeout(() => { linkCopied.value = false }, 2000)
+  } catch {
+    // Clipboard API 不可用时保留复制失败状态，避免调用已弃用的 execCommand。
+    const input = document.querySelector('.el-dialog .el-input__inner')
+    if (input) {
+      input.select()
+    }
+  }
+}
+
 // 简历预览
 const previewDialogVisible = ref(false)
 const previewLoading = ref(false)
@@ -1238,6 +1293,22 @@ const handleStartInterview = async (item) => {
   const firstStartable = getFirstStartableRound(item.id)
   if (!firstStartable) {
     ElMessage.warning('无可开始的轮次，请确认前置轮次均已通过')
+    return
+  }
+
+  // AI 面试类型 → 生成链接，不跳转到面试助理页面
+  if (firstStartable.round_type === 'AI_INTERVIEW') {
+    linkLoading.value = true
+    try {
+      const res = await interviewApi.createInterviewLink(item.id, firstStartable.round_id)
+      interviewLink.value = res.link
+      linkDialogVisible.value = true
+      linkCopied.value = false
+    } catch (e) {
+      ElMessage.error('生成 AI 面试链接失败: ' + (e?.detail || e?.message || '未知错误'))
+    } finally {
+      linkLoading.value = false
+    }
     return
   }
 

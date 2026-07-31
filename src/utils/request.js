@@ -15,7 +15,8 @@ const request = axios.create({
 request.interceptors.request.use(
   config => {
     const token = localStorage.getItem('token')
-    if (token) {
+    // 调用方显式传入了 Authorization（如候选人 JWT）时不覆盖
+    if (token && !config.headers.Authorization) {
       config.headers.Authorization = `Bearer ${token}`
     }
     return config

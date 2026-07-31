@@ -117,11 +117,13 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { getCurrentUser } from '../services/authService'
 import authService from '../services/authService'
 import { authApi } from '../api/auth'
+import { useNotify } from '../composables/useNotify'
+import { createSSEConnection } from '../utils/sse'
 import {
   House, Document, ChatLineRound, ArrowDown, DocumentCopy, Folder, Notebook, Select, Setting, User
 } from '@element-plus/icons-vue'
@@ -130,7 +132,33 @@ const router = useRouter()
 const route = useRoute()
 const currentUser = ref(getCurrentUser() || { id: 1, username: '管理员' })
 
+const { notifySuccess } = useNotify()
+let reportSse = null
+
+// 监听报告生成完成事件（SSE），面试报告就绪时统一弹窗提示
+function startReportNotifications() {
+  if (!getCurrentUser()) return
+  reportSse = createSSEConnection('/notifications/stream', {
+    onmessage(ev) {
+      try {
+        const data = JSON.parse(ev.data)
+        if (data.type !== 'report_ready') return
+        const candidate = data.candidate_name || ''
+        const round = data.round_name || ''
+        const kind = data.source === 'ai' ? 'AI面试' : '面试'
+        const desc = round
+          ? `${candidate}的${round}${kind}报告已生成`
+          : `${candidate}的${kind}报告已生成`
+        notifySuccess('面试报告已生成', desc)
+      } catch (e) {
+        console.error('报告通知解析失败:', e)
+      }
+    }
+  })
+}
+
 onMounted(async () => {
+  startReportNotifications()
   if (currentUser.value?.id) {
     try {
       const res = await authApi.getUserProfile(currentUser.value.id)
@@ -143,6 +171,10 @@ onMounted(async () => {
       console.error('Failed to fetch user profile:', e)
     }
   }
+})
+
+onUnmounted(() => {
+  if (reportSse) reportSse.abort()
 })
 
 // 记录知识库最后所处的完整路径（如详情页）

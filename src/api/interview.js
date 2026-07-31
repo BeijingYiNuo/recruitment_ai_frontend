@@ -69,4 +69,60 @@ export const interviewApi = {
 
   // 更新面试报告内容
   updateReport: (reportId, data) => request.put(`/interviews/reports/${reportId}`, data),
+
+  // ====== AI 面试链接 ======
+
+  // 创建 AI 面试候选人链接
+  createInterviewLink: (sessionId, roundId) => request.post(`/interview/link/create/${sessionId}/${roundId}`),
+
+  // 获取候选人面试信息
+  getCandidateInterviewInfo: (token) => request.get(`/candidate/interview/info/${token}`),
+
+  // 候选人确认参加面试
+  candidateJoinInterview: (token) => request.post(`/candidate/interview/join/${token}`),
+
+  // ====== AI 面试实时链路 ======
+
+  // 开始 AI 面试（创建/复用 runtime session）
+  aiInterviewStart: (sessionId, candidateToken) => request.post(
+    `/ai-interview/${sessionId}/start`,
+    {},
+    { headers: { Authorization: `Bearer ${candidateToken}` } }
+  ),
+
+  // 获取 runtime session 状态
+  aiInterviewStatus: (runtimeSessionId, candidateToken) => request.get(
+    `/ai-interview/${runtimeSessionId}/status`,
+    { headers: { Authorization: `Bearer ${candidateToken}` } }
+  ),
+
+  // 获取已持久化消息（刷新恢复历史）
+  aiInterviewMessages: (runtimeSessionId, afterSeq, candidateToken) => request.get(
+    `/ai-interview/${runtimeSessionId}/messages`,
+    {
+      params: { after_seq: afterSeq || 0 },
+      headers: { Authorization: `Bearer ${candidateToken}` },
+    }
+  ),
+
+  // 结束 AI 面试（兜底关闭连接并落库）
+  aiInterviewEnd: (runtimeSessionId, candidateToken) => request.post(
+    `/ai-interview/${runtimeSessionId}/end`,
+    {},
+    { headers: { Authorization: `Bearer ${candidateToken}` } }
+  ),
+
+  // 暂停 AI 面试（应用层：停麦克风 + 停播放）
+  aiInterviewPause: (runtimeSessionId, candidateToken) => request.post(
+    `/ai-interview/${runtimeSessionId}/pause`,
+    {},
+    { headers: { Authorization: `Bearer ${candidateToken}` } }
+  ),
+
+  // 恢复 AI 面试
+  aiInterviewResume: (runtimeSessionId, candidateToken) => request.post(
+    `/ai-interview/${runtimeSessionId}/resume`,
+    {},
+    { headers: { Authorization: `Bearer ${candidateToken}` } }
+  ),
 }

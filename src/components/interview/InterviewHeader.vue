@@ -86,20 +86,11 @@
         <span v-if="manualAnalysisLoading" class="loading-spinner"></span>
         AI 分析
       </el-button>
-      <TtsControl
-        :enabled="ttsEnabled"
-        :speaking="ttsSpeaking"
-        :volume="ttsVolume"
-        @toggle="$emit('toggleTts')"
-        @volumeChange="$emit('ttsVolumeChange', $event)"
-      />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import TtsControl from './TtsControl.vue'
-
 type InterviewStatus = {
   status: string
   statusColor: string
@@ -128,17 +119,12 @@ const props = defineProps<{
   meetingMode?: boolean
   isSysAudioActive?: boolean
   manualAnalysisLoading?: boolean
-  ttsEnabled?: boolean
-  ttsSpeaking?: boolean
-  ttsVolume?: number
 }>()
 
 defineEmits<{
   (e: 'update:meetingMode', val: boolean): void
   (e: 'stageChange', stageKey: string): void
   (e: 'toggleSysAudio'): void
-  (e: 'toggleTts'): void
-  (e: 'ttsVolumeChange', vol: number): void
 }>()
 </script>
 

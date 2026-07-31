@@ -141,6 +141,12 @@ const routes = [
     path: '/paid-service-agreement',
     name: 'paidServiceAgreement',
     component: () => import('../views/PaidServiceAgreementView.vue')
+  },
+  {
+    path: '/interview/candidate/:token',
+    name: 'candidateInterview',
+    component: () => import('../views/candidate/CandidateInterviewView.vue'),
+    meta: { requiresAuth: false }
   }
 ]
 
