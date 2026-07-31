@@ -8,7 +8,7 @@ export default defineConfig(({ mode }) => {
 
   // 这里的逻辑：优先级为 命令行变量 > .env 文件变量 > 默认值
   const targetPort = parseInt(env.VITE_PORT) || 5173;
-  const targetApi = process.env.VITE_API_URL || env.VITE_API_URL || 'http://152.136.119.117:8001';
+  const targetApi = process.env.VITE_API_URL || env.VITE_API_URL || 'http://localhost:8001';
   // 报告生成服务地址（/doc2md/stream 和 /generate）
   const targetReportApi = process.env.VITE_REPORT_API_URL || env.VITE_REPORT_API_URL || 'http://152.136.119.117:8000';
 
