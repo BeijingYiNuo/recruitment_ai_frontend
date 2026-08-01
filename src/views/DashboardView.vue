@@ -4,15 +4,11 @@
     <el-aside width="240px" class="sidebar">
       <div class="sidebar-brand">
         <div class="brand-icon">
-          <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect width="32" height="32" rx="8" fill="url(#g)"/>
-            <path d="M10 22V12l6 8 6-8v10" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-            <defs><linearGradient id="g" x1="0" y1="0" x2="32" y2="32"><stop stop-color="#6366f1"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs>
-          </svg>
+          <img src="../assets/logo-icon.png" class="brand-logo-img" alt="一诺" />
         </div>
         <div class="brand-text">
           <span class="brand-name">YinuoAI</span>
-          <span class="brand-sub">招聘系统</span>
+          <span class="brand-sub">一诺晓聘</span>
         </div>
       </div>
 
@@ -53,14 +49,11 @@
           :active-text-color="isDark ? '#e2e8f0' : '#4f46e5'"
           @select="handleMenuSelect"
         >
-          <el-menu-item index="/dashboard/users">
-            <el-icon><User /></el-icon>
-            <span>用户管理</span>
-          </el-menu-item>
-          <el-menu-item :index="lastKnowledgePath">
+          <!-- 知识库管理已隐藏 -->
+          <!-- <el-menu-item :index="lastKnowledgePath">
             <el-icon><DocumentCopy /></el-icon>
             <span>知识库管理</span>
-          </el-menu-item>
+          </el-menu-item> -->
           <el-menu-item index="/dashboard/file-manager">
             <el-icon><Folder /></el-icon>
             <span>文件管理</span>
@@ -304,10 +297,6 @@ const guideSteps = {
     { element: '.col-action', popover: { title: '操作按钮', description: '每行右侧提供：启动 ASR（开启 AI 语音识别辅助面试）、查看面试报告（面试完成后查看 AI 评估）、编辑面试信息、删除面试。', side: 'left', align: 'start' } },
     { element: '.col-check', popover: { title: '批量操作', description: '勾选多行后，顶部出现"已选择 N 项"工具栏，可批量删除。结合搜索和状态筛选，快速定位目标面试。', side: 'right', align: 'start' } },
   ],
-  '/dashboard/users': [
-    { element: '.el-table', popover: { title: '用户列表', description: '系统所有用户账号在此展示，包括管理员、面试官、HR 等角色。', side: 'bottom', align: 'start' } },
-    { popover: { title: '用户管理', description: '可添加新用户、编辑用户信息（角色、部门等）、删除或禁用账号。请谨慎操作删除，数据不可恢复。' } },
-  ],
   '/dashboard/knowledge-base': [
     { popover: { title: '知识库管理', description: '上传企业知识文档（岗位说明书、面试题库、制度文件等），AI 将基于知识库内容辅助面试问答。点击左侧知识库名称进入详情。' } },
     { popover: { title: '知识库操作', description: '每个知识库可上传文档、搜索内容。系统自动解析文档并建立索引，供面试时实时检索使用。' } },
@@ -443,10 +432,22 @@ $accent-light: #818cf8;
 }
 
 .brand-icon {
-  width: 36px;
-  height: 36px;
+  width: 60px;
+  height: 60px;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+
   svg { width: 100%; height: 100%; }
+}
+
+.brand-logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 8px;
 }
 
 .brand-text {
