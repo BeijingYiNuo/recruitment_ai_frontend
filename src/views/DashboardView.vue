@@ -53,14 +53,11 @@
           :active-text-color="isDark ? '#e2e8f0' : '#4f46e5'"
           @select="handleMenuSelect"
         >
-          <el-menu-item index="/dashboard/users">
-            <el-icon><User /></el-icon>
-            <span>用户管理</span>
-          </el-menu-item>
-          <el-menu-item :index="lastKnowledgePath">
+          <!-- 知识库管理已隐藏 -->
+          <!-- <el-menu-item :index="lastKnowledgePath">
             <el-icon><DocumentCopy /></el-icon>
             <span>知识库管理</span>
-          </el-menu-item>
+          </el-menu-item> -->
           <el-menu-item index="/dashboard/file-manager">
             <el-icon><Folder /></el-icon>
             <span>文件管理</span>
@@ -303,10 +300,6 @@ const guideSteps = {
     { element: '.col-rounds', popover: { title: '面试流程', description: '每场面试可设置多轮面试流程（如初试→复试→终面）。点击每轮节点可弹出操作菜单，标注该轮为"通过""淘汰"或"待定"。前序轮次未通过时，后续轮次自动锁定。', side: 'left', align: 'start' } },
     { element: '.col-action', popover: { title: '操作按钮', description: '每行右侧提供：启动 ASR（开启 AI 语音识别辅助面试）、查看面试报告（面试完成后查看 AI 评估）、编辑面试信息、删除面试。', side: 'left', align: 'start' } },
     { element: '.col-check', popover: { title: '批量操作', description: '勾选多行后，顶部出现"已选择 N 项"工具栏，可批量删除。结合搜索和状态筛选，快速定位目标面试。', side: 'right', align: 'start' } },
-  ],
-  '/dashboard/users': [
-    { element: '.el-table', popover: { title: '用户列表', description: '系统所有用户账号在此展示，包括管理员、面试官、HR 等角色。', side: 'bottom', align: 'start' } },
-    { popover: { title: '用户管理', description: '可添加新用户、编辑用户信息（角色、部门等）、删除或禁用账号。请谨慎操作删除，数据不可恢复。' } },
   ],
   '/dashboard/knowledge-base': [
     { popover: { title: '知识库管理', description: '上传企业知识文档（岗位说明书、面试题库、制度文件等），AI 将基于知识库内容辅助面试问答。点击左侧知识库名称进入详情。' } },
