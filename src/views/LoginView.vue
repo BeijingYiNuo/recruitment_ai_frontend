@@ -151,7 +151,6 @@
     <template v-if="false">
       <AuthLayout />
       <AuthCard />
-      <img :src="heroImage" alt="hidden" />
     </template>
   </div>
 </template>
@@ -165,6 +164,7 @@ import { authApi } from '../api/auth'
 import request from '../utils/request'
 import AuthLayout from '../components/AuthLayout.vue'
 import AuthCard from '../components/AuthCard.vue'
+
 import SocialButtons from '../components/SocialButtons.vue'
 import WeChatCodeDialog from '../components/WeChatCodeDialog.vue'
 
@@ -177,7 +177,6 @@ const error = ref('')
 const showWeChatDialog = ref(false)
 const loginMode = ref('password')
 
-import heroImage from '../assets/login.jpg'
 const loginGradient = 'linear-gradient(135deg,#6366f1 0%,#8b5cf6 50%,#d946ef 100%)'
 
 // ── 扫码登录 ────────────────────────────────────────────
