@@ -354,7 +354,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, nextTick } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElLoading, ElMessageBox } from 'element-plus'
@@ -834,6 +834,15 @@ const fetchInterviews = async (forceRefresh = false) => {
   }
 }
 
+// AI 面试/报告生成完成后自动刷新列表，让轮次状态第一时间展示最新结果
+const handleReportReady = () => {
+  fetchInterviews(true)
+}
+
+onUnmounted(() => {
+  window.removeEventListener('report-ready', handleReportReady)
+})
+
 // 检测并标记已过期的面试
 const checkExpiredInterviews = async () => {
   const now = new Date()
@@ -954,6 +963,7 @@ const handleOpenModal = (type) => {
 }
 
 onMounted(async () => {
+  window.addEventListener('report-ready', handleReportReady)
   ensureAuxiliaryData()
   const hasHighlight = !!route.query.highlight
 

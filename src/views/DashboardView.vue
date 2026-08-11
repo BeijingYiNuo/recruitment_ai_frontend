@@ -187,6 +187,8 @@ function startReportNotifications() {
           ? `${candidate}的${round}${kind}报告已生成`
           : `${candidate}的${kind}报告已生成`
         notifySuccess('面试报告已生成', desc)
+        // 广播报告就绪事件，供面试管理页监听后自动刷新轮次状态
+        window.dispatchEvent(new CustomEvent('report-ready'))
       } catch (e) {
         console.error('报告通知解析失败:', e)
       }
